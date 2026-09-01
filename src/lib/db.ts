@@ -507,3 +507,81 @@ export function getApplicationsDueForFollowUp(userId: string): ApplicationRecord
     (a.status === 'applied' || a.status === 'followed_up')
   );
 }
+
+// ================= FREE CREDIT CLAIM (7-DAY CYCLE) ================= //
+
+export function claimFreeCredits(userId: string): {
+  success: boolean;
+  credits?: number;
+  nextClaimAt?: string;
+  hoursRemaining?: number;
+  error?: string;
+} {
+  const db = ensureDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return { success: false, error: 'User not found' };
+
+  const FREE_CREDITS = 5;
+  const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+
+  // Check last free claim transaction
+  const lastClaim = db.transactions
+    .filter((t) => t.user_id === userId && t.description === 'Free weekly credit refill')
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+  const now = Date.now();
+  if (lastClaim) {
+    const elapsed = now - new Date(lastClaim.created_at).getTime();
+    if (elapsed < COOLDOWN_MS) {
+      const msRemaining = COOLDOWN_MS - elapsed;
+      const hoursRemaining = Math.ceil(msRemaining / (1000 * 60 * 60));
+      const nextClaimAt = new Date(new Date(lastClaim.created_at).getTime() + COOLDOWN_MS).toISOString();
+      return { success: false, hoursRemaining, nextClaimAt, error: `Next free claim available in ${hoursRemaining} hours.` };
+    }
+  }
+
+  // Add credits
+  const newCredits = user.credits + FREE_CREDITS;
+  user.credits = newCredits;
+  user.updated_at = new Date().toISOString();
+
+  const tx: TransactionRecord = {
+    id: `tx_${crypto.randomUUID()}`,
+    user_id: userId,
+    type: 'initial_bonus',
+    credits_delta: FREE_CREDITS,
+    balance_after: newCredits,
+    description: 'Free weekly credit refill',
+    created_at: new Date().toISOString(),
+  };
+  db.transactions.push(tx);
+  writeDb(db);
+
+  return { success: true, credits: newCredits };
+}
+
+export function getNextFreeClaimInfo(userId: string): { canClaim: boolean; hoursRemaining: number; nextClaimAt: string | null } {
+  const db = ensureDb();
+  const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+  const lastClaim = db.transactions
+    .filter((t) => t.user_id === userId && t.description === 'Free weekly credit refill')
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+  // Also check initial signup bonus as the first "claim"
+  const lastBonus = db.transactions
+    .filter((t) => t.user_id === userId && t.type === 'initial_bonus')
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+  const reference = lastClaim || lastBonus;
+  if (!reference) return { canClaim: true, hoursRemaining: 0, nextClaimAt: null };
+
+  const elapsed = Date.now() - new Date(reference.created_at).getTime();
+  if (elapsed >= COOLDOWN_MS) return { canClaim: true, hoursRemaining: 0, nextClaimAt: null };
+
+  const msRemaining = COOLDOWN_MS - elapsed;
+  const hoursRemaining = Math.ceil(msRemaining / (1000 * 60 * 60));
+  const nextClaimAt = new Date(new Date(reference.created_at).getTime() + COOLDOWN_MS).toISOString();
+  return { canClaim: false, hoursRemaining, nextClaimAt };
+}
+

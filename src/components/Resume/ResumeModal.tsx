@@ -187,13 +187,23 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
       setLoading(true);
 
       try {
+        const isPlainText = file.name.endsWith('.txt') || file.name.endsWith('.md') || file.type === 'text/plain';
+        if (isPlainText) {
+          const directText = await file.text();
+          if (directText.trim().length >= 30) {
+            setResumeText(directText);
+            await parseText(directText);
+            return;
+          }
+        }
+
         const form = new FormData();
         form.append('file', file);
         const res = await fetch('/api/resume/extract', { method: 'POST', body: form });
         const data = await res.json();
 
         if (!data.success || !data.text) {
-          setError(data.error || 'Could not read that file.');
+          setError(data.error || 'Could not read that file. You can also paste your CV text directly below.');
           setFileName(null);
           setLoading(false);
           return;
@@ -202,7 +212,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
         setResumeText(data.text);
         await parseText(data.text); // auto-parse: the upload IS the action
       } catch {
-        setError('Upload failed. Check your connection, or paste the text instead.');
+        setError('Upload failed. Check your connection, or paste your CV text directly into the box below.');
         setFileName(null);
         setLoading(false);
       }
@@ -502,8 +512,8 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
   const tone = review ? scoreTone(review.score) : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-4 backdrop-blur-sm">
-      <div className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-black/10 bg-white text-zinc-900 shadow-2xl dark:border-white/[0.08] dark:bg-[#0a0a0a] dark:text-[#f7f8f8]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 p-0 sm:p-4 backdrop-blur-sm">
+      <div className="relative flex max-h-[95vh] sm:max-h-[90vh] w-full sm:max-w-2xl flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl border border-black/10 bg-white text-zinc-900 shadow-2xl dark:border-white/[0.08] dark:bg-[#0a0a0a] dark:text-[#f7f8f8]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-black/10 bg-zinc-50 px-4 sm:px-6 py-3.5 sm:py-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
           <div className="flex items-center gap-3">
@@ -580,7 +590,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
                 fileInputRef.current?.click();
               }
             }}
-            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed px-6 py-8 text-center transition ${
+            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed px-6 py-8 text-center transition min-h-[120px] sm:min-h-[160px] ${
               dragging
                 ? 'border-indigo-500 bg-indigo-50/50 dark:border-white/40 dark:bg-white/[0.06]'
                 : 'border-zinc-300 bg-zinc-50/60 hover:border-zinc-400 hover:bg-zinc-100/60 dark:border-white/[0.14] dark:bg-white/[0.02] dark:hover:border-white/25 dark:hover:bg-white/[0.04]'

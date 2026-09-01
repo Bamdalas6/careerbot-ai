@@ -88,7 +88,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               } space-y-3`}
             >
               {/* Message Bubble */}
-              <div className="flex items-start gap-3 max-w-3xl">
+              <div className="flex items-start gap-3 max-w-[85%] sm:max-w-[75%] md:max-w-3xl">
                 {msg.role === 'assistant' && (
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-900 border border-zinc-200 shadow-xs dark:bg-white/[0.08] dark:text-[#f7f8f8] dark:border-white/10">
                     <Bot className="h-4 w-4" />
@@ -121,7 +121,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
                 return (
                   <div className="w-full pl-0 sm:pl-11 mt-2 space-y-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {visibleJobs.map((job) => (
                         <JobCard
                           key={job.id}
@@ -204,13 +204,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Search roles, skills, companies, salary (e.g. 'Senior React Remote $160k')..."
-            className="field w-full rounded-2xl py-3.5 pl-11 pr-24 text-sm shadow-xs bg-white dark:bg-white/[0.04] text-zinc-900 dark:text-[#f7f8f8] border border-black/15 dark:border-white/10 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
+            className="field w-full rounded-2xl py-3.5 pl-11 pr-24 text-sm sm:text-base min-h-[44px] shadow-xs bg-white dark:bg-white/[0.04] text-zinc-900 dark:text-[#f7f8f8] border border-black/15 dark:border-white/10 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className="btn-primary absolute right-2 flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+            className="btn-primary absolute right-2 flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span>Ask</span>
             <Send className="h-3.5 w-3.5" />

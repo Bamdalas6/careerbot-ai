@@ -55,113 +55,103 @@ function isPrintArtifact(line: string): boolean {
 }
 
 async function extractPdf(buf: Buffer): Promise<string> {
-  const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as PdfjsModule;
-  const pdf = await pdfjs.getDocument({
-    data: new Uint8Array(buf),
-    useSystemFonts: true,
-    isEvalSupported: false,
-    disableFontFace: true,
-  }).promise;
+  try {
+    const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as PdfjsModule;
+    const pdf = await pdfjs.getDocument({
+      data: new Uint8Array(buf),
+      useSystemFonts: true,
+      isEvalSupported: false,
+      disableFontFace: true,
+    }).promise;
 
-  const pageTexts: string[] = [];
+    const pageTexts: string[] = [];
 
-  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-    const page = await pdf.getPage(pageNum);
-    const content = await page.getTextContent();
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
 
-    const items: PositionedItem[] = [];
+      const items: PositionedItem[] = [];
 
-    for (const item of content.items) {
-      if (!item.str || typeof item.str !== 'string') continue;
-      const trimmed = item.str.trim();
-      if (!trimmed && !item.hasEOL) continue;
+      for (const item of content.items) {
+        if (!item.str || typeof item.str !== 'string') continue;
+        const trimmed = item.str.trim();
+        if (!trimmed && !item.hasEOL) continue;
 
-      const transform = item.transform || [12, 0, 0, 12, 0, 0];
-      const x = transform[4] ?? 0;
-      const y = transform[5] ?? 0;
-      const height = item.height || Math.abs(transform[3]) || 12;
-      const width = item.width || 0;
+        const transform = item.transform || [12, 0, 0, 12, 0, 0];
+        const x = transform[4] ?? 0;
+        const y = transform[5] ?? 0;
+        const height = item.height || Math.abs(transform[3]) || 12;
+        const width = item.width || 0;
 
-      items.push({
-        str: item.str,
-        x,
-        y,
-        height,
-        width,
-      });
-    }
+        items.push({ str: item.str, x, y, height, width });
+      }
 
-    if (items.length === 0) continue;
+      if (items.length === 0) continue;
 
-    // In PDF space, higher Y means higher on page (top-to-bottom = descending Y)
-    // Sort primarily by Y descending, then X ascending
-    items.sort((a, b) => b.y - a.y || a.x - b.x);
+      items.sort((a, b) => b.y - a.y || a.x - b.x);
 
-    const lines: { y: number; text: string; height: number }[] = [];
-    let currentLineItems: PositionedItem[] = [];
-    let currentY: number | null = null;
-    let avgHeight = 12;
+      const lines: { y: number; text: string; height: number }[] = [];
+      let currentLineItems: PositionedItem[] = [];
+      let currentY: number | null = null;
+      let avgHeight = 12;
+      const Y_TOLERANCE = 4.5;
 
-    const Y_TOLERANCE = 4.5; // Baseline variation threshold
+      for (const item of items) {
+        if (currentY === null || Math.abs(item.y - currentY) > Y_TOLERANCE) {
+          if (currentLineItems.length > 0 && currentY !== null) {
+            currentLineItems.sort((a, b) => a.x - b.x);
+            const lineStr = joinLineItems(currentLineItems);
+            if (lineStr.trim() && !isPrintArtifact(lineStr)) {
+              lines.push({ y: currentY, text: lineStr, height: avgHeight });
+            }
+          }
+          currentLineItems = [item];
+          currentY = item.y;
+          avgHeight = item.height || 12;
+        } else {
+          currentLineItems.push(item);
+          avgHeight = Math.max(avgHeight, item.height || 12);
+        }
+      }
 
-    for (const item of items) {
-      if (currentY === null || Math.abs(item.y - currentY) > Y_TOLERANCE) {
-        if (currentLineItems.length > 0 && currentY !== null) {
-          // Sort items in this line horizontally
-          currentLineItems.sort((a, b) => a.x - b.x);
-          const lineStr = joinLineItems(currentLineItems);
-          if (lineStr.trim() && !isPrintArtifact(lineStr)) {
-            lines.push({ y: currentY, text: lineStr, height: avgHeight });
+      if (currentLineItems.length > 0 && currentY !== null) {
+        currentLineItems.sort((a, b) => a.x - b.x);
+        const lineStr = joinLineItems(currentLineItems);
+        if (lineStr.trim() && !isPrintArtifact(lineStr)) {
+          lines.push({ y: currentY, text: lineStr, height: avgHeight });
+        }
+      }
+
+      const pageParagraphs: string[] = [];
+      let prevY: number | null = null;
+      let prevHeight = 12;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (prevY !== null) {
+          const gap = prevY - line.y;
+          if (gap > Math.max(prevHeight * 1.8, 20)) {
+            pageParagraphs.push('');
           }
         }
-        currentLineItems = [item];
-        currentY = item.y;
-        avgHeight = item.height || 12;
-      } else {
-        currentLineItems.push(item);
-        avgHeight = Math.max(avgHeight, item.height || 12);
+        pageParagraphs.push(line.text);
+        prevY = line.y;
+        prevHeight = line.height;
       }
+
+      pageTexts.push(pageParagraphs.join('\n'));
     }
 
-    // Flush last line
-    if (currentLineItems.length > 0 && currentY !== null) {
-      currentLineItems.sort((a, b) => a.x - b.x);
-      const lineStr = joinLineItems(currentLineItems);
-      if (lineStr.trim() && !isPrintArtifact(lineStr)) {
-        lines.push({ y: currentY, text: lineStr, height: avgHeight });
-      }
-    }
+    let fullText = pageTexts.join('\n\n');
+    fullText = fullText
+      .replace(/(\b[A-Za-z]+-)\\n([A-Za-z]+\b)/g, '$1$2')
+      .replace(/\s+·\s+/g, ' • ');
 
-    // Reconstruct page with paragraph spacing detection
-    const pageParagraphs: string[] = [];
-    let prevY: number | null = null;
-    let prevHeight = 12;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (prevY !== null) {
-        const gap = prevY - line.y; // Positive distance downwards
-        // If vertical gap is noticeably larger than a single line height, add paragraph break
-        if (gap > Math.max(prevHeight * 1.8, 20)) {
-          pageParagraphs.push(''); // blank line separator
-        }
-      }
-      pageParagraphs.push(line.text);
-      prevY = line.y;
-      prevHeight = line.height;
-    }
-
-    pageTexts.push(pageParagraphs.join('\n'));
+    return fullText;
+  } catch (err) {
+    console.error('PDF extraction error:', err);
+    throw new Error('Could not read this PDF. Please try saving as .docx, or copy and paste your CV text directly into the text box.');
   }
-
-  let fullText = pageTexts.join('\n\n');
-
-  // Fix soft hyphen word breaks (e.g. "Micro-\nInteractions" -> "Micro-Interactions")
-  fullText = fullText
-    .replace(/(\b[A-Za-z]+-)\n([A-Za-z]+\b)/g, '$1$2')
-    .replace(/\s+·\s+/g, ' • ');
-
-  return fullText;
 }
 
 /**

@@ -20,6 +20,10 @@ function getInitialTheme(): Theme {
     if (stored === 'light' || stored === 'dark') {
       return stored;
     }
+    // System preference fallback
+    if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+      return 'light';
+    }
   } catch {
     // Storage access error
   }
@@ -30,13 +34,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [theme, setThemeState] = useState<Theme>(getInitialTheme);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    const root = document.documentElement;
+    root.setAttribute('data-theme', theme);
     if (theme === 'light') {
-      document.documentElement.classList.remove('dark');
-      document.documentElement.classList.add('light');
+      root.classList.remove('dark');
+      root.classList.add('light');
+      root.style.colorScheme = 'light';
     } else {
-      document.documentElement.classList.remove('light');
-      document.documentElement.classList.add('dark');
+      root.classList.remove('light');
+      root.classList.add('dark');
+      root.style.colorScheme = 'dark';
     }
   }, [theme]);
 
