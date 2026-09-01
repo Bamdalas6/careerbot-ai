@@ -4,10 +4,10 @@ import { CREDIT_RATES, CREDIT_PACKAGES, CreditActionType } from '@/types/credits
 export { CREDIT_RATES, CREDIT_PACKAGES };
 export type { CreditActionType };
 
-/** Accounts with unlimited credits — all actions are free. */
-const UNLIMITED_EMAILS = [
-  'bamdalas6@gmail.com',
-];
+/**
+ * Accounts with unlimited bypass (empty by default so all accounts actively consume and reduce coins on live engagement).
+ */
+const UNLIMITED_EMAILS: string[] = [];
 
 /**
  * Checks if user has enough credits, and deducts them if available.
@@ -20,7 +20,7 @@ export async function deductUserCredits(
 ): Promise<{ success: boolean; newCredits: number; cost: number; error?: string }> {
   const cost = CREDIT_RATES[action];
 
-  // Unlimited accounts bypass all credit checks
+  // Unlimited accounts bypass check if configured
   const user = await getUserById(userId);
   if (user && UNLIMITED_EMAILS.includes(user.email.toLowerCase())) {
     return { success: true, newCredits: currentCredits, cost: 0 };
@@ -31,7 +31,7 @@ export async function deductUserCredits(
       success: false,
       newCredits: currentCredits,
       cost,
-      error: `Insufficient credits. This action requires ${cost} credits, but you have ${currentCredits}.`,
+      error: `Insufficient credits. This action requires ${cost} credit${cost > 1 ? 's' : ''}, but you have ${currentCredits}.`,
     };
   }
 
