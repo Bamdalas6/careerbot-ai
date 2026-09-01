@@ -16,18 +16,18 @@ import {
  */
 export async function GET(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json({ success: false, error: 'AUTH_REQUIRED' }, { status: 401 });
     }
 
     const due = req.nextUrl.searchParams.get('due');
     if (due === '1') {
-      const apps = getApplicationsDueForFollowUp(auth.user.id);
+      const apps = await getApplicationsDueForFollowUp(auth.user.id);
       return NextResponse.json({ success: true, applications: apps });
     }
 
-    const apps = getUserApplications(auth.user.id);
+    const apps = await getUserApplications(auth.user.id);
     return NextResponse.json({ success: true, applications: apps });
   } catch (error: unknown) {
     console.error('GET /api/applications error:', error);
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json({ success: false, error: 'AUTH_REQUIRED' }, { status: 401 });
     }
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Job data is required' }, { status: 400 });
     }
 
-    const app = saveUserApplication(auth.user.id, {
+    const app = await saveUserApplication(auth.user.id, {
       job: body.job,
       status: body.status,
       notes: body.notes,
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json({ success: false, error: 'AUTH_REQUIRED' }, { status: 401 });
     }
@@ -85,7 +85,7 @@ export async function PATCH(req: NextRequest) {
 
     // Add a timeline event if provided
     if (body.event) {
-      const result = addApplicationEvent(body.id, auth.user.id, body.event);
+      const result = await addApplicationEvent(body.id, auth.user.id, body.event);
       if (!result) {
         return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
       }
@@ -94,7 +94,7 @@ export async function PATCH(req: NextRequest) {
     // Update fields
     const { id, event: _event, ...updates } = body;
     if (Object.keys(updates).length > 0) {
-      const app = updateApplication(id, auth.user.id, updates);
+      const app = await updateApplication(id, auth.user.id, updates);
       if (!app) {
         return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
       }
@@ -102,7 +102,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     // If only event was added, fetch and return the updated app
-    const app = getApplicationById(id, auth.user.id);
+    const app = await getApplicationById(id, auth.user.id);
     return NextResponse.json({ success: true, application: app });
   } catch (error: unknown) {
     console.error('PATCH /api/applications error:', error);
@@ -116,7 +116,7 @@ export async function PATCH(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json({ success: false, error: 'AUTH_REQUIRED' }, { status: 401 });
     }
@@ -126,7 +126,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Application ID is required' }, { status: 400 });
     }
 
-    const deleted = deleteApplication(body.id, auth.user.id);
+    const deleted = await deleteApplication(body.id, auth.user.id);
     if (!deleted) {
       return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
     }

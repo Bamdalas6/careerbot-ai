@@ -4,12 +4,12 @@ import { getUserResumes, saveUserResume } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json({ success: false, resumes: [] }, { status: 200 });
     }
 
-    const resumes = getUserResumes(auth.user.id);
+    const resumes = await getUserResumes(auth.user.id);
     return NextResponse.json({ success: true, resumes });
   } catch (err: unknown) {
     console.error('Error fetching resume history:', err);
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
     }
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Resume text is required.' }, { status: 400 });
     }
 
-    const saved = saveUserResume(auth.user.id, {
+    const saved = await saveUserResume(auth.user.id, {
       title: title || 'Upgraded CV',
       text,
       score,
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, resume: saved });
   } catch (err: unknown) {
-    console.error('Error saving resume to history:', err);
-    return NextResponse.json({ success: false, error: 'Failed to save resume history.' }, { status: 500 });
+    console.error('Error saving resume history:', err);
+    return NextResponse.json({ success: false, error: 'Failed to save resume.' }, { status: 500 });
   }
 }

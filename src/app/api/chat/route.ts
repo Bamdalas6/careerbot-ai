@@ -5,7 +5,7 @@ import { deductUserCredits } from '@/lib/credits';
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json(
         {
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const { user } = auth;
 
     // Check & Deduct 1 credit for search
-    const deduction = deductUserCredits(user.id, user.credits, 'CHAT_SEARCH', 'AI Job Search & Live Query');
+    const deduction = await deductUserCredits(user.id, user.credits, 'CHAT_SEARCH', 'AI Job Search & Live Query');
     if (!deduction.success) {
       return NextResponse.json(
         {

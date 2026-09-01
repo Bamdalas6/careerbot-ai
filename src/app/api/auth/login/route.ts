@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Email and password are required.' }, { status: 400 });
     }
 
-    const user = getUserByEmail(email);
+    const user = await getUserByEmail(email);
     if (!user) {
       return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
     }
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
     }
 
-    const session = createSession(user.id);
+    const session = await createSession(user.id);
     const safeUser = sanitizeUser(user);
 
     const response = NextResponse.json({

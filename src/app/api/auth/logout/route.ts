@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
   try {
     const token = extractTokenFromRequest(req);
     if (token) {
-      deleteSession(token);
+      await deleteSession(token);
     }
     const response = NextResponse.json({ success: true, message: 'Logged out successfully.' });
     return clearSessionCookie(response);

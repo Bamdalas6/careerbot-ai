@@ -12,16 +12,16 @@ const UNLIMITED_EMAILS = [
 /**
  * Checks if user has enough credits, and deducts them if available.
  */
-export function deductUserCredits(
+export async function deductUserCredits(
   userId: string,
   currentCredits: number,
   action: CreditActionType,
   customDescription?: string
-): { success: boolean; newCredits: number; cost: number; error?: string } {
+): Promise<{ success: boolean; newCredits: number; cost: number; error?: string }> {
   const cost = CREDIT_RATES[action];
 
   // Unlimited accounts bypass all credit checks
-  const user = getUserById(userId);
+  const user = await getUserById(userId);
   if (user && UNLIMITED_EMAILS.includes(user.email.toLowerCase())) {
     return { success: true, newCredits: currentCredits, cost: 0 };
   }
@@ -36,7 +36,7 @@ export function deductUserCredits(
   }
 
   const description = customDescription || `Credit deduction for ${action.replace('_', ' ').toLowerCase()}`;
-  const result = updateUserCredits(userId, -cost, 'usage', description);
+  const result = await updateUserCredits(userId, -cost, 'usage', description);
 
   if (!result.success) {
     return {
@@ -57,16 +57,16 @@ export function deductUserCredits(
 /**
  * Adds credits to user account upon purchase or bonus.
  */
-export function addPurchasedCredits(
+export async function addPurchasedCredits(
   userId: string,
   packageId: string,
   amountPaid: number,
   currency = 'USD'
-): { success: boolean; newCredits: number; packageCredits: number; error?: string } {
+): Promise<{ success: boolean; newCredits: number; packageCredits: number; error?: string }> {
   const pkg = CREDIT_PACKAGES.find((p) => p.id === packageId);
   const creditsToAdd = pkg ? pkg.credits : 50;
 
-  const result = updateUserCredits(
+  const result = await updateUserCredits(
     userId,
     creditsToAdd,
     'purchase',

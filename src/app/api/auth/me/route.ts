@@ -3,7 +3,7 @@ import { authenticateRequest, sanitizeUser } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json({ success: false, user: null }, { status: 200 });
     }

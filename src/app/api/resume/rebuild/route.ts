@@ -9,7 +9,7 @@ import { saveUserResume } from '@/lib/db';
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = authenticateRequest(request);
+    const auth = await authenticateRequest(request);
     if (!auth) {
       return NextResponse.json(
         { success: false, error: 'AUTH_REQUIRED', message: 'Please sign in or create an account to rebuild and export your upgraded CV.' },
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { user } = auth;
-    const deduction = deductUserCredits(user.id, user.credits, 'CV_REBUILD', 'AI Rebuilt CV & ATS Restructure');
+    const deduction = await deductUserCredits(user.id, user.credits, 'CV_REBUILD', 'AI Rebuilt CV & ATS Restructure');
     if (!deduction.success) {
       return NextResponse.json(
         {
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     // Save to user's history
     try {
-      saveUserResume(user.id, {
+      await saveUserResume(user.id, {
         title: role ? `${role} CV` : 'Upgraded CV',
         text: cv.text,
         score: after.score,
@@ -63,12 +63,18 @@ export async function POST(request: NextRequest) {
       cv,
       score_before: before.score,
       score_after: after.score,
-      review_after: after,
+      review: after,
       remainingCredits: deduction.newCredits,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('CV rebuild error:', message);
-    return NextResponse.json({ success: false, error: 'Could not rebuild the CV.' }, { status: 500 });
+    console.error('API Error in /api/resume/rebuild:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to rebuild CV',
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
   }
 }

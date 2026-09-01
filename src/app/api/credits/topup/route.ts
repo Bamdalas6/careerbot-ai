@@ -4,7 +4,7 @@ import { claimFreeCredits, getNextFreeClaimInfo } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
     }
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     // 7-day free credit claim
     if (action === 'claim_free') {
-      const result = claimFreeCredits(auth.user.id);
+      const result = await claimFreeCredits(auth.user.id);
       if (!result.success) {
         return NextResponse.json({
           success: false,
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     // GET claim status (used on modal open)
     if (action === 'claim_status') {
-      const info = getNextFreeClaimInfo(auth.user.id);
+      const info = await getNextFreeClaimInfo(auth.user.id);
       return NextResponse.json({ success: true, ...info });
     }
 

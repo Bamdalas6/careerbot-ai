@@ -9,7 +9,7 @@ import { deductUserCredits } from '@/lib/credits';
  */
 export async function POST(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json(
         { success: false, error: 'AUTH_REQUIRED', message: 'Please sign in or create an account to get a comprehensive CV review and score.' },
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { user } = auth;
-    const deduction = deductUserCredits(user.id, user.credits, 'CV_REVIEW', 'CV Deep Review & Scoring');
+    const deduction = await deductUserCredits(user.id, user.credits, 'CV_REVIEW', 'CV Deep Review & Scoring');
     if (!deduction.success) {
       return NextResponse.json(
         {

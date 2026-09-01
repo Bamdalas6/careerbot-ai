@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import type { SavedJob, ApplicationEvent } from '@/types/job';
+import { supabase, isSupabaseConfigured } from './supabase';
 
 export interface ApplicationRecord {
   id: string;
@@ -99,7 +100,7 @@ const INITIAL_DB: DatabaseSchema = {
   applications: [],
 };
 
-function ensureDb(): DatabaseSchema {
+function ensureLocalDb(): DatabaseSchema {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -119,45 +120,77 @@ function ensureDb(): DatabaseSchema {
       applications: parsed.applications || [],
     };
   } catch (err) {
-    console.error('Database initialization error:', err);
+    console.error('Local database read error:', err);
     return { ...INITIAL_DB };
   }
 }
 
-function writeDb(data: DatabaseSchema): void {
+function writeLocalDb(data: DatabaseSchema): void {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
-    console.error('Failed to write database file:', err);
+    console.error('Failed to write local database file:', err);
   }
 }
 
 // ================= USER OPERATIONS ================= //
 
-export function getUserByEmail(email: string): UserRecord | null {
-  const db = ensureDb();
+export async function getUserByEmail(email: string): Promise<UserRecord | null> {
   const normalized = email.trim().toLowerCase();
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .ilike('email', normalized)
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as UserRecord;
+      }
+    } catch (err) {
+      console.warn('Supabase getUserByEmail error, falling back:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   return db.users.find((u) => u.email.toLowerCase() === normalized) || null;
 }
 
-export function getUserById(id: string): UserRecord | null {
-  const db = ensureDb();
+export async function getUserById(id: string): Promise<UserRecord | null> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as UserRecord;
+      }
+    } catch (err) {
+      console.warn('Supabase getUserById error, falling back:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   return db.users.find((u) => u.id === id) || null;
 }
 
-export function createUser(userData: {
+export async function createUser(userData: {
   name: string;
   email: string;
   password_hash: string;
   salt: string;
   initialCredits?: number;
-}): UserRecord {
-  const db = ensureDb();
+}): Promise<UserRecord> {
   const now = new Date().toISOString();
-  const initialCredits = userData.initialCredits ?? 25; // 25 free credits on sign up
+  const initialCredits = userData.initialCredits ?? 25;
   const newUser: UserRecord = {
     id: `user_${crypto.randomUUID()}`,
     name: userData.name.trim(),
@@ -169,9 +202,6 @@ export function createUser(userData: {
     updated_at: now,
   };
 
-  db.users.push(newUser);
-
-  // Record initial welcome bonus transaction
   const initialTx: TransactionRecord = {
     id: `tx_${crypto.randomUUID()}`,
     user_id: newUser.id,
@@ -181,22 +211,33 @@ export function createUser(userData: {
     description: 'Welcome bonus on sign up',
     created_at: now,
   };
-  db.transactions.push(initialTx);
 
-  writeDb(db);
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('users').insert([newUser]);
+      await supabase.from('transactions').insert([initialTx]);
+    } catch (err) {
+      console.error('Supabase createUser error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
+  db.users.push(newUser);
+  db.transactions.push(initialTx);
+  writeLocalDb(db);
+
   return newUser;
 }
 
-export function updateUserCredits(
+export async function updateUserCredits(
   userId: string,
   delta: number,
   type: TransactionRecord['type'],
   description: string,
   amountPaid?: number,
   currency?: string
-): { success: boolean; credits: number; error?: string } {
-  const db = ensureDb();
-  const user = db.users.find((u) => u.id === userId);
+): Promise<{ success: boolean; credits: number; error?: string }> {
+  const user = await getUserById(userId);
   if (!user) {
     return { success: false, credits: 0, error: 'User not found' };
   }
@@ -206,9 +247,7 @@ export function updateUserCredits(
     return { success: false, credits: user.credits, error: 'Insufficient credits' };
   }
 
-  user.credits = newCredits;
-  user.updated_at = new Date().toISOString();
-
+  const now = new Date().toISOString();
   const tx: TransactionRecord = {
     id: `tx_${crypto.randomUUID()}`,
     user_id: userId,
@@ -218,18 +257,33 @@ export function updateUserCredits(
     credits_delta: delta,
     balance_after: newCredits,
     description,
-    created_at: new Date().toISOString(),
+    created_at: now,
   };
-  db.transactions.push(tx);
 
-  writeDb(db);
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('users').update({ credits: newCredits, updated_at: now }).eq('id', userId);
+      await supabase.from('transactions').insert([tx]);
+    } catch (err) {
+      console.error('Supabase updateUserCredits error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
+  const localUser = db.users.find((u) => u.id === userId);
+  if (localUser) {
+    localUser.credits = newCredits;
+    localUser.updated_at = now;
+  }
+  db.transactions.push(tx);
+  writeLocalDb(db);
+
   return { success: true, credits: newCredits };
 }
 
 // ================= SESSION OPERATIONS ================= //
 
-export function createSession(userId: string, durationDays = 30): SessionRecord {
-  const db = ensureDb();
+export async function createSession(userId: string, durationDays = 30): Promise<SessionRecord> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
   const token = crypto.randomBytes(32).toString('hex');
@@ -242,18 +296,49 @@ export function createSession(userId: string, durationDays = 30): SessionRecord 
     created_at: now.toISOString(),
   };
 
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('sessions').insert([session]);
+    } catch (err) {
+      console.error('Supabase createSession error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   db.sessions.push(session);
-  writeDb(db);
+  writeLocalDb(db);
+
   return session;
 }
 
-export function getSessionByToken(token: string): { session: SessionRecord; user: UserRecord } | null {
-  const db = ensureDb();
+export async function getSessionByToken(token: string): Promise<{ session: SessionRecord; user: UserRecord } | null> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: sessionData, error: sessionErr } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('token', token)
+        .maybeSingle();
+
+      if (!sessionErr && sessionData) {
+        const session = sessionData as SessionRecord;
+        if (new Date(session.expires_at).getTime() >= Date.now()) {
+          const user = await getUserById(session.user_id);
+          if (user) {
+            return { session, user };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase getSessionByToken error, falling back:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   const session = db.sessions.find((s) => s.token === token);
   if (!session) return null;
 
   if (new Date(session.expires_at).getTime() < Date.now()) {
-    // Session expired
     return null;
   }
 
@@ -263,81 +348,152 @@ export function getSessionByToken(token: string): { session: SessionRecord; user
   return { session, user };
 }
 
-export function deleteSession(token: string): void {
-  const db = ensureDb();
+export async function deleteSession(token: string): Promise<void> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('sessions').delete().eq('token', token);
+    } catch (err) {
+      console.error('Supabase deleteSession error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   db.sessions = db.sessions.filter((s) => s.token !== token);
-  writeDb(db);
+  writeLocalDb(db);
 }
 
 // ================= CHAT HISTORY OPERATIONS ================= //
 
-export function getUserChats(userId: string): ChatSessionRecord[] {
-  const db = ensureDb();
+export async function getUserChats(userId: string): Promise<ChatSessionRecord[]> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('chats')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false });
+
+      if (!error && data) {
+        return data as ChatSessionRecord[];
+      }
+    } catch (err) {
+      console.warn('Supabase getUserChats error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   return db.chats
     .filter((c) => c.user_id === userId)
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 }
 
-export function getChatById(chatId: string, userId: string): ChatSessionRecord | null {
-  const db = ensureDb();
+export async function getChatById(chatId: string, userId: string): Promise<ChatSessionRecord | null> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('chats')
+        .select('*')
+        .eq('id', chatId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as ChatSessionRecord;
+      }
+    } catch (err) {
+      console.warn('Supabase getChatById error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   return db.chats.find((c) => c.id === chatId && c.user_id === userId) || null;
 }
 
-export function saveChatSession(
+export async function saveChatSession(
   userId: string,
   chatData: {
     id?: string;
     title?: string;
     messages: ChatSessionRecord['messages'];
   }
-): ChatSessionRecord {
-  const db = ensureDb();
+): Promise<ChatSessionRecord> {
   const now = new Date().toISOString();
-  let chat = chatData.id ? db.chats.find((c) => c.id === chatData.id && c.user_id === userId) : null;
+  const firstUserMsg = chatData.messages.find((m) => m.role === 'user')?.content || 'Job Search';
+  const title = chatData.title || (firstUserMsg.length > 36 ? `${firstUserMsg.slice(0, 36)}...` : firstUserMsg);
+  const chatId = chatData.id || `chat_${crypto.randomUUID()}`;
 
-  if (chat) {
-    chat.messages = chatData.messages;
-    if (chatData.title) chat.title = chatData.title;
-    chat.updated_at = now;
-  } else {
-    // Generate an automatic title from first user message if not provided
-    const firstUserMsg = chatData.messages.find((m) => m.role === 'user')?.content || 'Job Search';
-    const title = chatData.title || (firstUserMsg.length > 36 ? `${firstUserMsg.slice(0, 36)}...` : firstUserMsg);
+  const record: ChatSessionRecord = {
+    id: chatId,
+    user_id: userId,
+    title,
+    messages: chatData.messages,
+    created_at: now,
+    updated_at: now,
+  };
 
-    chat = {
-      id: chatData.id || `chat_${crypto.randomUUID()}`,
-      user_id: userId,
-      title,
-      messages: chatData.messages,
-      created_at: now,
-      updated_at: now,
-    };
-    db.chats.push(chat);
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('chats').upsert([record]);
+    } catch (err) {
+      console.error('Supabase saveChatSession error:', err);
+    }
   }
 
-  writeDb(db);
-  return chat;
+  const db = ensureLocalDb();
+  const existingIdx = db.chats.findIndex((c) => c.id === chatId && c.user_id === userId);
+  if (existingIdx >= 0) {
+    db.chats[existingIdx] = record;
+  } else {
+    db.chats.push(record);
+  }
+  writeLocalDb(db);
+
+  return record;
 }
 
-export function deleteChatSession(chatId: string, userId: string): boolean {
-  const db = ensureDb();
+export async function deleteChatSession(chatId: string, userId: string): Promise<boolean> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('chats').delete().eq('id', chatId).eq('user_id', userId);
+    } catch (err) {
+      console.error('Supabase deleteChatSession error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   const initialCount = db.chats.length;
   db.chats = db.chats.filter((c) => !(c.id === chatId && c.user_id === userId));
   const changed = db.chats.length !== initialCount;
-  if (changed) writeDb(db);
+  if (changed) writeLocalDb(db);
   return changed;
 }
 
 // ================= CV & RESUME HISTORY OPERATIONS ================= //
 
-export function getUserResumes(userId: string): CVRecord[] {
-  const db = ensureDb();
+export async function getUserResumes(userId: string): Promise<CVRecord[]> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('resumes')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        return data as CVRecord[];
+      }
+    } catch (err) {
+      console.warn('Supabase getUserResumes error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   return db.resumes
     .filter((r) => r.user_id === userId)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
-export function saveUserResume(
+export async function saveUserResume(
   userId: string,
   data: {
     title: string;
@@ -345,8 +501,7 @@ export function saveUserResume(
     score?: number;
     review?: Record<string, unknown>;
   }
-): CVRecord {
-  const db = ensureDb();
+): Promise<CVRecord> {
   const now = new Date().toISOString();
   const record: CVRecord = {
     id: `cv_${crypto.randomUUID()}`,
@@ -357,15 +512,41 @@ export function saveUserResume(
     review: data.review,
     created_at: now,
   };
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('resumes').insert([record]);
+    } catch (err) {
+      console.error('Supabase saveUserResume error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   db.resumes.push(record);
-  writeDb(db);
+  writeLocalDb(db);
   return record;
 }
 
 // ================= TRANSACTION HISTORY ================= //
 
-export function getUserTransactions(userId: string): TransactionRecord[] {
-  const db = ensureDb();
+export async function getUserTransactions(userId: string): Promise<TransactionRecord[]> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        return data as TransactionRecord[];
+      }
+    } catch (err) {
+      console.warn('Supabase getUserTransactions error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   return db.transactions
     .filter((t) => t.user_id === userId)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -373,19 +554,52 @@ export function getUserTransactions(userId: string): TransactionRecord[] {
 
 // ================= APPLICATIONS OPERATIONS ================= //
 
-export function getUserApplications(userId: string): ApplicationRecord[] {
-  const db = ensureDb();
+export async function getUserApplications(userId: string): Promise<ApplicationRecord[]> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false });
+
+      if (!error && data) {
+        return data as ApplicationRecord[];
+      }
+    } catch (err) {
+      console.warn('Supabase getUserApplications error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   return db.applications
     .filter((a) => a.user_id === userId)
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 }
 
-export function getApplicationById(appId: string, userId: string): ApplicationRecord | null {
-  const db = ensureDb();
+export async function getApplicationById(appId: string, userId: string): Promise<ApplicationRecord | null> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('id', appId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as ApplicationRecord;
+      }
+    } catch (err) {
+      console.warn('Supabase getApplicationById error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   return db.applications.find((a) => a.id === appId && a.user_id === userId) || null;
 }
 
-export function saveUserApplication(
+export async function saveUserApplication(
   userId: string,
   data: {
     job: SavedJob;
@@ -395,19 +609,17 @@ export function saveUserApplication(
     contact_email?: string;
     contact_linkedin?: string;
   }
-): ApplicationRecord {
-  const db = ensureDb();
+): Promise<ApplicationRecord> {
   const now = new Date().toISOString();
-  
   const status = (data.status as SavedJob['status']) || 'saved';
-  
+
   const timelineEvent: ApplicationEvent = {
     id: `event_${crypto.randomUUID()}`,
     type: status === 'applied' ? 'applied' : 'note',
     date: now,
-    note: `Initial status: ${status}`
+    note: `Initial status: ${status}`,
   };
-  
+
   const record: ApplicationRecord = {
     id: `app_${crypto.randomUUID()}`,
     user_id: userId,
@@ -421,31 +633,36 @@ export function saveUserApplication(
     timeline: [timelineEvent],
     created_at: now,
     updated_at: now,
-    applied_at: status === 'applied' ? now : undefined
+    applied_at: status === 'applied' ? now : undefined,
   };
-  
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('applications').insert([record]);
+    } catch (err) {
+      console.error('Supabase saveUserApplication error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   db.applications.push(record);
-  writeDb(db);
+  writeLocalDb(db);
   return record;
 }
 
-export function updateApplication(
+export async function updateApplication(
   appId: string,
   userId: string,
   updates: Partial<Pick<ApplicationRecord, 'status' | 'follow_up_at' | 'follow_up_count' | 'contact_name' | 'contact_email' | 'contact_linkedin' | 'notes' | 'applied_at'>>
-): ApplicationRecord | null {
-  const db = ensureDb();
-  const index = db.applications.findIndex(a => a.id === appId && a.user_id === userId);
-  if (index === -1) return null;
-  
-  const app = db.applications[index];
+): Promise<ApplicationRecord | null> {
+  const app = await getApplicationById(appId, userId);
+  if (!app) return null;
+
   const now = new Date().toISOString();
-  
   const oldStatus = app.status;
-  
   Object.assign(app, updates);
   app.updated_at = now;
-  
+
   if (updates.status && updates.status !== oldStatus) {
     let eventType: ApplicationEvent['type'] = 'note';
     if (updates.status === 'applied') eventType = 'applied';
@@ -454,80 +671,111 @@ export function updateApplication(
     else if (updates.status === 'offer') eventType = 'offer_received';
     else if (updates.status === 'rejected') eventType = 'rejected';
     else if (updates.status === 'accepted') eventType = 'accepted';
-    
+
     app.timeline.push({
       id: `event_${crypto.randomUUID()}`,
       type: eventType,
       date: now,
-      note: `Status updated to ${updates.status}`
+      note: `Status updated to ${updates.status}`,
     });
   }
-  
-  writeDb(db);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('applications').update(app).eq('id', appId).eq('user_id', userId);
+    } catch (err) {
+      console.error('Supabase updateApplication error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
+  const index = db.applications.findIndex((a) => a.id === appId && a.user_id === userId);
+  if (index >= 0) {
+    db.applications[index] = app;
+    writeLocalDb(db);
+  }
+
   return app;
 }
 
-export function addApplicationEvent(
+export async function addApplicationEvent(
   appId: string,
   userId: string,
   event: Omit<ApplicationEvent, 'id'>
-): ApplicationRecord | null {
-  const db = ensureDb();
-  const index = db.applications.findIndex(a => a.id === appId && a.user_id === userId);
-  if (index === -1) return null;
-  
-  const app = db.applications[index];
+): Promise<ApplicationRecord | null> {
+  const app = await getApplicationById(appId, userId);
+  if (!app) return null;
+
   const now = new Date().toISOString();
-  
   app.timeline.push({
     ...event,
-    id: `event_${crypto.randomUUID()}`
+    id: `event_${crypto.randomUUID()}`,
   });
   app.updated_at = now;
-  
-  writeDb(db);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('applications').update(app).eq('id', appId).eq('user_id', userId);
+    } catch (err) {
+      console.error('Supabase addApplicationEvent error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
+  const index = db.applications.findIndex((a) => a.id === appId && a.user_id === userId);
+  if (index >= 0) {
+    db.applications[index] = app;
+    writeLocalDb(db);
+  }
+
   return app;
 }
 
-export function deleteApplication(appId: string, userId: string): boolean {
-  const db = ensureDb();
+export async function deleteApplication(appId: string, userId: string): Promise<boolean> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('applications').delete().eq('id', appId).eq('user_id', userId);
+    } catch (err) {
+      console.error('Supabase deleteApplication error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
   const initialCount = db.applications.length;
-  db.applications = db.applications.filter(a => !(a.id === appId && a.user_id === userId));
+  db.applications = db.applications.filter((a) => !(a.id === appId && a.user_id === userId));
   const changed = db.applications.length !== initialCount;
-  if (changed) writeDb(db);
+  if (changed) writeLocalDb(db);
   return changed;
 }
 
-export function getApplicationsDueForFollowUp(userId: string): ApplicationRecord[] {
-  const db = ensureDb();
+export async function getApplicationsDueForFollowUp(userId: string): Promise<ApplicationRecord[]> {
   const now = new Date().toISOString();
-  return db.applications.filter(a => 
-    a.user_id === userId && 
-    a.follow_up_at && a.follow_up_at <= now && 
-    (a.status === 'applied' || a.status === 'followed_up')
+  const apps = await getUserApplications(userId);
+  return apps.filter(
+    (a) =>
+      a.follow_up_at &&
+      a.follow_up_at <= now &&
+      (a.status === 'applied' || a.status === 'followed_up')
   );
 }
 
 // ================= FREE CREDIT CLAIM (7-DAY CYCLE) ================= //
 
-export function claimFreeCredits(userId: string): {
+export async function claimFreeCredits(userId: string): Promise<{
   success: boolean;
   credits?: number;
   nextClaimAt?: string;
   hoursRemaining?: number;
   error?: string;
-} {
-  const db = ensureDb();
-  const user = db.users.find((u) => u.id === userId);
+}> {
+  const user = await getUserById(userId);
   if (!user) return { success: false, error: 'User not found' };
 
   const FREE_CREDITS = 5;
-  const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+  const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
-  // Check last free claim transaction
-  const lastClaim = db.transactions
-    .filter((t) => t.user_id === userId && t.description === 'Free weekly credit refill')
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+  const txs = await getUserTransactions(userId);
+  const lastClaim = txs.find((t) => t.description === 'Free weekly credit refill');
 
   const now = Date.now();
   if (lastClaim) {
@@ -540,38 +788,15 @@ export function claimFreeCredits(userId: string): {
     }
   }
 
-  // Add credits
-  const newCredits = user.credits + FREE_CREDITS;
-  user.credits = newCredits;
-  user.updated_at = new Date().toISOString();
-
-  const tx: TransactionRecord = {
-    id: `tx_${crypto.randomUUID()}`,
-    user_id: userId,
-    type: 'initial_bonus',
-    credits_delta: FREE_CREDITS,
-    balance_after: newCredits,
-    description: 'Free weekly credit refill',
-    created_at: new Date().toISOString(),
-  };
-  db.transactions.push(tx);
-  writeDb(db);
-
-  return { success: true, credits: newCredits };
+  const res = await updateUserCredits(userId, FREE_CREDITS, 'initial_bonus', 'Free weekly credit refill');
+  return { success: res.success, credits: res.credits };
 }
 
-export function getNextFreeClaimInfo(userId: string): { canClaim: boolean; hoursRemaining: number; nextClaimAt: string | null } {
-  const db = ensureDb();
+export async function getNextFreeClaimInfo(userId: string): Promise<{ canClaim: boolean; hoursRemaining: number; nextClaimAt: string | null }> {
   const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
-
-  const lastClaim = db.transactions
-    .filter((t) => t.user_id === userId && t.description === 'Free weekly credit refill')
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-
-  // Also check initial signup bonus as the first "claim"
-  const lastBonus = db.transactions
-    .filter((t) => t.user_id === userId && t.type === 'initial_bonus')
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+  const txs = await getUserTransactions(userId);
+  const lastClaim = txs.find((t) => t.description === 'Free weekly credit refill');
+  const lastBonus = txs.find((t) => t.type === 'initial_bonus');
 
   const reference = lastClaim || lastBonus;
   if (!reference) return { canClaim: true, hoursRemaining: 0, nextClaimAt: null };
@@ -584,4 +809,3 @@ export function getNextFreeClaimInfo(userId: string): { canClaim: boolean; hours
   const nextClaimAt = new Date(new Date(reference.created_at).getTime() + COOLDOWN_MS).toISOString();
   return { canClaim: false, hoursRemaining, nextClaimAt };
 }
-

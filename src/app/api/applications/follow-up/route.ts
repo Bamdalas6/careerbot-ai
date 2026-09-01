@@ -13,7 +13,7 @@ import {
  */
 export async function POST(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json({ success: false, error: 'AUTH_REQUIRED' }, { status: 401 });
     }
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const app = getApplicationById(appId, auth.user.id);
+    const app = await getApplicationById(appId, auth.user.id);
     if (!app) {
       return NextResponse.json({ success: false, error: 'Application not found' }, { status: 404 });
     }

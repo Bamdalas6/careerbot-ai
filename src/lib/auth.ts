@@ -44,10 +44,10 @@ export function extractTokenFromRequest(req: NextRequest): string | null {
 /**
  * Authenticates the current request and returns the UserRecord if valid.
  */
-export function authenticateRequest(req: NextRequest): { user: UserRecord; session: SessionRecord } | null {
+export async function authenticateRequest(req: NextRequest): Promise<{ user: UserRecord; session: SessionRecord } | null> {
   const token = extractTokenFromRequest(req);
   if (!token) return null;
-  return getSessionByToken(token);
+  return await getSessionByToken(token);
 }
 
 /**

@@ -20,13 +20,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if email already exists
-    const existing = getUserByEmail(email);
+    const existing = await getUserByEmail(email);
     if (existing) {
       return NextResponse.json({ success: false, error: 'An account with this email already exists. Please sign in instead.' }, { status: 409 });
     }
 
     const { hash, salt } = hashPassword(password);
-    const user = createUser({
+    const user = await createUser({
       name: name.trim(),
       email: email.trim().toLowerCase(),
       password_hash: hash,
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       initialCredits: 25, // 25 free credits upon sign up
     });
 
-    const session = createSession(user.id);
+    const session = await createSession(user.id);
     const safeUser = sanitizeUser(user);
 
     const response = NextResponse.json({

@@ -5,13 +5,13 @@ import { CREDIT_RATES, CREDIT_PACKAGES } from '@/lib/credits';
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
     }
 
-    const latestUser = getUserById(auth.user.id);
-    const transactions = getUserTransactions(auth.user.id);
+    const latestUser = await getUserById(auth.user.id);
+    const transactions = await getUserTransactions(auth.user.id);
 
     return NextResponse.json({
       success: true,

@@ -8,7 +8,7 @@ import { deductUserCredits } from '@/lib/credits';
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = authenticateRequest(request);
+    const auth = await authenticateRequest(request);
     if (!auth) {
       return NextResponse.json(
         { success: false, error: 'AUTH_REQUIRED', message: 'Please sign in to edit your CV.' },
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { user } = auth;
-    const deduction = deductUserCredits(user.id, user.credits, 'CV_REVIEW', 'Manual CV Edit');
+    const deduction = await deductUserCredits(user.id, user.credits, 'CV_REVIEW', 'Manual CV Edit');
     if (!deduction.success) {
       return NextResponse.json(
         {
@@ -58,6 +58,9 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('CV edit error:', message);
-    return NextResponse.json({ success: false, error: 'Could not apply the edit.' }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: 'Failed to edit CV', message },
+      { status: 500 }
+    );
   }
 }

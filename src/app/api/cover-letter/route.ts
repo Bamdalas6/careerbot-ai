@@ -6,7 +6,7 @@ import { authenticateRequest } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = authenticateRequest(req);
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return NextResponse.json(
         { success: false, error: 'AUTH_REQUIRED', message: 'Please sign in to generate tailored cover letters.' },
