@@ -30,7 +30,7 @@ const SAMPLE_RESUMES = [
   },
 ];
 
-const ACCEPT = '.txt,.md,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const ACCEPT = '.pdf,.docx,.doc,.txt,.md,application/pdf,text/plain';
 
 /** Score → grade styling with high contrast in both themes. */
 function scoreTone(score: number): { ring: string; text: string } {

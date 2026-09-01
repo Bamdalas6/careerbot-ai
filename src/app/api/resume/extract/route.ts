@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
+import zlib from 'zlib';
 
 /**
  * Server-side text extraction for uploaded CVs.
  *
- * Supports PDF (with coordinate-aware layout reconstruction), DOCX (Word), TXT, and Markdown.
- * Uses spatial coordinate analysis (X/Y baselines) so that headings, contact info lines,
+ * Supports PDF (with coordinate-aware layout reconstruction and raw stream fallback),
+ * DOCX (Word), TXT, and Markdown.
+ * Uses spatial coordinate analysis so that headings, contact info lines,
  * dates, and bullet points maintain their precise document structure.
- * Automatically filters browser print headers/footers (e.g. file:///... 1/2).
  */
 export const runtime = 'nodejs';
 
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB limit
+const MAX_BYTES = 12 * 1024 * 1024; // 12 MB limit
 
 interface RawPdfItem {
   str?: string;
   dir?: string;
   width?: number;
   height?: number;
-  transform?: number[]; // [scaleX, skewY, skewX, scaleY, transX, transY]
+  transform?: number[];
   hasEOL?: boolean;
 }
 
@@ -45,16 +46,73 @@ interface PositionedItem {
 /** Checks if a line is an artifact from printing a web page to PDF */
 function isPrintArtifact(line: string): boolean {
   const t = line.trim();
-  // Chrome/Edge file:/// footer with page numbers e.g. file:///C:/Users/.../Resume.html 1/2
   if (/^(?:file|https?):\/\/[^\s]+(?:\s+\d+\/\d+)?$/i.test(t)) return true;
   if (/^\d+\/\d+$/.test(t)) return true;
   if (/^page\s+\d+\s+of\s+\d+$/i.test(t)) return true;
-  // Browser print timestamp header e.g. 8/19/26, 8:46 AM Ayodele Babalola - Senior Product & UI/UX Designer Resume
   if (/^\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}\s*(?:AM|PM)?\s+/i.test(t)) return true;
   return false;
 }
 
+/**
+ * Pure Node.js fallback PDF stream extractor when worker-based pdfjs fails.
+ */
+function extractPdfStreams(buf: Buffer): string {
+  try {
+    const binary = buf.toString('binary');
+    const streamRegex = /stream[\r\n]+([\s\S]*?)[\r\n]+endstream/g;
+    const chunks: string[] = [];
+    let match;
+
+    while ((match = streamRegex.exec(binary)) !== null) {
+      const rawStream = Buffer.from(match[1], 'binary');
+      let textContent = '';
+
+      try {
+        const decompressed = zlib.inflateSync(rawStream);
+        textContent = decompressed.toString('latin1');
+      } catch {
+        try {
+          const decompressed = zlib.inflateRawSync(rawStream);
+          textContent = decompressed.toString('latin1');
+        } catch {
+          textContent = rawStream.toString('latin1');
+        }
+      }
+
+      // Extract text from (text) Tj or [(text) 10 (text)] TJ
+      const tjMatches = textContent.match(/(?:\((.*?)\)\s*Tj|\[(.*?)\]\s*TJ)/g) || [];
+      for (const tj of tjMatches) {
+        const innerTj = tj.match(/\((.*?)\)\s*Tj/);
+        if (innerTj && innerTj[1]) {
+          chunks.push(innerTj[1]);
+        } else {
+          const innerArray = tj.match(/\[(.*?)\]\s*TJ/);
+          if (innerArray && innerArray[1]) {
+            const parts = innerArray[1].match(/\((.*?)\)/g) || [];
+            for (const p of parts) {
+              chunks.push(p.replace(/^\(|\)$/g, ''));
+            }
+          }
+        }
+      }
+    }
+
+    const decoded = chunks
+      .join(' ')
+      .replace(/\\([0-7]{1,3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)))
+      .replace(/\\([()\\])/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return decoded;
+  } catch (err) {
+    console.error('extractPdfStreams error:', err);
+    return '';
+  }
+}
+
 async function extractPdf(buf: Buffer): Promise<string> {
+  // Tier 1: Try high-fidelity coordinate parser with pdfjs-dist
   try {
     const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as PdfjsModule;
     const pdf = await pdfjs.getDocument({
@@ -144,19 +202,25 @@ async function extractPdf(buf: Buffer): Promise<string> {
 
     let fullText = pageTexts.join('\n\n');
     fullText = fullText
-      .replace(/(\b[A-Za-z]+-)\\n([A-Za-z]+\b)/g, '$1$2')
+      .replace(/(\b[A-Za-z]+-)\n([A-Za-z]+\b)/g, '$1$2')
       .replace(/\s+·\s+/g, ' • ');
 
-    return fullText;
-  } catch (err) {
-    console.error('PDF extraction error:', err);
-    throw new Error('Could not read this PDF. Please try saving as .docx, or copy and paste your CV text directly into the text box.');
+    if (fullText.trim().length >= 30) {
+      return fullText;
+    }
+  } catch (pdfjsErr) {
+    console.warn('pdfjs extraction failed, trying stream fallback:', pdfjsErr);
   }
+
+  // Tier 2: Stream decompression fallback
+  const fallbackText = extractPdfStreams(buf);
+  if (fallbackText.trim().length >= 30) {
+    return fallbackText;
+  }
+
+  throw new Error('Could not extract readable text from this PDF. Please save as Word (.docx) or copy and paste your CV text directly into the box.');
 }
 
-/**
- * Merges text tokens on the same horizontal baseline, inserting spaces where tokens are separated.
- */
 function joinLineItems(items: PositionedItem[]): string {
   let result = '';
   for (let i = 0; i < items.length; i++) {
@@ -168,7 +232,6 @@ function joinLineItems(items: PositionedItem[]): string {
       const prevEnd = prev.x + (prev.width || prev.str.length * 6);
       const gap = curr.x - prevEnd;
 
-      // If there is a noticeable gap and neither token already has trailing/leading whitespace, add a space
       if (gap > 2 && !prev.str.endsWith(' ') && !curr.str.startsWith(' ')) {
         result += ' ' + curr.str;
       } else {
@@ -201,7 +264,7 @@ export async function POST(req: NextRequest) {
     const file = entry as File;
     if (file.size > MAX_BYTES) {
       return NextResponse.json(
-        { success: false, error: 'File exceeds 10 MB limit. Please upload a standard text-based CV.' },
+        { success: false, error: 'File exceeds 12 MB limit. Please upload a standard text-based CV.' },
         { status: 413 }
       );
     }
@@ -223,11 +286,9 @@ export async function POST(req: NextRequest) {
         { status: 415 }
       );
     } else {
-      // .txt, .md, or UTF-8 plain text
       text = buf.toString('utf-8');
     }
 
-    // Clean zero-width spaces and trailing whitespace per line
     text = text
       .replace(/[\u200B-\u200D\uFEFF]/g, '')
       .replace(/[ \t]+\n/g, '\n')
@@ -249,8 +310,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: 'Failed to process this file. You can also paste your CV text directly into the box.',
-        message: messageOf(error),
+        error: messageOf(error) || 'Failed to process this file. You can also paste your CV text directly into the box.',
       },
       { status: 500 }
     );
