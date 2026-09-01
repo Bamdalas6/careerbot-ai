@@ -265,7 +265,7 @@ async function fetchAshby(board: BoardRef): Promise<JobListing[]> {
       const location = (j.location as string) || (postalAddress?.addressCountry as string) || 'Not specified';
       return {
         id: `ab-${board.token}-${j.id}`,
-        title: j.title || 'Open role',
+        title: (j.title as string) || 'Open role',
         company: board.company,
         location,
         is_remote: !!j.isRemote || isRemoteText(location, j.workplaceType as string),

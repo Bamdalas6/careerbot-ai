@@ -489,7 +489,6 @@ export const ApplicationTracker: React.FC<ApplicationTrackerProps> = ({
                 }}
                 onUpdateContact={(fields) => patchApp(selectedApp.id, fields)}
                 onSetFollowUp={(date) => patchApp(selectedApp.id, { follow_up_at: new Date(date).toISOString() })}
-                onAddEvent={(event) => patchApp(selectedApp.id, { event })}
                 onAddNote={(note) => {
                   patchApp(selectedApp.id, {
                     notes: note,

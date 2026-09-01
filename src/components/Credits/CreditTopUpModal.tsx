@@ -155,7 +155,7 @@ export const CreditTopUpModal: React.FC = () => {
                       : 'border-black/10 bg-white hover:border-black/20 hover:bg-zinc-50 dark:border-white/[0.08] dark:bg-white/[0.02] dark:hover:border-white/20 dark:hover:bg-white/[0.04]'
                   }`}
                 >
-                  {pkg.popular && (
+                  {('popular' in pkg && pkg.popular) && (
                     <span className="absolute -top-2.5 right-3 rounded-full border border-indigo-200 bg-indigo-600 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white backdrop-blur-md dark:border-white/20 dark:bg-white/10">
                       {pkg.badge}
                     </span>
