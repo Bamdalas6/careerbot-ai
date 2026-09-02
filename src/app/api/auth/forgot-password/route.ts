@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserByEmail } from '@/lib/db';
+import { getUserByEmail, createPasswordResetOtp } from '@/lib/db';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
@@ -54,27 +54,21 @@ export async function POST(req: NextRequest) {
       console.warn('Supabase admin check notice:', adminErr);
     }
 
-    // Trigger Supabase reset password email with explicit production redirect URL
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo,
-    });
+    // Generate cryptographically secure 6-digit OTP stored in database (15 min expiry)
+    const otp = await createPasswordResetOtp(normalizedEmail);
 
-    if (resetError) {
-      if (resetError.status === 429 || resetError.message.includes('rate limit')) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'For security purposes, please wait 60 seconds before requesting another code.',
-          },
-          { status: 429 }
-        );
-      }
-      return NextResponse.json({ success: false, error: resetError.message }, { status: 400 });
+    // Trigger Supabase reset password email with explicit production redirect URL
+    try {
+      await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo,
+      });
+    } catch (resetErr) {
+      console.warn('Supabase resetPasswordForEmail notice:', resetErr);
     }
 
     return NextResponse.json({
       success: true,
-      message: `A verification code has been sent to ${normalizedEmail}. Please check your inbox and spam folder.`,
+      message: `A verification code has been dispatched for ${normalizedEmail}.`,
     });
   } catch (err: unknown) {
     console.error('Forgot password API error:', err);

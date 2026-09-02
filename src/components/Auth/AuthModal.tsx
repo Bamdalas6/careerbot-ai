@@ -133,7 +133,7 @@ export const AuthModal: React.FC = () => {
     e.preventDefault();
     const cleanOtp = otpCode.trim();
     if (!cleanOtp) {
-      setError('Please enter the verification code received in your email.');
+      setError('Please enter the verification code.');
       return;
     }
 
@@ -143,19 +143,33 @@ export const AuthModal: React.FC = () => {
     setLoadingMessage('Verifying code...');
 
     try {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        throw new Error('Supabase client is not available.');
-      }
-
-      const { error: otpError } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
-        token: cleanOtp,
-        type: 'recovery',
+      // Step A: Check with backend OTP verifier
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          otp: cleanOtp,
+        }),
       });
 
-      if (otpError) {
-        throw otpError;
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Invalid or expired verification code.');
+      }
+
+      // Step B: Also attempt Supabase client verification
+      const supabase = getSupabaseBrowserClient();
+      if (supabase) {
+        try {
+          await supabase.auth.verifyOtp({
+            email: email.trim().toLowerCase(),
+            token: cleanOtp,
+            type: 'recovery',
+          });
+        } catch {
+          /* ignore */
+        }
       }
 
       setSuccessMessage('Code verified successfully! Please enter your new password.');

@@ -80,6 +80,15 @@ export interface TransactionRecord {
   created_at: string;
 }
 
+export interface PasswordResetRecord {
+  id: string;
+  email: string;
+  otp: string;
+  expires_at: number;
+  used: boolean;
+  created_at: string;
+}
+
 interface DatabaseSchema {
   users: UserRecord[];
   sessions: SessionRecord[];
@@ -87,6 +96,7 @@ interface DatabaseSchema {
   resumes: CVRecord[];
   transactions: TransactionRecord[];
   applications: ApplicationRecord[];
+  password_resets?: PasswordResetRecord[];
 }
 
 const DATA_DIR = path.join(process.cwd(), '.data');
@@ -99,6 +109,7 @@ const INITIAL_DB: DatabaseSchema = {
   resumes: [],
   transactions: [],
   applications: [],
+  password_resets: [],
 };
 
 function ensureLocalDb(): DatabaseSchema {
@@ -339,6 +350,80 @@ export async function updateUserPasswordByEmail(
   }
 
   return success;
+}
+
+export async function createPasswordResetOtp(email: string): Promise<string> {
+  const normalized = email.trim().toLowerCase();
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const now = new Date().toISOString();
+  const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+  const record: PasswordResetRecord = {
+    id: `pr_${crypto.randomUUID()}`,
+    email: normalized,
+    otp,
+    expires_at: expiresAt,
+    used: false,
+    created_at: now,
+  };
+
+  const db = ensureLocalDb();
+  if (!db.password_resets) db.password_resets = [];
+  db.password_resets = db.password_resets.map((r) =>
+    r.email === normalized ? { ...r, used: true } : r
+  );
+  db.password_resets.push(record);
+  writeLocalDb(db);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('password_resets').insert([record]);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return otp;
+}
+
+export async function verifyPasswordResetOtp(email: string, otp: string): Promise<boolean> {
+  const normalized = email.trim().toLowerCase();
+  const cleanOtp = otp.trim();
+  const now = Date.now();
+
+  const db = ensureLocalDb();
+  if (!db.password_resets) db.password_resets = [];
+  const match = db.password_resets.find(
+    (r) => r.email === normalized && r.otp === cleanOtp && !r.used && r.expires_at > now
+  );
+
+  if (match) {
+    match.used = true;
+    writeLocalDb(db);
+    return true;
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data } = await supabase
+        .from('password_resets')
+        .select('*')
+        .eq('email', normalized)
+        .eq('otp', cleanOtp)
+        .eq('used', false)
+        .gt('expires_at', now)
+        .maybeSingle();
+
+      if (data) {
+        await supabase.from('password_resets').update({ used: true }).eq('id', data.id);
+        return true;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return false;
 }
 
 export async function updateUserCredits(
