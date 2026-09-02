@@ -527,7 +527,7 @@ export default function SettingsPage() {
               <div>
                 <h2 className="text-base font-bold text-white">Refer Friends & Earn Tokens</h2>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Invite friends, job hunters, and colleagues to CareerBot AI and get 5 free tokens credited to your account for every new registration!
+                  Invite friends, job hunters, and colleagues to CareerBot AI and get 10 free tokens credited to your account for every new registration!
                 </p>
               </div>
 
@@ -539,10 +539,10 @@ export default function SettingsPage() {
                   </div>
                   <div>
                     <h3 className="text-sm font-bold text-white">
-                      Earn +5 Free Tokens for Every Referral
+                      Earn +10 Free Tokens for Every Referral
                     </h3>
                     <p className="mt-1 text-xs text-zinc-300 leading-relaxed">
-                      Share your custom referral link below. When your friend registers an account, your balance is instantly rewarded with <b>5 free tokens</b>.
+                      Share your custom referral link below. When your friend registers an account, your balance is instantly rewarded with <b>10 free tokens</b>.
                     </p>
                   </div>
                 </div>

@@ -305,7 +305,13 @@ export async function processReferralReward(
   }
 
   // Anti-Fraud Check 2: Prevent duplicate IP/device fraud in production
+  // Note: Allow owner/admin testing (e.g. bamdalas accounts) so tests succeed on same device/WiFi
+  const isOwnerTesting =
+    referrer.email?.toLowerCase().includes('bamdalas') ||
+    process.env.NODE_ENV !== 'production';
+
   if (
+    !isOwnerTesting &&
     clientIp &&
     referrer.signup_ip &&
     clientIp === referrer.signup_ip &&

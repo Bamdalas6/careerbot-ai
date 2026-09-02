@@ -529,10 +529,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </div>
                   <div>
                     <h4 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white">
-                      Get 5 Free Tokens Per Friend! 🎁
+                      Get 10 Free Tokens Per Friend! 🎁
                     </h4>
                     <p className="mt-1 text-[11px] text-zinc-600 dark:text-[#8a8f98] leading-relaxed">
-                      Share your personal referral link with job seekers and colleagues. Whenever someone signs up using your link, you instantly get <b>5 free tokens</b> added to your account!
+                      Share your personal referral link with job seekers and colleagues. Whenever someone signs up using your link, you instantly get <b>10 free tokens</b> added to your account!
                     </p>
                   </div>
                 </div>
