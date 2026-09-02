@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getSupabaseBrowserClient } from '@/lib/supabase';
 
 export interface AuthUser {
   id: string;
@@ -18,8 +19,8 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthModalOpen: boolean;
   isCreditModalOpen: boolean;
-  authModalMode: 'login' | 'register';
-  openAuthModal: (mode?: 'login' | 'register') => void;
+  authModalMode: 'login' | 'register' | 'forgot-request' | 'forgot-otp' | 'forgot-reset';
+  openAuthModal: (mode?: 'login' | 'register' | 'forgot-request' | 'forgot-otp' | 'forgot-reset') => void;
   closeAuthModal: () => void;
   openCreditModal: () => void;
   closeCreditModal: () => void;
@@ -40,7 +41,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+  const [authModalMode, setAuthModalMode] = useState<
+    'login' | 'register' | 'forgot-request' | 'forgot-otp' | 'forgot-reset'
+  >('login');
 
   const refreshUser = useCallback(async () => {
     try {
@@ -86,15 +89,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isMounted) setIsLoading(false);
       });
 
+    // Listen for Supabase password recovery events from email links
+    try {
+      const supabase = getSupabaseBrowserClient();
+      if (supabase) {
+        const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+          if (event === 'PASSWORD_RECOVERY') {
+            setAuthModalMode('forgot-reset');
+            setIsAuthModalOpen(true);
+          }
+        });
+
+        // Cleanup listener on unmount
+        return () => {
+          isMounted = false;
+          authListener?.subscription?.unsubscribe();
+        };
+      }
+    } catch {
+      /* silent */
+    }
+
+    // Check if user landed on page with recovery hash/query
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash || '';
+      const search = window.location.search || '';
+      if (hash.includes('type=recovery') || search.includes('type=recovery')) {
+        setAuthModalMode('forgot-reset');
+        setIsAuthModalOpen(true);
+      }
+    }
+
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const openAuthModal = useCallback((mode: 'login' | 'register' = 'login') => {
-    setAuthModalMode(mode);
-    setIsAuthModalOpen(true);
-  }, []);
+  const openAuthModal = useCallback(
+    (mode: 'login' | 'register' | 'forgot-request' | 'forgot-otp' | 'forgot-reset' = 'login') => {
+      setAuthModalMode(mode);
+      setIsAuthModalOpen(true);
+    },
+    []
+  );
 
   const closeAuthModal = useCallback(() => {
     setIsAuthModalOpen(false);

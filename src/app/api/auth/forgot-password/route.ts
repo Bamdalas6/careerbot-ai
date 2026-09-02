@@ -29,6 +29,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Determine the production application redirect URL
+    const origin =
+      req.headers.get('origin') ||
+      req.headers.get('referer')?.replace(/\/$/, '') ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      'https://careerbot-ai-seven.vercel.app';
+    const cleanOrigin = origin.replace(/\/$/, '');
+    const redirectTo = `${cleanOrigin}/auth/callback?type=recovery`;
+
     // Ensure the user exists in Supabase Auth (auth.users)
     try {
       const { data: usersData } = await supabase.auth.admin.listUsers();
@@ -45,8 +54,10 @@ export async function POST(req: NextRequest) {
       console.warn('Supabase admin check notice:', adminErr);
     }
 
-    // Trigger Supabase reset password email
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail);
+    // Trigger Supabase reset password email with explicit production redirect URL
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo,
+    });
 
     if (resetError) {
       if (resetError.status === 429 || resetError.message.includes('rate limit')) {
