@@ -77,8 +77,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `A verification code has been generated for ${normalizedEmail}.`,
-      otp, // Provided for instant recovery
+      message: `A verification code has been sent to ${normalizedEmail}. Please check your inbox and spam folder.`,
     });
   } catch (err: unknown) {
     console.error('Forgot password API error:', err);
