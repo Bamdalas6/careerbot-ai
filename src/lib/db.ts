@@ -33,6 +33,7 @@ export interface UserRecord {
   referred_by?: string;
   referral_count?: number;
   referral_earnings?: number;
+  signup_ip?: string;
   created_at: string;
   updated_at: string;
 }
@@ -207,6 +208,7 @@ export async function createUser(userData: {
   salt: string;
   initialCredits?: number;
   referred_by?: string;
+  signup_ip?: string;
 }): Promise<UserRecord> {
   const now = new Date().toISOString();
   const initialCredits = userData.initialCredits ?? 25;
@@ -225,6 +227,7 @@ export async function createUser(userData: {
     referred_by: userData.referred_by || undefined,
     referral_count: 0,
     referral_earnings: 0,
+    signup_ip: userData.signup_ip,
     created_at: now,
     updated_at: now,
   };
@@ -289,10 +292,28 @@ export async function getUserByReferralCode(code: string): Promise<UserRecord | 
 export async function processReferralReward(
   referrerId: string,
   newUserId: string,
-  newUserName: string
-): Promise<boolean> {
+  newUserName: string,
+  clientIp?: string
+): Promise<{ success: boolean; reason?: string }> {
   const referrer = await getUserById(referrerId);
-  if (!referrer || referrer.id === newUserId) return false;
+  if (!referrer) return { success: false, reason: 'Referrer not found' };
+
+  // Anti-Fraud Check 1: Prevent self-referral
+  if (referrer.id === newUserId) {
+    return { success: false, reason: 'Self-referral is not permitted' };
+  }
+
+  // Anti-Fraud Check 2: Prevent duplicate IP/device fraud in production
+  if (
+    clientIp &&
+    referrer.signup_ip &&
+    clientIp === referrer.signup_ip &&
+    clientIp !== '127.0.0.1' &&
+    clientIp !== '::1'
+  ) {
+    console.warn(`[Referral Anti-Fraud] Duplicate signup IP detected: ${clientIp}`);
+    return { success: false, reason: 'Referral from identical device/IP address is not eligible' };
+  }
 
   const REFERRAL_TOKENS = 5;
   const res = await updateUserCredits(
@@ -330,9 +351,9 @@ export async function processReferralReward(
         /* ignore */
       }
     }
-    return true;
+    return { success: true };
   }
-  return false;
+  return { success: false, reason: res.error };
 }
 
 export async function getUserReferrals(userId: string): Promise<{

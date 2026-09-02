@@ -32,6 +32,11 @@ export async function POST(req: NextRequest) {
       referrerUser = await getUserByReferralCode(ref_code);
     }
 
+    const clientIp =
+      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      req.headers.get('x-real-ip') ||
+      '127.0.0.1';
+
     const { hash, salt } = hashPassword(password);
     const user = await createUser({
       name: name.trim(),
@@ -40,12 +45,13 @@ export async function POST(req: NextRequest) {
       salt,
       initialCredits: 25, // 25 free credits upon sign up
       referred_by: referrerUser ? referrerUser.id : undefined,
+      signup_ip: clientIp,
     });
 
     // Reward the referrer with 5 free tokens
     if (referrerUser && referrerUser.id !== user.id) {
       try {
-        await processReferralReward(referrerUser.id, user.id, user.name);
+        await processReferralReward(referrerUser.id, user.id, user.name, clientIp);
       } catch (refErr) {
         console.warn('Referral reward payout notice:', refErr);
       }
