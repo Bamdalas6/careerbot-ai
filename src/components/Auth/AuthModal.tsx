@@ -492,7 +492,14 @@ export const AuthModal: React.FC = () => {
               <div className="text-center sm:text-left">
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-[#f7f8f8]">Enter Recovery Code</h4>
                 <p className="mt-1 text-xs text-zinc-500 dark:text-[#8a8f98] leading-relaxed">
-                  We sent a 6-digit verification code to <span className="font-semibold text-zinc-900 dark:text-white">{email}</span>.
+                  We sent a recovery email to <span className="font-semibold text-zinc-900 dark:text-white">{email}</span>.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs text-indigo-950 dark:border-white/10 dark:bg-white/[0.03] dark:text-[#f7f8f8]">
+                <p className="font-semibold mb-1">📬 Quick 1-Click Reset</p>
+                <p className="text-[11px] text-zinc-600 dark:text-[#8a8f98] leading-relaxed">
+                  Check your <b>Inbox and Spam folder</b>. You can click the <b>&quot;Reset password&quot; link</b> inside the email to set your new password instantly, or enter your code below.
                 </p>
               </div>
 
