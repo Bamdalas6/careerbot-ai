@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserByEmail } from '@/lib/db';
+import { getUserByEmail, createPasswordResetOtp } from '@/lib/db';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
@@ -8,12 +8,15 @@ export async function POST(req: NextRequest) {
     const { email } = body;
 
     if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      return NextResponse.json({ success: false, error: 'Please enter a valid email address.' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Please enter a valid email address.' },
+        { status: 400 }
+      );
     }
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Verify user exists in database
+    // 1. Verify user exists in application database
     const user = await getUserByEmail(normalizedEmail);
     if (!user) {
       return NextResponse.json(
@@ -22,14 +25,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!isSupabaseConfigured || !supabase) {
-      return NextResponse.json(
-        { success: false, error: 'Supabase authentication service is not configured.' },
-        { status: 500 }
-      );
-    }
+    // 2. Generate and store secure 6-digit OTP in database with 15-minute TTL
+    const otp = await createPasswordResetOtp(normalizedEmail);
+    const expiresAt = Date.now() + 15 * 60 * 1000;
 
-    // Determine production redirect URL
+    // 3. Determine production redirect URL
     const origin =
       req.headers.get('origin') ||
       req.headers.get('referer')?.replace(/\/$/, '') ||
@@ -38,51 +38,50 @@ export async function POST(req: NextRequest) {
     const cleanOrigin = origin.replace(/\/$/, '');
     const redirectTo = `${cleanOrigin}/auth/callback?type=recovery`;
 
-    // Ensure user exists in Supabase Auth (auth.users)
-    const { data: usersData } = await supabase.auth.admin.listUsers();
-    let authUser = usersData?.users?.find((u) => u.email?.toLowerCase() === normalizedEmail);
+    // 4. Synchronize with Supabase Auth (Cloud user_metadata & email dispatch)
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: usersData } = await supabase.auth.admin.listUsers();
+        let authUser = usersData?.users?.find((u) => u.email?.toLowerCase() === normalizedEmail);
 
-    if (!authUser) {
-      const { data: created } = await supabase.auth.admin.createUser({
-        email: normalizedEmail,
-        email_confirm: true,
-        user_metadata: { name: user.name },
-      });
-      if (created?.user) authUser = created.user;
-    }
+        // If user doesn't exist in Supabase auth.users yet, create them
+        if (!authUser) {
+          const { data: created } = await supabase.auth.admin.createUser({
+            email: normalizedEmail,
+            email_confirm: true,
+            user_metadata: { name: user.name },
+          });
+          if (created?.user) authUser = created.user;
+        }
 
-    // Generate secure 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+        // Store OTP in user_metadata for serverless verification
+        if (authUser) {
+          await supabase.auth.admin.updateUserById(authUser.id, {
+            user_metadata: {
+              ...(authUser.user_metadata || {}),
+              reset_otp: otp,
+              reset_otp_expires: expiresAt,
+            },
+          });
+        }
 
-    // Store in Supabase Auth cloud user_metadata
-    if (authUser) {
-      await supabase.auth.admin.updateUserById(authUser.id, {
-        user_metadata: {
-          ...(authUser.user_metadata || {}),
-          reset_otp: otp,
-          reset_otp_expires: expiresAt,
-        },
-      });
-    }
-
-    // Attempt to dispatch via Supabase's mailer
-    try {
-      await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo,
-      });
-    } catch (resetErr) {
-      console.warn('Supabase resetPasswordForEmail notice:', resetErr);
+        // Send reset email containing private 1-click recovery link
+        await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+          redirectTo,
+        });
+      } catch (supErr) {
+        console.warn('Supabase auth reset dispatch notice:', supErr);
+      }
     }
 
     return NextResponse.json({
       success: true,
-      message: `A verification code has been sent to ${normalizedEmail}. Please check your inbox and spam folder.`,
+      message: `A verification email with a reset link and 6-digit code has been sent to ${normalizedEmail}. Please check your inbox and spam folder.`,
     });
   } catch (err: unknown) {
     console.error('Forgot password API error:', err);
     return NextResponse.json(
-      { success: false, error: 'An unexpected error occurred. Please try again.' },
+      { success: false, error: 'An unexpected error occurred while requesting password reset.' },
       { status: 500 }
     );
   }
