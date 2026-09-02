@@ -16,6 +16,7 @@ import { ApplicationTracker } from '@/components/Tracker/ApplicationTracker';
 import { FollowUpBanner } from '@/components/Tracker/FollowUpBanner';
 import { FilterDrawer } from '@/components/Filters/FilterDrawer';
 import { HistoryDrawer } from '@/components/History/HistoryDrawer';
+import { SettingsModal } from '@/components/Settings/SettingsModal';
 import { QuickScrollPill } from '@/components/Navigation/QuickScrollPill';
 import { ChatMessage, JobListing, SavedJob, ResumeProfile } from '@/types/job';
 import { useAuth } from '@/context/AuthContext';
@@ -44,6 +45,7 @@ export default function Home() {
   const [isSavedOpen, setIsSavedOpen] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isTrackerOpen, setIsTrackerOpen] = useState(false);
   const [dueFollowUps, setDueFollowUps] = useState<Array<{
     id: string;
@@ -346,6 +348,9 @@ export default function Home() {
         onOpenFilters={() => setIsFiltersOpen(true)}
         onClearChat={handleClearChat}
         onOpenHistory={() => setIsHistoryOpen(true)}
+        onOpenSettings={() => {
+          if (requireAuth()) setIsSettingsOpen(true);
+        }}
       />
 
       {/* Follow-up reminder alert banner */}
@@ -451,6 +456,12 @@ export default function Home() {
         onClose={() => setIsHistoryOpen(false)}
         onSelectChat={handleSelectChat}
         onNewChat={handleNewChat}
+      />
+
+      {/* Account Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
       />
 
       {/* Floating Quick Navigation to Top / Bottom */}

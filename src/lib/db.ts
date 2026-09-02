@@ -25,6 +25,7 @@ export interface UserRecord {
   id: string;
   name: string;
   email: string;
+  username?: string;
   password_hash: string;
   salt: string;
   credits: number;
@@ -227,6 +228,117 @@ export async function createUser(userData: {
   writeLocalDb(db);
 
   return newUser;
+}
+
+export async function updateUserProfile(
+  userId: string,
+  updates: { name?: string; username?: string }
+): Promise<UserRecord | null> {
+  const now = new Date().toISOString();
+  const db = ensureLocalDb();
+  const localIndex = db.users.findIndex((u) => u.id === userId);
+
+  let updatedUser: UserRecord | null = null;
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const payload: Record<string, unknown> = { updated_at: now };
+      if (updates.name !== undefined) payload.name = updates.name.trim();
+      if (updates.username !== undefined) payload.username = updates.username.trim().toLowerCase();
+
+      const { data, error } = await supabase
+        .from('users')
+        .update(payload)
+        .eq('id', userId)
+        .select('*')
+        .maybeSingle();
+
+      if (!error && data) {
+        updatedUser = data as UserRecord;
+      }
+    } catch (err) {
+      console.warn('Supabase updateUserProfile error:', err);
+    }
+  }
+
+  if (localIndex >= 0) {
+    if (updates.name !== undefined) db.users[localIndex].name = updates.name.trim();
+    if (updates.username !== undefined) db.users[localIndex].username = updates.username.trim().toLowerCase();
+    db.users[localIndex].updated_at = now;
+    writeLocalDb(db);
+    if (!updatedUser) updatedUser = db.users[localIndex];
+  }
+
+  return updatedUser;
+}
+
+export async function updateUserPassword(
+  userId: string,
+  password_hash: string,
+  salt: string
+): Promise<boolean> {
+  const now = new Date().toISOString();
+  let success = false;
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ password_hash, salt, updated_at: now })
+        .eq('id', userId);
+
+      if (!error) success = true;
+    } catch (err) {
+      console.warn('Supabase updateUserPassword error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (user) {
+    user.password_hash = password_hash;
+    user.salt = salt;
+    user.updated_at = now;
+    writeLocalDb(db);
+    success = true;
+  }
+
+  return success;
+}
+
+export async function updateUserPasswordByEmail(
+  email: string,
+  password_hash: string,
+  salt: string
+): Promise<boolean> {
+  const normalized = email.trim().toLowerCase();
+  const now = new Date().toISOString();
+  let success = false;
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ password_hash, salt, updated_at: now })
+        .ilike('email', normalized);
+
+      if (!error) success = true;
+    } catch (err) {
+      console.warn('Supabase updateUserPasswordByEmail error:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
+  const user = db.users.find((u) => u.email.toLowerCase() === normalized);
+  if (user) {
+    user.password_hash = password_hash;
+    user.salt = salt;
+    user.updated_at = now;
+    writeLocalDb(db);
+    success = true;
+  }
+
+  return success;
 }
 
 export async function updateUserCredits(

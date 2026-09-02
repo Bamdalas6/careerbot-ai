@@ -16,6 +16,7 @@ import {
   Moon,
   Menu,
   X,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -30,6 +31,7 @@ interface GlassHeaderProps {
   onOpenFilters: () => void;
   onClearChat: () => void;
   onOpenHistory?: () => void;
+  onOpenSettings?: () => void;
 }
 
 const NAV_LINKS = [
@@ -48,6 +50,7 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
   onOpenFilters,
   onClearChat,
   onOpenHistory,
+  onOpenSettings,
 }) => {
   const { user, credits, isAuthenticated, openAuthModal, openCreditModal, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -247,6 +250,19 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
                       >
                         <History className="h-3.5 w-3.5 text-zinc-500 dark:text-[#8a8f98]" />
                         <span>Search History</span>
+                      </button>
+                    )}
+                    {onOpenSettings && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileOpen(false);
+                          onOpenSettings();
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-zinc-800 transition hover:bg-zinc-100 dark:text-[#f7f8f8] dark:hover:bg-white/[0.06]"
+                      >
+                        <Settings className="h-3.5 w-3.5 text-zinc-500 dark:text-[#8a8f98]" />
+                        <span>Settings</span>
                       </button>
                     )}
                   </div>
@@ -456,6 +472,20 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
               >
                 <History className="h-3.5 w-3.5 text-zinc-500 dark:text-[#8a8f98]" />
                 <span>History</span>
+              </button>
+            )}
+
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenSettings();
+                }}
+                className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06]"
+              >
+                <Settings className="h-3.5 w-3.5 text-zinc-500 dark:text-[#8a8f98]" />
+                <span>Settings</span>
               </button>
             )}
           </div>

@@ -82,6 +82,7 @@ export function sanitizeUser(user: UserRecord): Omit<UserRecord, 'password_hash'
     id: user.id,
     name: user.name,
     email: user.email,
+    username: user.username,
     credits: user.credits,
     created_at: user.created_at,
     updated_at: user.updated_at,

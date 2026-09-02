@@ -6,6 +6,7 @@ export interface AuthUser {
   id: string;
   name: string;
   email: string;
+  username?: string;
   credits: number;
   created_at: string;
 }
@@ -26,6 +27,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateCredits: (newAmount: number) => void;
+  updateProfile: (updatedData: { name?: string; username?: string }) => void;
   refreshUser: () => Promise<void>;
   requireAuth: (callback?: () => void) => boolean;
 }
@@ -109,6 +111,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateCredits = useCallback((newAmount: number) => {
     setCredits(newAmount);
     setUser((prev) => (prev ? { ...prev, credits: newAmount } : null));
+  }, []);
+
+  const updateProfile = useCallback((updatedData: { name?: string; username?: string }) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        name: updatedData.name !== undefined ? updatedData.name : prev.name,
+        username: updatedData.username !== undefined ? updatedData.username : prev.username,
+      };
+    });
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -196,6 +209,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         register,
         logout,
         updateCredits,
+        updateProfile,
         refreshUser,
         requireAuth,
       }}
