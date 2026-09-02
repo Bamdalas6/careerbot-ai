@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserByEmail, createUser, createSession } from '@/lib/db';
 import { hashPassword, setSessionCookie, sanitizeUser } from '@/lib/auth';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,6 +34,20 @@ export async function POST(req: NextRequest) {
       salt,
       initialCredits: 25, // 25 free credits upon sign up
     });
+
+    // Also sync to Supabase Auth so native password resets and OTPs work out-of-the-box
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.auth.admin.createUser({
+          email: email.trim().toLowerCase(),
+          password,
+          email_confirm: true,
+          user_metadata: { name: name.trim() },
+        });
+      } catch (authErr) {
+        console.warn('Supabase auth.admin.createUser notice:', authErr);
+      }
+    }
 
     const session = await createSession(user.id);
     const safeUser = sanitizeUser(user);

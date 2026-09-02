@@ -92,7 +92,7 @@ export const AuthModal: React.FC = () => {
     setLoading(false);
   };
 
-  // 2. Step 1: Request Reset (resetPasswordForEmail)
+  // 2. Step 1: Request Reset (resetPasswordForEmail via verified backend)
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
@@ -106,17 +106,18 @@ export const AuthModal: React.FC = () => {
     setLoadingMessage('Sending email...');
 
     try {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        throw new Error('Supabase client is not available.');
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to send recovery email.');
       }
 
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
-      if (resetError) {
-        throw resetError;
-      }
-
-      setSuccessMessage(`A 6-digit recovery code was sent to ${email.trim()}.`);
+      setSuccessMessage(data.message || `A verification code has been sent to ${email.trim()}.`);
       setActiveTab('forgot-otp');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Could not send recovery email. Please check your address.';
