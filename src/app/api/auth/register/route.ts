@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       signup_ip: clientIp,
     });
 
-    // Reward the referrer with 5 free tokens
+    // Reward the referrer with 10 free tokens
     if (referrerUser && referrerUser.id !== user.id) {
       try {
         await processReferralReward(referrerUser.id, user.id, user.name, clientIp);
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       success: true,
       message: referrerUser
-        ? `Account created with referral bonus! 25 free tokens have been added.`
+        ? `Welcome! 25 free credits added to your account. Your friend earned 10 bonus tokens for the referral!`
         : `Account created successfully! 25 free credits have been added.`,
       user: safeUser,
       token: session.token,

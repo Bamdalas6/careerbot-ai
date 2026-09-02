@@ -404,7 +404,7 @@ export async function getUserReferrals(userId: string): Promise<{
   return {
     referralCode: user?.referral_code || fallbackCode,
     totalReferred: user?.referral_count || referredUsers.length,
-    totalEarned: user?.referral_earnings || (user?.referral_count || referredUsers.length) * 5,
+    totalEarned: user?.referral_earnings || (user?.referral_count || referredUsers.length) * 10,
     referredUsers,
   };
 }
