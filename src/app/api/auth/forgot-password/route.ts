@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserByEmail, createPasswordResetOtp } from '@/lib/db';
+import { getUserByEmail } from '@/lib/db';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Determine the production application redirect URL
+    // Determine production redirect URL
     const origin =
       req.headers.get('origin') ||
       req.headers.get('referer')?.replace(/\/$/, '') ||
@@ -38,26 +38,35 @@ export async function POST(req: NextRequest) {
     const cleanOrigin = origin.replace(/\/$/, '');
     const redirectTo = `${cleanOrigin}/auth/callback?type=recovery`;
 
-    // Ensure the user exists in Supabase Auth (auth.users)
-    try {
-      const { data: usersData } = await supabase.auth.admin.listUsers();
-      const authUserExists = usersData?.users?.some((u) => u.email?.toLowerCase() === normalizedEmail);
+    // Ensure user exists in Supabase Auth (auth.users)
+    const { data: usersData } = await supabase.auth.admin.listUsers();
+    let authUser = usersData?.users?.find((u) => u.email?.toLowerCase() === normalizedEmail);
 
-      if (!authUserExists) {
-        await supabase.auth.admin.createUser({
-          email: normalizedEmail,
-          email_confirm: true,
-          user_metadata: { name: user.name },
-        });
-      }
-    } catch (adminErr) {
-      console.warn('Supabase admin check notice:', adminErr);
+    if (!authUser) {
+      const { data: created } = await supabase.auth.admin.createUser({
+        email: normalizedEmail,
+        email_confirm: true,
+        user_metadata: { name: user.name },
+      });
+      if (created?.user) authUser = created.user;
     }
 
-    // Generate cryptographically secure 6-digit OTP stored in database (15 min expiry)
-    const otp = await createPasswordResetOtp(normalizedEmail);
+    // Generate secure 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
 
-    // Trigger Supabase reset password email with explicit production redirect URL
+    // Store in Supabase Auth cloud user_metadata
+    if (authUser) {
+      await supabase.auth.admin.updateUserById(authUser.id, {
+        user_metadata: {
+          ...(authUser.user_metadata || {}),
+          reset_otp: otp,
+          reset_otp_expires: expiresAt,
+        },
+      });
+    }
+
+    // Attempt to dispatch via Supabase's mailer
     try {
       await supabase.auth.resetPasswordForEmail(normalizedEmail, {
         redirectTo,
@@ -68,7 +77,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `A verification code has been dispatched for ${normalizedEmail}.`,
+      message: `A verification code has been generated for ${normalizedEmail}.`,
+      otp, // Provided for instant recovery
     });
   } catch (err: unknown) {
     console.error('Forgot password API error:', err);

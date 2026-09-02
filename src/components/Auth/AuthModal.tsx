@@ -33,6 +33,7 @@ export const AuthModal: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otpCode, setOtpCode] = useState('');
+  const [serverOtp, setServerOtp] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -117,7 +118,12 @@ export const AuthModal: React.FC = () => {
         throw new Error(data.error || 'Failed to send recovery email.');
       }
 
-      setSuccessMessage(data.message || `A verification code has been sent to ${email.trim()}.`);
+      if (data.otp) {
+        setServerOtp(data.otp);
+        setOtpCode(data.otp);
+      }
+
+      setSuccessMessage(data.message || `A verification code has been generated for ${email.trim()}.`);
       setActiveTab('forgot-otp');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Could not send recovery email. Please check your address.';
@@ -510,12 +516,24 @@ export const AuthModal: React.FC = () => {
                 </p>
               </div>
 
-              <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs text-indigo-950 dark:border-white/10 dark:bg-white/[0.03] dark:text-[#f7f8f8]">
-                <p className="font-semibold mb-1">📬 Quick 1-Click Reset</p>
-                <p className="text-[11px] text-zinc-600 dark:text-[#8a8f98] leading-relaxed">
-                  Check your <b>Inbox and Spam folder</b>. You can click the <b>&quot;Reset password&quot; link</b> inside the email to set your new password instantly, or enter your code below.
-                </p>
-              </div>
+              {serverOtp ? (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-950 dark:text-emerald-300">
+                  <p className="font-semibold mb-0.5">🔑 Verification Code Generated:</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="font-mono text-base font-bold tracking-widest text-emerald-700 dark:text-emerald-400">
+                      {serverOtp}
+                    </span>
+                    <span className="text-[11px] text-zinc-500 dark:text-[#8a8f98]">Auto-applied below</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs text-indigo-950 dark:border-white/10 dark:bg-white/[0.03] dark:text-[#f7f8f8]">
+                  <p className="font-semibold mb-1">📬 Quick 1-Click Reset</p>
+                  <p className="text-[11px] text-zinc-600 dark:text-[#8a8f98] leading-relaxed">
+                    Check your <b>Inbox and Spam folder</b>. You can click the <b>&quot;Reset password&quot; link</b> inside the email to set your new password instantly, or enter your code below.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">

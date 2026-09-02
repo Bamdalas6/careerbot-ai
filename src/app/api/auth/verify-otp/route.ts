@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyPasswordResetOtp } from '@/lib/db';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { verifyPasswordResetOtp } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,8 +16,36 @@ export async function POST(req: NextRequest) {
 
     const normalizedEmail = email.trim().toLowerCase();
     const cleanOtp = otp.trim();
+    const now = Date.now();
 
-    // 1. Check local / database OTP store
+    // 1. Check in Supabase user_metadata (Cloud persistent)
+    if (isSupabaseConfigured && supabase) {
+      const { data: usersData } = await supabase.auth.admin.listUsers();
+      const authUser = usersData?.users?.find((u) => u.email?.toLowerCase() === normalizedEmail);
+
+      if (authUser?.user_metadata) {
+        const storedOtp = authUser.user_metadata.reset_otp;
+        const storedExpires = authUser.user_metadata.reset_otp_expires;
+
+        if (storedOtp === cleanOtp && (!storedExpires || Number(storedExpires) > now)) {
+          // Invalidate used OTP
+          await supabase.auth.admin.updateUserById(authUser.id, {
+            user_metadata: {
+              ...authUser.user_metadata,
+              reset_otp: null,
+              reset_otp_expires: null,
+            },
+          });
+
+          return NextResponse.json({
+            success: true,
+            message: 'Verification code confirmed successfully.',
+          });
+        }
+      }
+    }
+
+    // 2. Fallback check local / database OTP store
     const isDbValid = await verifyPasswordResetOtp(normalizedEmail, cleanOtp);
     if (isDbValid) {
       return NextResponse.json({
@@ -26,28 +54,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. Fallback check with Supabase Auth verifyOtp
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data, error } = await supabase.auth.verifyOtp({
-          email: normalizedEmail,
-          token: cleanOtp,
-          type: 'recovery',
-        });
-
-        if (!error && data) {
-          return NextResponse.json({
-            success: true,
-            message: 'Code verified successfully via Supabase.',
-          });
-        }
-      } catch (supErr) {
-        console.warn('Supabase verifyOtp notice:', supErr);
-      }
-    }
-
     return NextResponse.json(
-      { success: false, error: 'Invalid or expired verification code. Please request a new one.' },
+      { success: false, error: 'Invalid or expired verification code. Please enter the correct code or request a new one.' },
       { status: 400 }
     );
   } catch (err: unknown) {
