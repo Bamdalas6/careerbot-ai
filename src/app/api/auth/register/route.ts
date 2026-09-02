@@ -68,6 +68,10 @@ export async function POST(req: NextRequest) {
             name: name.trim(),
             referral_code: user.referral_code,
             referred_by: referrerUser ? referrerUser.id : null,
+            credits: 25,
+            referral_count: 0,
+            referral_earnings: 0,
+            signup_ip: clientIp,
           },
         });
       } catch (authErr) {

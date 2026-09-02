@@ -239,7 +239,7 @@ export const AuthModal: React.FC = () => {
                 <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-2.5 text-xs text-amber-950 dark:text-amber-300">
                   <Gift className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                   <span>
-                    Referral invite active: <b>@{localStorage.getItem('careerbot_ref_code')}</b> (+5 bonus)
+                    Referral invite active: <b>@{localStorage.getItem('careerbot_ref_code')}</b> (+10 tokens reward)
                   </span>
                 </div>
               )}

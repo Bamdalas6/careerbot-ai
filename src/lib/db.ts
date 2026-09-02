@@ -175,6 +175,30 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
     } catch (err) {
       console.warn('Supabase getUserByEmail error, falling back:', err);
     }
+
+    // Fallback: check Supabase Auth users
+    try {
+      const { data: authData } = await supabase.auth.admin.listUsers();
+      const found = authData?.users?.find((u) => u.email?.toLowerCase() === normalized);
+      if (found) {
+        return {
+          id: found.id,
+          name: found.user_metadata?.name || 'User',
+          email: found.email || normalized,
+          password_hash: '',
+          salt: '',
+          credits: found.user_metadata?.credits ?? 25,
+          referral_code: found.user_metadata?.referral_code,
+          referral_count: found.user_metadata?.referral_count || 0,
+          referral_earnings: found.user_metadata?.referral_earnings || 0,
+          signup_ip: found.user_metadata?.signup_ip,
+          created_at: found.created_at,
+          updated_at: found.updated_at || found.created_at,
+        };
+      }
+    } catch {
+      /* ignore */
+    }
   }
 
   const db = ensureLocalDb();
@@ -195,6 +219,30 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
       }
     } catch (err) {
       console.warn('Supabase getUserById error, falling back:', err);
+    }
+
+    // Fallback: check Supabase Auth admin
+    try {
+      const { data: authUser } = await supabase.auth.admin.getUserById(id);
+      if (authUser?.user) {
+        const u = authUser.user;
+        return {
+          id: u.id,
+          name: u.user_metadata?.name || 'User',
+          email: u.email || '',
+          password_hash: '',
+          salt: '',
+          credits: u.user_metadata?.credits ?? 25,
+          referral_code: u.user_metadata?.referral_code,
+          referral_count: u.user_metadata?.referral_count || 0,
+          referral_earnings: u.user_metadata?.referral_earnings || 0,
+          signup_ip: u.user_metadata?.signup_ip,
+          created_at: u.created_at,
+          updated_at: u.updated_at || u.created_at,
+        };
+      }
+    } catch {
+      /* ignore */
     }
   }
 
@@ -277,6 +325,35 @@ export async function getUserByReferralCode(code: string): Promise<UserRecord | 
     } catch (err) {
       console.warn('Supabase getUserByReferralCode notice:', err);
     }
+
+    // Fallback: check Supabase Auth admin users metadata
+    try {
+      const { data: authData } = await supabase.auth.admin.listUsers();
+      const found = authData?.users?.find((u) => {
+        const meta = u.user_metadata || {};
+        const refCode = (meta.referral_code || '').toLowerCase();
+        const emailPrefix = (u.email || '').split('@')[0].toLowerCase();
+        return refCode === clean || u.id.toLowerCase().startsWith(clean) || emailPrefix === clean;
+      });
+      if (found) {
+        return {
+          id: found.id,
+          name: found.user_metadata?.name || 'User',
+          email: found.email || '',
+          password_hash: '',
+          salt: '',
+          credits: found.user_metadata?.credits ?? 25,
+          referral_code: found.user_metadata?.referral_code || clean,
+          referral_count: found.user_metadata?.referral_count || 0,
+          referral_earnings: found.user_metadata?.referral_earnings || 0,
+          signup_ip: found.user_metadata?.signup_ip,
+          created_at: found.created_at,
+          updated_at: found.updated_at || found.created_at,
+        };
+      }
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   const db = ensureLocalDb();
@@ -354,6 +431,18 @@ export async function processReferralReward(
             updated_at: now,
           })
           .eq('id', referrer.id);
+
+        const { data: authData } = await supabase.auth.admin.getUserById(referrer.id);
+        if (authData?.user) {
+          await supabase.auth.admin.updateUserById(referrer.id, {
+            user_metadata: {
+              ...(authData.user.user_metadata || {}),
+              referral_count: newCount,
+              referral_earnings: newEarnings,
+              credits: (referrer.credits || 0) + REFERRAL_TOKENS,
+            },
+          });
+        }
       } catch {
         /* ignore */
       }
@@ -397,6 +486,21 @@ export async function getUserReferrals(userId: string): Promise<{
       if (data) referredUsers = data;
     } catch {
       /* ignore */
+    }
+
+    if (!referredUsers.length) {
+      try {
+        const { data: authData } = await supabase.auth.admin.listUsers();
+        const matches = (authData?.users || [])
+          .filter((u) => u.user_metadata?.referred_by === userId)
+          .map((u) => ({
+            name: u.user_metadata?.name || u.email?.split('@')[0] || 'Friend',
+            created_at: u.created_at,
+          }));
+        if (matches.length > 0) referredUsers = matches;
+      } catch {
+        /* ignore */
+      }
     }
   }
 
