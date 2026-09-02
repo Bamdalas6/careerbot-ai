@@ -139,7 +139,7 @@ export const AuthModal: React.FC = () => {
                 {isForgotFlow ? 'Reset Password' : 'CareerBot AI'}
               </h3>
               <p className="text-[11px] text-zinc-500 dark:text-[#8a8f98]">
-                {isForgotFlow ? 'Account recovery via email OTP' : 'Your AI-powered job search agent'}
+                {isForgotFlow ? 'Account recovery via email link' : 'Your AI-powered job search agent'}
               </p>
             </div>
           </div>
@@ -336,13 +336,12 @@ export const AuthModal: React.FC = () => {
             </form>
           )}
 
-          {/* ================= VIEW 3: FORGOT PASSWORD - REQUEST RESET ================= */}
           {mode === 'forgot-request' && (
             <form onSubmit={handleRequestReset} className="space-y-4">
               <div className="text-center sm:text-left">
                 <h4 className="text-sm font-bold text-zinc-900 dark:text-[#f7f8f8]">Reset Your Password</h4>
                 <p className="mt-1 text-xs text-zinc-500 dark:text-[#8a8f98] leading-relaxed">
-                  Enter your registered email address and we will send you a one-time verification code (OTP).
+                  Enter your email address and we&apos;ll send you a secure reset link. Check your inbox and spam folder.
                 </p>
               </div>
 
@@ -371,11 +370,11 @@ export const AuthModal: React.FC = () => {
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>{loadingMessage || 'Sending code...'}</span>
+                    <span>{loadingMessage || 'Sending reset link...'}</span>
                   </>
                 ) : (
                   <>
-                    <span>Send Verification Code</span>
+                    <span>Send Reset Link</span>
                     <ArrowRight className="h-3.5 w-3.5" />
                   </>
                 )}
