@@ -21,26 +21,21 @@ import { useAuth } from '@/context/AuthContext';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 import confetti from 'canvas-confetti';
 
-type AuthMode = 'login' | 'register' | 'forgot-request' | 'forgot-otp' | 'forgot-reset';
+type AuthMode = 'login' | 'register' | 'forgot-request';
 
 export const AuthModal: React.FC = () => {
   const { isAuthModalOpen, closeAuthModal, authModalMode, login, register } = useAuth();
 
   const [activeTab, setActiveTab] = useState<AuthMode | null>(null);
-  const mode: AuthMode = activeTab ?? authModalMode;
+  const mode: AuthMode = activeTab ?? (authModalMode as AuthMode);
 
   // Form states
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
 
   // UI helpers
   const [showPassword, setShowPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -118,9 +113,7 @@ export const AuthModal: React.FC = () => {
         throw new Error(data.error || 'Failed to send recovery email.');
       }
 
-      setOtpCode('');
-      setSuccessMessage(data.message || `A verification code has been sent to ${email.trim()}.`);
-      setActiveTab('forgot-otp');
+      setSuccessMessage(data.message || `A password reset link has been sent to ${email.trim()}.`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Could not send recovery email. Please check your address.';
       setError(msg);
@@ -130,128 +123,7 @@ export const AuthModal: React.FC = () => {
     }
   };
 
-  // 3. Step 2: Code Verification (verifyOtp)
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanOtp = otpCode.trim();
-    if (!cleanOtp) {
-      setError('Please enter the verification code.');
-      return;
-    }
-
-    setError(null);
-    setSuccessMessage(null);
-    setLoading(true);
-    setLoadingMessage('Verifying code...');
-
-    try {
-      // Step A: Check with backend OTP verifier
-      const res = await fetch('/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          otp: cleanOtp,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Invalid or expired verification code.');
-      }
-
-      // Step B: Also attempt Supabase client verification
-      const supabase = getSupabaseBrowserClient();
-      if (supabase) {
-        try {
-          await supabase.auth.verifyOtp({
-            email: email.trim().toLowerCase(),
-            token: cleanOtp,
-            type: 'recovery',
-          });
-        } catch {
-          /* ignore */
-        }
-      }
-
-      setSuccessMessage('Code verified successfully! Please enter your new password.');
-      setActiveTab('forgot-reset');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Invalid or expired code. Please try again.';
-      setError(msg);
-    } finally {
-      setLoading(false);
-      setLoadingMessage('');
-    }
-  };
-
-  // 4. Step 3: Set New Password (updateUser & DB sync)
-  const handleUpdatePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPassword.length < 6) {
-      setError('New password must be at least 6 characters long.');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-
-    setError(null);
-    setSuccessMessage(null);
-    setLoading(true);
-    setLoadingMessage('Updating password...');
-
-    try {
-      const supabase = getSupabaseBrowserClient();
-      if (supabase) {
-        // Update user password in Supabase Auth session
-        const { error: updateError } = await supabase.auth.updateUser({
-          password: newPassword,
-        });
-        if (updateError) {
-          console.warn('Supabase updateUser warning:', updateError.message);
-        }
-      }
-
-      // Sync password hash in backend users table
-      const res = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          newPassword,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to update password.');
-      }
-
-      // Reset state and return to login view
-      setSuccessMessage('Your password has been updated! Please sign in with your new password.');
-      setPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setOtpCode('');
-      setActiveTab('login');
-
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.6 },
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to update password. Please try again.';
-      setError(msg);
-    } finally {
-      setLoading(false);
-      setLoadingMessage('');
-    }
-  };
-
-  const isForgotFlow = mode === 'forgot-request' || mode === 'forgot-otp' || mode === 'forgot-reset';
+  const isForgotFlow = mode === 'forgot-request';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md animate-in fade-in duration-200">
@@ -328,7 +200,7 @@ export const AuthModal: React.FC = () => {
               <span>Back to Sign In</span>
             </button>
             <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 dark:text-[#8a8f98]">
-              {mode === 'forgot-request' ? 'Step 1 of 3' : mode === 'forgot-otp' ? 'Step 2 of 3' : 'Step 3 of 3'}
+              Password Recovery
             </span>
           </div>
         )}
@@ -511,159 +383,7 @@ export const AuthModal: React.FC = () => {
             </form>
           )}
 
-          {/* ================= VIEW 4: FORGOT PASSWORD - OTP VERIFICATION ================= */}
-          {mode === 'forgot-otp' && (
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="text-center sm:text-left">
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-[#f7f8f8]">Enter Recovery Code</h4>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-[#8a8f98] leading-relaxed">
-                  We sent a recovery email to <span className="font-semibold text-zinc-900 dark:text-white">{email}</span>.
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs text-indigo-950 dark:border-white/10 dark:bg-white/[0.03] dark:text-[#f7f8f8]">
-                <p className="font-semibold mb-1">📬 Check Your Inbox</p>
-                <p className="text-[11px] text-zinc-600 dark:text-[#8a8f98] leading-relaxed">
-                  We sent a recovery email to <b>{email}</b>. Click the <b>&quot;Reset password&quot; link</b> inside your email to reset your password instantly, or enter your 6-digit code below.
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
-                  One-Time Code (OTP)
-                </label>
-                <div className="relative flex items-center">
-                  <KeyRound className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-[#8a8f98]" />
-                  <input
-                    type="text"
-                    required
-                    maxLength={12}
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    placeholder="Enter 6-digit code"
-                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-4 text-center font-mono text-sm tracking-widest text-zinc-900 shadow-xs placeholder:tracking-normal placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:placeholder:text-[#62666d]"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('forgot-request');
-                    setError(null);
-                  }}
-                  className="text-zinc-500 hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-white transition"
-                >
-                  Change Email
-                </button>
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={handleRequestReset}
-                  className="font-semibold text-zinc-900 hover:underline dark:text-white"
-                >
-                  Resend Code
-                </button>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold disabled:opacity-40"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>{loadingMessage || 'Verifying...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Verify Code</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </>
-                )}
-              </button>
-            </form>
-          )}
-
-          {/* ================= VIEW 5: FORGOT PASSWORD - SET NEW PASSWORD ================= */}
-          {mode === 'forgot-reset' && (
-            <form onSubmit={handleUpdatePassword} className="space-y-4">
-              <div className="text-center sm:text-left">
-                <h4 className="text-sm font-bold text-zinc-900 dark:text-[#f7f8f8]">Set New Password</h4>
-                <p className="mt-1 text-xs text-zinc-500 dark:text-[#8a8f98] leading-relaxed">
-                  Enter your new password below to regain access to your account.
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
-                  New Password
-                </label>
-                <div className="relative flex items-center">
-                  <Lock className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-[#8a8f98]" />
-                  <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    required
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="At least 6 characters"
-                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-10 text-xs sm:text-sm text-zinc-900 shadow-xs placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:placeholder:text-[#62666d]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 text-zinc-400 hover:text-zinc-700 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
-                  >
-                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
-                  Confirm New Password
-                </label>
-                <div className="relative flex items-center">
-                  <Lock className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-[#8a8f98]" />
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter new password"
-                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-10 text-xs sm:text-sm text-zinc-900 shadow-xs placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:placeholder:text-[#62666d]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 text-zinc-400 hover:text-zinc-700 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold disabled:opacity-40"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>{loadingMessage || 'Updating password...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Submit New Password</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </>
-                )}
-              </button>
-            </form>
-          )}
+          {/* Removed legacy OTP and reset views since they are now handled via email link */}
 
           {/* Bottom Switcher for login/register */}
           {!isForgotFlow && (

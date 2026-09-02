@@ -89,6 +89,7 @@ export interface PasswordResetRecord {
   id: string;
   email: string;
   otp: string;
+  token_hash?: string;
   expires_at: number;
   used: boolean;
   created_at: string;
@@ -315,12 +316,12 @@ export async function processReferralReward(
     return { success: false, reason: 'Referral from identical device/IP address is not eligible' };
   }
 
-  const REFERRAL_TOKENS = 5;
+  const REFERRAL_TOKENS = 10;
   const res = await updateUserCredits(
     referrer.id,
     REFERRAL_TOKENS,
     'initial_bonus',
-    `Referral reward: ${newUserName} signed up with your link (+5 tokens)`
+    `Referral reward: ${newUserName} signed up with your link (+10 tokens)`
   );
 
   if (res.success) {
@@ -351,6 +352,18 @@ export async function processReferralReward(
         /* ignore */
       }
     }
+
+    try {
+      const { sendReferralSuccessEmail } = await import('./email');
+      await sendReferralSuccessEmail(
+        referrer.email,
+        referrer.name,
+        newUserName,
+        REFERRAL_TOKENS,
+        newEarnings
+      );
+    } catch { /* email notification is non-critical */ }
+
     return { success: true };
   }
   return { success: false, reason: res.error };
@@ -579,6 +592,75 @@ export async function verifyPasswordResetOtp(email: string, otp: string): Promis
   }
 
   return false;
+}
+
+export async function createPasswordResetToken(email: string): Promise<string> {
+  const normalized = email.trim().toLowerCase();
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const now = new Date().toISOString();
+  const expiresAt = Date.now() + 15 * 60 * 1000;
+
+  const record: PasswordResetRecord = {
+    id: `pr_${crypto.randomUUID()}`,
+    email: normalized,
+    otp: '',
+    token_hash: tokenHash,
+    expires_at: expiresAt,
+    used: false,
+    created_at: now,
+  };
+
+  const db = ensureLocalDb();
+  if (!db.password_resets) db.password_resets = [];
+  db.password_resets = db.password_resets.map((r) =>
+    r.email === normalized ? { ...r, used: true } : r
+  );
+  db.password_resets.push(record);
+  writeLocalDb(db);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('password_resets').update({ used: true }).eq('email', normalized).eq('used', false);
+      await supabase.from('password_resets').insert([record]);
+    } catch { /* ignore */ }
+  }
+
+  return rawToken;
+}
+
+export async function verifyPasswordResetToken(rawToken: string): Promise<string | null> {
+  const tokenHash = crypto.createHash('sha256').update(rawToken.trim()).digest('hex');
+  const now = Date.now();
+
+  const db = ensureLocalDb();
+  if (!db.password_resets) db.password_resets = [];
+  const match = db.password_resets.find(
+    (r) => r.token_hash === tokenHash && !r.used && r.expires_at > now
+  );
+  if (match) {
+    match.used = true;
+    writeLocalDb(db);
+    return match.email;
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data } = await supabase
+        .from('password_resets')
+        .select('*')
+        .eq('token_hash', tokenHash)
+        .eq('used', false)
+        .gt('expires_at', now)
+        .maybeSingle();
+      if (data) {
+        await supabase.from('password_resets').update({ used: true }).eq('id', data.id);
+        return (data as PasswordResetRecord).email;
+      }
+    } catch { /* ignore */ }
+  }
+
+  return null;
 }
 
 export async function updateUserCredits(
