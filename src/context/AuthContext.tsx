@@ -9,6 +9,9 @@ export interface AuthUser {
   email: string;
   username?: string;
   credits: number;
+  referral_code?: string;
+  referral_count?: number;
+  referral_earnings?: number;
   created_at: string;
 }
 
@@ -110,13 +113,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       /* silent */
     }
 
-    // Check if user landed on page with recovery hash/query
+    // Check if user landed on page with recovery hash/query or referral code
     if (typeof window !== 'undefined') {
       const hash = window.location.hash || '';
       const search = window.location.search || '';
       if (hash.includes('type=recovery') || search.includes('type=recovery')) {
         setAuthModalMode('forgot-reset');
         setIsAuthModalOpen(true);
+      }
+
+      // Capture referral code if present in URL
+      const params = new URLSearchParams(search);
+      const refParam = params.get('ref');
+      if (refParam) {
+        localStorage.setItem('careerbot_ref_code', refParam.trim());
       }
     }
 
@@ -185,15 +195,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     try {
+      const refCode = typeof window !== 'undefined' ? localStorage.getItem('careerbot_ref_code') : null;
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          ref_code: refCode || undefined,
+        }),
       });
       const data = await res.json();
 
       if (!res.ok || !data.success) {
         return { success: false, error: data.error || 'Failed to create account' };
+      }
+
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('careerbot_ref_code');
       }
 
       setUser(data.user);

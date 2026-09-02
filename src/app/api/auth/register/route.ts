@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserByEmail, createUser, createSession } from '@/lib/db';
+import { getUserByEmail, createUser, createSession, getUserByReferralCode, processReferralReward } from '@/lib/db';
 import { hashPassword, setSessionCookie, sanitizeUser } from '@/lib/auth';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, email, password } = body;
+    const { name, email, password, ref_code } = body;
 
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
       return NextResponse.json({ success: false, error: 'Please enter a valid name (at least 2 characters).' }, { status: 400 });
@@ -26,6 +26,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'An account with this email already exists. Please sign in instead.' }, { status: 409 });
     }
 
+    // Lookup referrer if ref_code was provided
+    let referrerUser = null;
+    if (ref_code && typeof ref_code === 'string') {
+      referrerUser = await getUserByReferralCode(ref_code);
+    }
+
     const { hash, salt } = hashPassword(password);
     const user = await createUser({
       name: name.trim(),
@@ -33,7 +39,17 @@ export async function POST(req: NextRequest) {
       password_hash: hash,
       salt,
       initialCredits: 25, // 25 free credits upon sign up
+      referred_by: referrerUser ? referrerUser.id : undefined,
     });
+
+    // Reward the referrer with 5 free tokens
+    if (referrerUser && referrerUser.id !== user.id) {
+      try {
+        await processReferralReward(referrerUser.id, user.id, user.name);
+      } catch (refErr) {
+        console.warn('Referral reward payout notice:', refErr);
+      }
+    }
 
     // Also sync to Supabase Auth so native password resets and OTPs work out-of-the-box
     if (isSupabaseConfigured && supabase) {
@@ -42,7 +58,11 @@ export async function POST(req: NextRequest) {
           email: email.trim().toLowerCase(),
           password,
           email_confirm: true,
-          user_metadata: { name: name.trim() },
+          user_metadata: {
+            name: name.trim(),
+            referral_code: user.referral_code,
+            referred_by: referrerUser ? referrerUser.id : null,
+          },
         });
       } catch (authErr) {
         console.warn('Supabase auth.admin.createUser notice:', authErr);
@@ -54,7 +74,9 @@ export async function POST(req: NextRequest) {
 
     const response = NextResponse.json({
       success: true,
-      message: 'Account created successfully! 25 free credits have been added.',
+      message: referrerUser
+        ? `Account created with referral bonus! 25 free tokens have been added.`
+        : `Account created successfully! 25 free credits have been added.`,
       user: safeUser,
       token: session.token,
     });

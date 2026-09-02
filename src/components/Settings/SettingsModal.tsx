@@ -16,6 +16,11 @@ import {
   Eye,
   EyeOff,
   Sparkles,
+  Gift,
+  Copy,
+  Check,
+  Share2,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
@@ -29,7 +34,7 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { user, credits, updateProfile } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'referrals'>('profile');
 
   // Profile section states
   const [name, setName] = useState(user?.name || '');
@@ -49,11 +54,51 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [securitySuccess, setSecuritySuccess] = useState<string | null>(null);
   const [securityError, setSecurityError] = useState<string | null>(null);
 
+  // Referral section states
+  const [referralCode, setReferralCode] = useState(user?.referral_code || '');
+  const [referralLink, setReferralLink] = useState('');
+  const [totalReferred, setTotalReferred] = useState(user?.referral_count || 0);
+  const [totalEarned, setTotalEarned] = useState(user?.referral_earnings || 0);
+  const [referredFriends, setReferredFriends] = useState<Array<{ name: string; created_at: string }>>([]);
+  const [copied, setCopied] = useState(false);
+  const [referralsLoading, setReferralsLoading] = useState(false);
+
+  // Fetch live referral stats
+  const loadReferrals = async () => {
+    try {
+      setReferralsLoading(true);
+      const res = await fetch('/api/user/referrals');
+      const data = await res.json();
+      if (data.success) {
+        setReferralCode(data.referralCode);
+        setReferralLink(data.referralLink);
+        setTotalReferred(data.totalReferred);
+        setTotalEarned(data.totalEarned);
+        setReferredFriends(data.referredUsers || []);
+      }
+    } catch {
+      /* fallback to local user fields */
+    } finally {
+      setReferralsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'referrals') {
+      loadReferrals();
+    }
+  }, [isOpen, activeTab]);
+
   // Pre-fill fields whenever user changes or modal opens
   useEffect(() => {
     if (user) {
       setName(user.name || '');
       setUsername(user.username || '');
+      if (user.referral_code) setReferralCode(user.referral_code);
+      if (typeof window !== 'undefined') {
+        const origin = window.location.origin;
+        setReferralLink(`${origin}?ref=${user.referral_code || user.username || user.id.slice(0, 8)}`);
+      }
     }
   }, [user, isOpen]);
 
@@ -236,26 +281,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           <button
             type="button"
             onClick={() => setActiveTab('profile')}
-            className={`flex flex-1 items-center justify-center gap-2 py-3 text-xs font-semibold transition ${
+            className={`flex flex-1 items-center justify-center gap-1.5 sm:gap-2 py-3 text-xs font-semibold transition ${
               activeTab === 'profile'
                 ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-[#f7f8f8]'
                 : 'text-zinc-500 hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]'
             }`}
           >
             <User className="h-3.5 w-3.5" />
-            <span>Profile Details</span>
+            <span>Profile</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('security')}
-            className={`flex flex-1 items-center justify-center gap-2 py-3 text-xs font-semibold transition ${
+            className={`flex flex-1 items-center justify-center gap-1.5 sm:gap-2 py-3 text-xs font-semibold transition ${
               activeTab === 'security'
                 ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-[#f7f8f8]'
                 : 'text-zinc-500 hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]'
             }`}
           >
             <Lock className="h-3.5 w-3.5" />
-            <span>Security & Password</span>
+            <span>Security</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('referrals')}
+            className={`flex flex-1 items-center justify-center gap-1.5 sm:gap-2 py-3 text-xs font-semibold transition ${
+              activeTab === 'referrals'
+                ? 'border-b-2 border-amber-500 text-amber-600 dark:border-amber-400 dark:text-amber-400'
+                : 'text-zinc-500 hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]'
+            }`}
+          >
+            <Gift className="h-3.5 w-3.5 text-amber-500" />
+            <span>Refer & Earn</span>
+            <span className="hidden sm:inline-block rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+              +5
+            </span>
           </button>
         </div>
 
@@ -456,6 +516,144 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 )}
               </button>
             </form>
+          )}
+
+          {/* ================= SECTION 3: REFER & EARN ================= */}
+          {activeTab === 'referrals' && (
+            <div className="space-y-4">
+              {/* Promo Banner */}
+              <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-4 dark:border-amber-500/15">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                    <Gift className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white">
+                      Get 5 Free Tokens Per Friend! 🎁
+                    </h4>
+                    <p className="mt-1 text-[11px] text-zinc-600 dark:text-[#8a8f98] leading-relaxed">
+                      Share your personal referral link with job seekers and colleagues. Whenever someone signs up using your link, you instantly get <b>5 free tokens</b> added to your account!
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Referral Link & Copy */}
+              <div>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
+                  Your Personal Referral Link
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={referralLink}
+                    className="w-full rounded-xl border border-zinc-300 bg-zinc-50 py-2.5 px-3.5 font-mono text-xs text-zinc-700 select-all dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof navigator !== 'undefined' && referralLink) {
+                        navigator.clipboard.writeText(referralLink);
+                        setCopied(true);
+                        confetti({ particleCount: 30, spread: 50, origin: { y: 0.7 } });
+                        setTimeout(() => setCopied(false), 2000);
+                      }
+                    }}
+                    className="btn-primary flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-emerald-400" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Share on Socials */}
+              <div>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
+                  1-Click Share
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <a
+                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                      `Hey! Check out CareerBot AI for discovering top tech jobs, CV review & ATS tailoring in Nigeria & globally. Sign up with my link to claim your bonus: ${referralLink}`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/10 transition"
+                  >
+                    <span>WhatsApp</span>
+                  </a>
+                  <a
+                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
+                      `Discover top tech & remote jobs with AI. Join CareerBot AI: ${referralLink}`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-sky-500/20 bg-sky-500/5 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-500/10 dark:text-sky-400 dark:hover:bg-sky-500/10 transition"
+                  >
+                    <span>𝕏 (Twitter)</span>
+                  </a>
+                  <a
+                    href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(referralLink)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/10 transition"
+                  >
+                    <span>LinkedIn</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Stats Counters */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="rounded-xl border border-black/10 bg-zinc-50/70 p-3 text-center dark:border-white/[0.08] dark:bg-white/[0.02]">
+                  <div className="flex items-center justify-center gap-1 text-zinc-500 dark:text-[#8a8f98] mb-1">
+                    <Users className="h-3.5 w-3.5" />
+                    <span className="text-[11px] font-medium">Friends Joined</span>
+                  </div>
+                  <p className="text-xl font-bold text-zinc-900 dark:text-white">{totalReferred}</p>
+                </div>
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-center dark:border-amber-500/10">
+                  <div className="flex items-center justify-center gap-1 text-amber-600 dark:text-amber-400 mb-1">
+                    <Zap className="h-3.5 w-3.5" />
+                    <span className="text-[11px] font-medium">Tokens Earned</span>
+                  </div>
+                  <p className="text-xl font-bold text-amber-600 dark:text-amber-400">+{totalEarned}</p>
+                </div>
+              </div>
+
+              {/* Recent Friends List */}
+              {referredFriends.length > 0 && (
+                <div className="pt-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98] mb-2">
+                    Recent Friends Joined ({referredFriends.length})
+                  </p>
+                  <div className="max-h-28 space-y-1.5 overflow-y-auto pr-1">
+                    {referredFriends.map((friend, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between rounded-lg border border-black/5 bg-zinc-50/50 px-3 py-1.5 text-xs dark:border-white/[0.05] dark:bg-white/[0.02]"
+                      >
+                        <span className="font-medium text-zinc-900 dark:text-zinc-200">{friend.name}</span>
+                        <span className="text-[10px] text-zinc-400">
+                          {new Date(friend.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

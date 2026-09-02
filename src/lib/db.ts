@@ -29,6 +29,10 @@ export interface UserRecord {
   password_hash: string;
   salt: string;
   credits: number;
+  referral_code?: string;
+  referred_by?: string;
+  referral_count?: number;
+  referral_earnings?: number;
   created_at: string;
   updated_at: string;
 }
@@ -202,9 +206,14 @@ export async function createUser(userData: {
   password_hash: string;
   salt: string;
   initialCredits?: number;
+  referred_by?: string;
 }): Promise<UserRecord> {
   const now = new Date().toISOString();
   const initialCredits = userData.initialCredits ?? 25;
+  const baseCode = userData.name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 7) || 'user';
+  const randSuffix = Math.floor(100 + Math.random() * 900);
+  const referralCode = `${baseCode}${randSuffix}`;
+
   const newUser: UserRecord = {
     id: `user_${crypto.randomUUID()}`,
     name: userData.name.trim(),
@@ -212,6 +221,10 @@ export async function createUser(userData: {
     password_hash: userData.password_hash,
     salt: userData.salt,
     credits: initialCredits,
+    referral_code: referralCode,
+    referred_by: userData.referred_by || undefined,
+    referral_count: 0,
+    referral_earnings: 0,
     created_at: now,
     updated_at: now,
   };
@@ -241,6 +254,125 @@ export async function createUser(userData: {
   writeLocalDb(db);
 
   return newUser;
+}
+
+export async function getUserByReferralCode(code: string): Promise<UserRecord | null> {
+  if (!code) return null;
+  const clean = code.trim().toLowerCase().replace(/^@/, '');
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .or(`referral_code.ilike.${clean},username.ilike.${clean},id.ilike.${clean}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data) return data as UserRecord;
+    } catch (err) {
+      console.warn('Supabase getUserByReferralCode notice:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
+  return (
+    db.users.find(
+      (u) =>
+        u.referral_code?.toLowerCase() === clean ||
+        u.username?.toLowerCase() === clean ||
+        u.id.toLowerCase().startsWith(clean)
+    ) || null
+  );
+}
+
+export async function processReferralReward(
+  referrerId: string,
+  newUserId: string,
+  newUserName: string
+): Promise<boolean> {
+  const referrer = await getUserById(referrerId);
+  if (!referrer || referrer.id === newUserId) return false;
+
+  const REFERRAL_TOKENS = 5;
+  const res = await updateUserCredits(
+    referrer.id,
+    REFERRAL_TOKENS,
+    'initial_bonus',
+    `Referral reward: ${newUserName} signed up with your link (+5 tokens)`
+  );
+
+  if (res.success) {
+    const now = new Date().toISOString();
+    const newCount = (referrer.referral_count || 0) + 1;
+    const newEarnings = (referrer.referral_earnings || 0) + REFERRAL_TOKENS;
+
+    const db = ensureLocalDb();
+    const u = db.users.find((x) => x.id === referrer.id);
+    if (u) {
+      u.referral_count = newCount;
+      u.referral_earnings = newEarnings;
+      u.updated_at = now;
+      writeLocalDb(db);
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase
+          .from('users')
+          .update({
+            referral_count: newCount,
+            referral_earnings: newEarnings,
+            updated_at: now,
+          })
+          .eq('id', referrer.id);
+      } catch {
+        /* ignore */
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+export async function getUserReferrals(userId: string): Promise<{
+  referralCode: string;
+  totalReferred: number;
+  totalEarned: number;
+  referredUsers: Array<{ name: string; created_at: string }>;
+}> {
+  const user = await getUserById(userId);
+  const fallbackCode = user?.referral_code || user?.username || user?.id.slice(0, 8) || 'join';
+
+  let referredUsers: Array<{ name: string; created_at: string }> = [];
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('name, created_at')
+        .eq('referred_by', userId)
+        .order('created_at', { ascending: false });
+
+      if (data) referredUsers = data;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (!referredUsers.length) {
+    const db = ensureLocalDb();
+    referredUsers = db.users
+      .filter((u) => u.referred_by === userId)
+      .map((u) => ({ name: u.name, created_at: u.created_at }));
+  }
+
+  return {
+    referralCode: user?.referral_code || fallbackCode,
+    totalReferred: user?.referral_count || referredUsers.length,
+    totalEarned: user?.referral_earnings || (user?.referral_count || referredUsers.length) * 5,
+    referredUsers,
+  };
 }
 
 export async function updateUserProfile(

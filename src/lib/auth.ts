@@ -84,6 +84,9 @@ export function sanitizeUser(user: UserRecord): Omit<UserRecord, 'password_hash'
     email: user.email,
     username: user.username,
     credits: user.credits,
+    referral_code: user.referral_code,
+    referral_count: user.referral_count || 0,
+    referral_earnings: user.referral_earnings || 0,
     created_at: user.created_at,
     updated_at: user.updated_at,
   };

@@ -15,6 +15,7 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  Gift,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
@@ -367,6 +368,15 @@ export const AuthModal: React.FC = () => {
           {/* ================= VIEW 1 & 2: LOGIN OR REGISTER ================= */}
           {!isForgotFlow && (
             <form onSubmit={handleSubmitAuth} className="space-y-3.5">
+              {mode === 'register' && typeof window !== 'undefined' && localStorage.getItem('careerbot_ref_code') && (
+                <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-2.5 text-xs text-amber-950 dark:text-amber-300">
+                  <Gift className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span>
+                    Referral invite active: <b>@{localStorage.getItem('careerbot_ref_code')}</b> (+5 bonus)
+                  </span>
+                </div>
+              )}
+
               {mode === 'register' && (
                 <div>
                   <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
