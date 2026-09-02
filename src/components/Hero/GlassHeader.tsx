@@ -17,6 +17,7 @@ import {
   Menu,
   X,
   Settings,
+  Gift,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -239,6 +240,24 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
                       <Zap className="h-3.5 w-3.5 text-amber-500" />
                       <span>Top Up Credits</span>
                     </button>
+                    {onOpenSettings && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileOpen(false);
+                          onOpenSettings();
+                        }}
+                        className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-medium text-zinc-800 transition hover:bg-zinc-100 dark:text-[#f7f8f8] dark:hover:bg-white/[0.06]"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Gift className="h-3.5 w-3.5 text-amber-500" />
+                          <span>Refer & Earn</span>
+                        </div>
+                        <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                          +5
+                        </span>
+                      </button>
+                    )}
                     {onOpenHistory && (
                       <button
                         type="button"
