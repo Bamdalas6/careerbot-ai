@@ -7,7 +7,8 @@ import {
   locationMatches,
   locationAllowsRemote,
 } from './query-parser';
-import { BOARDS, fetchBoards, selectBoards, levelFrom, relativeTime, ageInDays } from './ats-boards';
+import { BOARDS, fetchBoards, selectBoards, levelFrom, relativeTime, ageInDays, EXCLUDED_COMPANIES } from './ats-boards';
+import { getCrawledJobs } from './db';
 
 /**
  * Job search.
@@ -665,12 +666,13 @@ export async function runSearch(rawQuery: string, limit = 40): Promise<SearchRes
   // is unscoped or actually pointed at Nigeria / the continent.
   const wantsInkdesk = !country || country === 'NG' || country === 'AFRICA';
 
-  const [boardJobs, remotive, jobicy, arbeitnow, inkdesk] = await Promise.all([
+  const [boardJobs, remotive, jobicy, arbeitnow, inkdesk, crawled] = await Promise.all([
     fetchBoards(boards),
     wantsFeeds ? fetchRemotive(term) : Promise.resolve([]),
     wantsFeeds ? fetchJobicy(term, country ? JOBICY_GEO[country] : undefined) : Promise.resolve([]),
     wantsFeeds && (!country || ['EU', 'DE', 'UK'].includes(country)) ? fetchArbeitnow() : Promise.resolve([]),
     wantsInkdesk ? fetchInkdesk(term) : Promise.resolve([]),
+    getCrawledJobs(150),
   ]);
 
   const sourcesQueried = [
@@ -679,15 +681,19 @@ export async function runSearch(rawQuery: string, limit = 40): Promise<SearchRes
     ...(jobicy.length ? ['Jobicy'] : []),
     ...(arbeitnow.length ? ['Arbeitnow'] : []),
     ...(inkdesk.length ? ['Inkdesk'] : []),
+    ...(crawled.length ? ['Community & Ingested Feeds'] : []),
   ];
 
-  // ---- dedupe on company + title ----
-  const all = [...boardJobs, ...remotive, ...jobicy, ...arbeitnow, ...inkdesk];
+  // ---- dedupe on company + title and exclude blacklisted companies ----
+  const all = [...boardJobs, ...remotive, ...jobicy, ...arbeitnow, ...inkdesk, ...crawled];
   const seen = new Set<string>();
   const unique: JobListing[] = [];
   for (const job of all) {
     if (!job.apply_url) continue;
-    const key = `${job.company.toLowerCase().trim()}|${job.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`;
+    const compLower = job.company.toLowerCase().trim();
+    if (EXCLUDED_COMPANIES.has(compLower)) continue; // Never include Moniepoint
+
+    const key = `${compLower}|${job.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`;
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(job);

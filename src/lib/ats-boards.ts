@@ -30,12 +30,14 @@ export interface BoardRef {
   size: number;
 }
 
+export const EXCLUDED_COMPANIES = new Set(['moniepoint']);
+
 export const BOARDS: BoardRef[] = [
   // ---- Nigeria ----
-  { provider: 'greenhouse', token: 'moniepoint', company: 'Moniepoint', regions: ['NG', 'AFRICA'], size: 124 },
   { provider: 'workable', token: 'renmoney', company: 'Renmoney', regions: ['NG', 'AFRICA'], size: 113 },
   { provider: 'workable', token: 'fairmoney', company: 'FairMoney', regions: ['NG', 'AFRICA'], size: 38 },
   { provider: 'workable', token: 'kuda', company: 'Kuda', regions: ['NG', 'AFRICA'], size: 14 },
+  { provider: 'lever', token: 'interswitchgroup', company: 'Interswitch', regions: ['NG', 'AFRICA'], size: 25 },
   { provider: 'workable', token: 'helium-health', company: 'Helium Health', regions: ['NG', 'AFRICA'], size: 3 },
 
   // ---- Pan-African ----
@@ -315,10 +317,18 @@ export function selectBoards(country: string | undefined, limit = 8): BoardRef[]
 
 /** Fetch every given board in parallel; failures contribute nothing. */
 export async function fetchBoards(boards: BoardRef[]): Promise<JobListing[]> {
+  const allowed = boards.filter(
+    (b) =>
+      !EXCLUDED_COMPANIES.has(b.token.toLowerCase()) &&
+      !EXCLUDED_COMPANIES.has(b.company.toLowerCase())
+  );
   const results = await Promise.all(
-    boards.map(async (b) => {
+    allowed.map(async (b) => {
       try {
-        return await FETCHERS[b.provider](b);
+        const jobs = await FETCHERS[b.provider](b);
+        return jobs.filter(
+          (j) => !EXCLUDED_COMPANIES.has(j.company.toLowerCase().trim())
+        );
       } catch {
         return [] as JobListing[];
       }

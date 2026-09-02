@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import type { SavedJob, ApplicationEvent } from '@/types/job';
+import type { SavedJob, ApplicationEvent, JobListing } from '@/types/job';
 import { supabase, isSupabaseConfigured } from './supabase';
 
 export interface ApplicationRecord {
@@ -97,6 +97,7 @@ interface DatabaseSchema {
   transactions: TransactionRecord[];
   applications: ApplicationRecord[];
   password_resets?: PasswordResetRecord[];
+  crawled_jobs?: JobListing[];
 }
 
 const DATA_DIR = path.join(process.cwd(), '.data');
@@ -110,6 +111,7 @@ const INITIAL_DB: DatabaseSchema = {
   transactions: [],
   applications: [],
   password_resets: [],
+  crawled_jobs: [],
 };
 
 function ensureLocalDb(): DatabaseSchema {
@@ -1005,4 +1007,85 @@ export async function getNextFreeClaimInfo(userId: string): Promise<{ canClaim: 
   const hoursRemaining = Math.ceil(msRemaining / (1000 * 60 * 60));
   const nextClaimAt = new Date(new Date(reference.created_at).getTime() + COOLDOWN_MS).toISOString();
   return { canClaim: false, hoursRemaining, nextClaimAt };
+}
+
+export async function saveCrawledJobs(
+  newJobs: JobListing[]
+): Promise<{ added: number; total: number }> {
+  const db = ensureLocalDb();
+  if (!db.crawled_jobs) db.crawled_jobs = [];
+
+  const existingKeys = new Set(
+    db.crawled_jobs.map(
+      (j) => j.apply_url || `${j.company.toLowerCase()}-${j.title.toLowerCase()}`
+    )
+  );
+
+  let added = 0;
+  for (const job of newJobs) {
+    const key =
+      job.apply_url || `${job.company.toLowerCase()}-${job.title.toLowerCase()}`;
+    if (!existingKeys.has(key)) {
+      existingKeys.add(key);
+      db.crawled_jobs.push(job);
+      added++;
+    }
+  }
+
+  // Keep most recent 500 crawled jobs to stay fresh and fast
+  if (db.crawled_jobs.length > 500) {
+    db.crawled_jobs = db.crawled_jobs.slice(-500);
+  }
+
+  writeLocalDb(db);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      // If jobs table exists in Supabase, insert unique jobs
+      const formatted = newJobs.map((j) => ({
+        id: j.id,
+        title: j.title,
+        company: j.company,
+        location: j.location,
+        is_remote: j.is_remote,
+        job_type: j.job_type || 'Full-time',
+        experience_level: j.experience_level || 'Mid-Level',
+        description: j.description || '',
+        snippet: j.snippet || '',
+        tags: j.tags || [],
+        apply_url: j.apply_url,
+        source: j.source,
+        posted_at: j.posted_at || 'Recently',
+      }));
+
+      await supabase
+        .from('jobs')
+        .upsert(formatted, { onConflict: 'apply_url', ignoreDuplicates: true });
+    } catch {
+      /* ignore if table does not exist */
+    }
+  }
+
+  return { added, total: db.crawled_jobs.length };
+}
+
+export async function getCrawledJobs(limit = 100): Promise<JobListing[]> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as JobListing[];
+      }
+    } catch {
+      /* fallback to local */
+    }
+  }
+
+  const db = ensureLocalDb();
+  return (db.crawled_jobs || []).slice(-limit);
 }

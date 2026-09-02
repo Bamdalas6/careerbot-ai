@@ -6,8 +6,8 @@ export interface JobListing {
   company_url?: string;
   location: string;
   is_remote: boolean;
-  job_type: 'Full-time' | 'Part-time' | 'Contract' | 'Internship' | 'Freelance';
-  experience_level?: 'Entry' | 'Mid' | 'Senior' | 'Lead' | 'Executive' | 'All';
+  job_type: 'Full-time' | 'Part-time' | 'Contract' | 'Internship' | 'Freelance' | string;
+  experience_level?: 'Entry' | 'Mid' | 'Senior' | 'Lead' | 'Executive' | 'All' | string;
   salary_min?: number;
   salary_max?: number;
   salary_currency?: string;
@@ -27,7 +27,11 @@ export interface JobListing {
     | 'Workable'
     | 'Ashby'
     | 'Direct ATS'
-    | 'Curated';
+    | 'Curated'
+    | 'MyJobMag'
+    | 'Twitter'
+    | 'Community'
+    | string;
   posted_at: string;
   /**
    * Age in days, or undefined when the source published no date. Kept alongside
