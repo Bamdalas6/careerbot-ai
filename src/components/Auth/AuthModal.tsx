@@ -50,6 +50,12 @@ export const AuthModal: React.FC = () => {
   const [showManualRefInput, setShowManualRefInput] = useState(false);
 
   useEffect(() => {
+    setActiveTab(null);
+    setError(null);
+    setSuccessMessage(null);
+  }, [isAuthModalOpen, authModalMode]);
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const search = window.location.search || '';
       const params = new URLSearchParams(search);

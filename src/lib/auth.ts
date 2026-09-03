@@ -18,8 +18,16 @@ export function hashPassword(password: string): { hash: string; salt: string } {
  * Verifies a password against a stored hash and salt.
  */
 export function verifyPassword(password: string, hash: string, salt: string): boolean {
-  const testHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(testHash, 'hex'), Buffer.from(hash, 'hex'));
+  if (!password || !hash || !salt) return false;
+  try {
+    const testHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+    const bufA = Buffer.from(testHash, 'hex');
+    const bufB = Buffer.from(hash, 'hex');
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
 }
 
 /**

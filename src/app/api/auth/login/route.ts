@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserByEmail, createSession } from '@/lib/db';
-import { verifyPassword, setSessionCookie, sanitizeUser } from '@/lib/auth';
+import { getUserByEmail, createSession, createUser, updateUserPasswordByEmail } from '@/lib/db';
+import { verifyPassword, setSessionCookie, sanitizeUser, hashPassword } from '@/lib/auth';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,13 +12,49 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Email and password are required.' }, { status: 400 });
     }
 
-    const user = await getUserByEmail(email);
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
+    const normalizedEmail = email.trim().toLowerCase();
+    let user = await getUserByEmail(normalizedEmail);
+
+    let isValid = false;
+    if (user && user.password_hash && user.salt) {
+      isValid = verifyPassword(password, user.password_hash, user.salt);
     }
 
-    const isValid = verifyPassword(password, user.password_hash, user.salt);
-    if (!isValid) {
+    // Dual verification: If local hash fails or user has no local hash,
+    // verify against Supabase Auth (handles users registered or reset in Supabase)
+    if (!isValid && isSupabaseConfigured && supabase) {
+      try {
+        const { data: sbAuth, error: sbErr } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+
+        if (!sbErr && sbAuth?.user) {
+          isValid = true;
+          const { hash, salt } = hashPassword(password);
+
+          if (!user) {
+            const meta = sbAuth.user.user_metadata || {};
+            user = await createUser({
+              name: meta.name || 'User',
+              email: normalizedEmail,
+              password_hash: hash,
+              salt,
+              initialCredits: meta.credits ?? 25,
+            });
+          } else {
+            // Update local password hash so future logins are verified directly
+            await updateUserPasswordByEmail(normalizedEmail, hash, salt);
+            user.password_hash = hash;
+            user.salt = salt;
+          }
+        }
+      } catch (sbLoginErr) {
+        console.warn('Supabase signInWithPassword fallback notice:', sbLoginErr);
+      }
+    }
+
+    if (!user || !isValid) {
       return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
     }
 
