@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
           req.headers.get('origin') ||
           process.env.NEXT_PUBLIC_SITE_URL ||
           'https://careerbot-ai-seven.vercel.app';
-        const redirectTo = `${origin.replace(/\/$/, '')}/auth/reset-password?token=${rawToken}`;
+        const redirectTo = `${origin.replace(/\/$/, '')}/auth/reset-password?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
         const { error: supErr } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
           redirectTo,
         });

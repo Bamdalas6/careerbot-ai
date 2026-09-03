@@ -9,7 +9,7 @@ export async function sendPasswordResetEmail(
   userName: string,
   resetToken: string
 ): Promise<{ success: boolean; error?: string }> {
-  const resetUrl = `${SITE}/auth/reset-password?token=${resetToken}`;
+  const resetUrl = `${SITE}/auth/reset-password?token=${resetToken}&email=${encodeURIComponent(toEmail.trim())}`;
   const year = new Date().getFullYear();
   try {
     const { error } = await resend.emails.send({

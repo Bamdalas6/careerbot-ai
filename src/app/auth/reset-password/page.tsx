@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Lock, Eye, EyeOff, ShieldCheck, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Lock, Eye, EyeOff, ShieldCheck, AlertCircle, CheckCircle2, Loader2, Mail } from 'lucide-react';
 import Link from 'next/link';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 
@@ -10,8 +10,10 @@ function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') || '';
+  const emailParam = searchParams.get('email') || '';
 
   const [hasValidAccess, setHasValidAccess] = useState(false);
+  const [accountEmail, setAccountEmail] = useState(emailParam);
   const [supabaseUserEmail, setSupabaseUserEmail] = useState<string | null>(null);
   const [supabaseAccessToken, setSupabaseAccessToken] = useState<string | null>(null);
 
@@ -24,6 +26,9 @@ function ResetPasswordForm() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
+    if (emailParam) {
+      setAccountEmail(emailParam);
+    }
     if (token) {
       setHasValidAccess(true);
       setError(null);
@@ -39,6 +44,9 @@ function ResetPasswordForm() {
             setHasValidAccess(true);
             setSupabaseUserEmail(data.session.user.email || null);
             setSupabaseAccessToken(data.session.access_token || null);
+            if (data.session.user?.email) {
+              setAccountEmail(data.session.user.email);
+            }
             setError(null);
           } else {
             if (typeof window !== 'undefined') {
@@ -93,7 +101,7 @@ function ResetPasswordForm() {
         },
         body: JSON.stringify({
           token: token || undefined,
-          email: emailFromSession || undefined,
+          email: accountEmail || emailFromSession || undefined,
           newPassword,
         }),
       });
@@ -144,6 +152,31 @@ function ResetPasswordForm() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
+              Account Email
+            </label>
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+              <ShieldCheck className="h-3 w-3" />
+              Verified Account
+            </span>
+          </div>
+          <div className="relative flex items-center">
+            <Mail className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+            <input
+              type="email"
+              readOnly
+              disabled
+              value={accountEmail || 'Account verified via reset link'}
+              className="w-full rounded-xl border border-zinc-200 bg-zinc-100/90 py-2.5 pl-10 pr-4 text-sm font-medium text-zinc-700 select-all cursor-not-allowed dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-200"
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+            This email is linked to your reset link and cannot be changed.
+          </p>
+        </div>
+
         <div>
           <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">New Password</label>
           <div className="relative flex items-center">
