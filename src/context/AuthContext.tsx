@@ -28,7 +28,7 @@ interface AuthContextType {
   openCreditModal: () => void;
   closeCreditModal: () => void;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (name: string, email: string, password: string, explicitRefCode?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateCredits: (newAmount: number) => void;
   updateProfile: (updatedData: { name?: string; username?: string }) => void;
@@ -124,11 +124,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // Capture referral code if present in URL
+      // Capture referral code if present in URL and automatically open registration modal
       const params = new URLSearchParams(search);
       const refParam = params.get('ref');
       if (refParam) {
         localStorage.setItem('careerbot_ref_code', refParam.trim());
+        setAuthModalMode('register');
+        setIsAuthModalOpen(true);
       }
     }
 
@@ -195,9 +197,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const register = useCallback(async (name: string, email: string, password: string) => {
+  const register = useCallback(async (name: string, email: string, password: string, explicitRefCode?: string) => {
     try {
-      const refCode = typeof window !== 'undefined' ? localStorage.getItem('careerbot_ref_code') : null;
+      const storedRef = typeof window !== 'undefined' ? localStorage.getItem('careerbot_ref_code') : null;
+      const refCode = (explicitRefCode && explicitRefCode.trim()) || storedRef;
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
