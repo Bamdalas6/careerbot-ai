@@ -26,10 +26,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'An account with this email already exists. Please sign in instead.' }, { status: 409 });
     }
 
-    // Lookup referrer if ref_code was provided
+    // Lookup referrer if ref_code was provided in body, cookies, or full URL
+    const rawRef =
+      (ref_code && typeof ref_code === 'string' && ref_code.trim()) ||
+      req.cookies.get('careerbot_ref')?.value ||
+      null;
+
     let referrerUser = null;
-    if (ref_code && typeof ref_code === 'string') {
-      referrerUser = await getUserByReferralCode(ref_code);
+    if (rawRef) {
+      let clean = rawRef.trim();
+      if (clean.includes('ref=')) {
+        clean = clean.split('ref=')[1].split('&')[0];
+      }
+      clean = clean.replace(/^@/, '').replace(/\/$/, '').trim();
+      if (clean) {
+        referrerUser = await getUserByReferralCode(clean);
+      }
     }
 
     const clientIp =

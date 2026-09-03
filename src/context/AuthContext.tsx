@@ -128,9 +128,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const params = new URLSearchParams(search);
       const refParam = params.get('ref');
       if (refParam) {
-        localStorage.setItem('careerbot_ref_code', refParam.trim());
-        setAuthModalMode('register');
-        setIsAuthModalOpen(true);
+        let clean = refParam.trim();
+        if (clean.includes('ref=')) clean = clean.split('ref=')[1].split('&')[0];
+        clean = clean.replace(/^@/, '').replace(/\/$/, '').trim();
+        if (clean) {
+          localStorage.setItem('careerbot_ref_code', clean);
+          document.cookie = `careerbot_ref=${encodeURIComponent(clean)}; path=/; max-age=2592000; SameSite=Lax`;
+          setAuthModalMode('register');
+          setIsAuthModalOpen(true);
+        }
       }
     }
 

@@ -33,15 +33,34 @@ export const AuthModal: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [referralCode, setReferralCode] = useState('');
-  const [isUrlReferral, setIsUrlReferral] = useState(false);
+  const [referralCode, setReferralCode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const search = window.location.search || '';
+      const params = new URLSearchParams(search);
+      const fromUrl = params.get('ref');
+      if (fromUrl) {
+        let clean = fromUrl.trim();
+        if (clean.includes('ref=')) clean = clean.split('ref=')[1].split('&')[0];
+        return clean.replace(/^@/, '').replace(/\/$/, '').trim();
+      }
+      return localStorage.getItem('careerbot_ref_code') || '';
+    }
+    return '';
+  });
+  const [showManualRefInput, setShowManualRefInput] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const search = window.location.search || '';
+      const params = new URLSearchParams(search);
+      const fromUrl = params.get('ref');
       const stored = localStorage.getItem('careerbot_ref_code') || '';
-      if (stored) {
-        setReferralCode(stored);
-        setIsUrlReferral(true);
+      const code = fromUrl || stored;
+      if (code) {
+        let clean = code.trim();
+        if (clean.includes('ref=')) clean = clean.split('ref=')[1].split('&')[0];
+        clean = clean.replace(/^@/, '').replace(/\/$/, '').trim();
+        setReferralCode(clean);
       }
     }
   }, [isAuthModalOpen]);
@@ -247,14 +266,6 @@ export const AuthModal: React.FC = () => {
           {/* ================= VIEW 1 & 2: LOGIN OR REGISTER ================= */}
           {!isForgotFlow && (
             <form onSubmit={handleSubmitAuth} className="space-y-3.5">
-              {mode === 'register' && (referralCode || isUrlReferral) && (
-                <div className="flex items-center gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-950 dark:text-amber-200">
-                  <Gift className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                  <span className="leading-snug">
-                    Referral link active: <b>@{referralCode}</b>. Your friend will receive <b>+10 bonus tokens</b> upon your registration!
-                  </span>
-                </div>
-              )}
 
               {mode === 'register' && (
                 <div>
@@ -333,34 +344,41 @@ export const AuthModal: React.FC = () => {
 
               {mode === 'register' && (
                 <div>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
-                      Referral Code
-                    </label>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                      <Gift className="h-3 w-3" />
-                      +10 friend reward
-                    </span>
-                  </div>
-                  <div className="relative flex items-center">
-                    <Gift className="absolute left-3.5 h-4 w-4 text-amber-500" />
-                    <input
-                      type="text"
-                      value={referralCode}
-                      onChange={(e) => setReferralCode(e.target.value)}
-                      placeholder="e.g. friend123 (optional)"
-                      readOnly={Boolean(isUrlReferral)}
-                      className={`w-full rounded-xl border py-2.5 pl-10 pr-4 text-xs sm:text-sm font-medium transition ${
-                        isUrlReferral
-                          ? 'border-amber-500/30 bg-amber-500/10 text-amber-950 dark:text-amber-200 cursor-not-allowed select-all'
-                          : 'border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8]'
-                      }`}
-                    />
-                  </div>
-                  {isUrlReferral && (
-                    <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-                      Locked to your invite link. Your friend will receive +10 tokens.
-                    </p>
+                  {referralCode ? (
+                    <div className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-xs text-emerald-950 dark:text-emerald-300">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                        <span>
+                          Invite link applied: <b>@{referralCode}</b>
+                        </span>
+                      </div>
+                      <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                        +10 Friend Bonus
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      {!showManualRefInput ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowManualRefInput(true)}
+                          className="text-[11px] font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                        >
+                          Have an invite code?
+                        </button>
+                      ) : (
+                        <div className="relative flex items-center">
+                          <Gift className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                          <input
+                            type="text"
+                            value={referralCode}
+                            onChange={(e) => setReferralCode(e.target.value)}
+                            placeholder="Enter invite code (optional)"
+                            className="w-full rounded-xl border border-zinc-300 bg-white py-2 pl-10 pr-4 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8]"
+                          />
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
