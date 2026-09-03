@@ -1,4 +1,4 @@
-import { JobListing } from '@/types/job';
+import type { JobListing } from '@/types/job';
 
 /**
  * Real employer job boards, fetched live from the free public ATS APIs.
@@ -31,6 +31,29 @@ export interface BoardRef {
 }
 
 export const EXCLUDED_COMPANIES = new Set(['moniepoint']);
+
+export function isCompanyExcluded(company: string): boolean {
+  if (!company) return false;
+  const lower = company.toLowerCase().trim();
+  for (const excluded of EXCLUDED_COMPANIES) {
+    if (lower.includes(excluded)) return true;
+  }
+  return false;
+}
+
+export function isJobicyExcluded(job: {
+  source?: string;
+  apply_url?: string;
+  id?: string;
+  company?: string;
+  title?: string;
+}): boolean {
+  if (!job) return false;
+  if (job.source && /jobicy/i.test(job.source)) return true;
+  if (job.apply_url && /jobicy(\.com)?/i.test(job.apply_url)) return true;
+  if (job.id && /jobicy/i.test(job.id)) return true;
+  return false;
+}
 
 export const BOARDS: BoardRef[] = [
   // ---- Nigeria ----
@@ -319,15 +342,15 @@ export function selectBoards(country: string | undefined, limit = 8): BoardRef[]
 export async function fetchBoards(boards: BoardRef[]): Promise<JobListing[]> {
   const allowed = boards.filter(
     (b) =>
-      !EXCLUDED_COMPANIES.has(b.token.toLowerCase()) &&
-      !EXCLUDED_COMPANIES.has(b.company.toLowerCase())
+      !isCompanyExcluded(b.token) &&
+      !isCompanyExcluded(b.company)
   );
   const results = await Promise.all(
     allowed.map(async (b) => {
       try {
         const jobs = await FETCHERS[b.provider](b);
         return jobs.filter(
-          (j) => !EXCLUDED_COMPANIES.has(j.company.toLowerCase().trim())
+          (j) => !isCompanyExcluded(j.company)
         );
       } catch {
         return [] as JobListing[];

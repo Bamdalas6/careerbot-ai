@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runFullJobHarvester } from '@/lib/job-crawler';
-import { saveCrawledJobs } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,16 +20,17 @@ export async function GET(req: NextRequest) {
 
     console.log('[Job Crawler Cron] Starting full multi-platform sweep...');
     const jobs = await runFullJobHarvester();
-    const result = await saveCrawledJobs(jobs);
+    const added = jobs.added ?? 0;
+    const total = jobs.total ?? jobs.length;
 
-    console.log(`[Job Crawler Cron] Harvested ${jobs.length} jobs. Added ${result.added} new jobs.`);
+    console.log(`[Job Crawler Cron] Harvested ${jobs.length} jobs. Added ${added} new jobs.`);
 
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
       harvested: jobs.length,
-      newJobsAdded: result.added,
-      totalStored: result.total,
+      newJobsAdded: added,
+      totalStored: total,
     });
   } catch (err: unknown) {
     console.error('[Job Crawler Cron] Ingestion error:', err);

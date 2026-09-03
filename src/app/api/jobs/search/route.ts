@@ -7,7 +7,8 @@ export async function GET(req: NextRequest) {
     const query = searchParams.get('q') || '';
     const isRemote = searchParams.get('remote') === 'true' ? true : searchParams.get('remote') === 'false' ? false : undefined;
     const location = searchParams.get('location') || undefined;
-    const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const rawLimit = parseInt(searchParams.get('limit') || '10', 10);
+    const limit = Math.max(1, Math.min(100, Number.isFinite(rawLimit) ? rawLimit : 10));
 
     const jobs = await searchJobs({
       query,

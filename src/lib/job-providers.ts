@@ -1,13 +1,13 @@
-import { JobListing, JobSearchQuery } from '@/types/job';
+import type { JobListing, JobSearchQuery } from '@/types/job';
 import {
-  ParsedQuery,
+  type ParsedQuery,
   parseQuery,
   toSearchTerm,
   familyOfTitle,
   locationMatches,
   locationAllowsRemote,
 } from './query-parser';
-import { BOARDS, fetchBoards, selectBoards, levelFrom, relativeTime, ageInDays, EXCLUDED_COMPANIES } from './ats-boards';
+import { BOARDS, fetchBoards, selectBoards, levelFrom, relativeTime, ageInDays, EXCLUDED_COMPANIES, isCompanyExcluded, isJobicyExcluded } from './ats-boards';
 import { getCrawledJobs } from './db';
 
 /**
@@ -148,9 +148,13 @@ interface Scored {
 }
 
 function scoreJob(job: JobListing, q: ParsedQuery): Scored {
-  const title = job.title.toLowerCase();
-  const company = job.company.toLowerCase();
-  const tagText = job.tags.join(' ').toLowerCase();
+  if (isJobicyExcluded(job)) {
+    return { job, score: 0, reasons: [], relevant: false, rejection: 'offTopic' };
+  }
+  const title = (job.title || '').toLowerCase();
+  const company = (job.company || '').toLowerCase();
+  const tags = Array.isArray(job.tags) ? job.tags : [];
+  const tagText = tags.join(' ').toLowerCase();
   const body = (job.description || '').toLowerCase();
   const reasons: string[] = [];
 
@@ -229,7 +233,6 @@ function scoreJob(job: JobListing, q: ParsedQuery): Scored {
   const skillsInBody = q.skills.filter(
     (s) => !skillsInTitleOrTags.includes(s) && wordIn(body, s.toLowerCase())
   );
-  const skillHits = [...skillsInTitleOrTags, ...skillsInBody];
 
   const coverage = searchTerms.length ? hitWhere.size / searchTerms.length : 1;
   const strongHits = titleHits + tagHits + companyHits;
@@ -385,159 +388,16 @@ function scoreJob(job: JobListing, q: ParsedQuery): Scored {
 
 const FEED_TIMEOUT_MS = 6000;
 
-async function getFeed(url: string): Promise<Record<string, unknown> | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CareerBot/1.0)', Accept: 'application/json' },
-      next: { revalidate: 1800 },
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as Record<string, unknown>;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 function stripHtml(s: string): string {
-  return (s || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim();
+  return (s || '')
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&[a-z#0-9]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-async function fetchRemotive(term: string): Promise<JobListing[]> {
-  const url = term
-    ? `https://remotive.com/api/remote-jobs?search=${encodeURIComponent(term)}&limit=40`
-    : 'https://remotive.com/api/remote-jobs?limit=40';
-  const data = await getFeed(url);
-  const jobs = data?.jobs as Array<Record<string, unknown>> | undefined;
-  if (!jobs?.length) return [];
-  return jobs.map((j): JobListing => {
-    const body = stripHtml((j.description as string) || '');
-    return {
-      id: `remotive-${j.id}`,
-      title: (j.title as string) || 'Remote role',
-      company: (j.company_name as string) || 'Company',
-      company_logo: (j.company_logo as string) || undefined,
-      location: (j.candidate_required_location as string) || 'Remote (Worldwide)',
-      is_remote: true,
-      job_type: j.job_type === 'full_time' ? 'Full-time' : 'Contract',
-      experience_level: levelFrom((j.title as string) || ''),
-      salary_formatted: (j.salary as string) || undefined,
-      description: body,
-      snippet: body.slice(0, 190) + (body.length > 190 ? '…' : ''),
-      tags: Array.isArray(j.tags) ? (j.tags as string[]).slice(0, 6) : [],
-      apply_url: (j.url as string) || '',
-      career_page_url: (j.url as string) || '',
-      source: 'Remotive',
-      posted_at: relativeTime(j.publication_date as string),
-      age_days: ageInDays(j.publication_date as string),
-    };
-  });
-}
-
-/**
- * Jobicy carries a meaningful number of Africa-open remote roles and supports
- * a geo filter, which Remotive does not.
- */
-async function fetchJobicy(term: string, geo?: string): Promise<JobListing[]> {
-  const params = new URLSearchParams({ count: '50' });
-  if (term) params.set('tag', term);
-  if (geo) params.set('geo', geo);
-  const data = await getFeed(`https://jobicy.com/api/v2/remote-jobs?${params.toString()}`);
-  const jobs = data?.jobs as Array<Record<string, unknown>> | undefined;
-  if (!jobs?.length) return [];
-  return jobs.map((j): JobListing => {
-    const body = stripHtml(((j.jobExcerpt as string) || (j.jobDescription as string) || ''));
-    const jobTypes = j.jobType as string[] | undefined;
-    return {
-      id: `jobicy-${j.id}`,
-      title: (j.jobTitle as string) || 'Remote role',
-      company: (j.companyName as string) || 'Company',
-      company_logo: (j.companyLogo as string) || undefined,
-      location: (j.jobGeo as string) || 'Remote (Worldwide)',
-      is_remote: true,
-      job_type: /part/i.test(jobTypes?.[0] || '') ? 'Part-time' : 'Full-time',
-      experience_level: levelFrom((j.jobTitle as string) || '', j.jobLevel as string),
-      salary_formatted:
-        j.annualSalaryMin && j.annualSalaryMax
-          ? `${(j.salaryCurrency as string) || 'USD'} ${Number(j.annualSalaryMin).toLocaleString()} – ${Number(j.annualSalaryMax).toLocaleString()}`
-          : undefined,
-      description: body,
-      snippet: body.slice(0, 190) + (body.length > 190 ? '…' : ''),
-      tags: Array.isArray(j.jobIndustry) ? (j.jobIndustry as string[]).slice(0, 4) : [],
-      apply_url: (j.url as string) || '',
-      career_page_url: (j.url as string) || '',
-      source: 'Jobicy',
-      posted_at: relativeTime(j.pubDate as string),
-      age_days: ageInDays(j.pubDate as string),
-    };
-  });
-}
-
-async function fetchArbeitnow(): Promise<JobListing[]> {
-  const data = await getFeed('https://www.arbeitnow.com/api/job-board-api');
-  const dataList = data?.data as Array<Record<string, unknown>> | undefined;
-  if (!dataList?.length) return [];
-  return dataList.slice(0, 100).map((j): JobListing => {
-    const body = stripHtml((j.description as string) || '');
-    const posted = j.created_at ? (j.created_at as number) * 1000 : undefined;
-    return {
-      id: `arbeitnow-${j.slug}`,
-      title: (j.title as string) || 'Open role',
-      company: (j.company_name as string) || 'Company',
-      location: (j.location as string) || (j.remote ? 'Remote (Europe)' : 'Europe'),
-      is_remote: !!j.remote,
-      job_type: 'Full-time',
-      experience_level: levelFrom((j.title as string) || ''),
-      description: body,
-      snippet: body.slice(0, 190) + (body.length > 190 ? '…' : ''),
-      tags: Array.isArray(j.tags) ? (j.tags as string[]).slice(0, 5) : [],
-      apply_url: (j.url as string) || '',
-      career_page_url: (j.url as string) || '',
-      source: 'Arbeitnow',
-      posted_at: relativeTime(posted),
-      age_days: ageInDays(posted),
-    };
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Inkdesk — a Nigerian job board (WP Job Manager) with a real RSS job feed.
-//
-// This is the only source from the requested shortlist that publishes anything
-// machine-readable: MyJobMag has no feed and no JobPosting metadata, the
-// HotNigerianJobs RSS has not been rebuilt since June 2021, and Indeed,
-// Glassdoor and Arc have no open API at all. Inkdesk's feed is live (items
-// hours old at verification) and its `search_keywords` parameter filters
-// server-side, which is what makes it worth a request.
-//
-// It is an aggregator, not an employer board, so its `apply_url` lands on
-// Inkdesk's listing page rather than the company's own form. Cards carry
-// `source: 'Inkdesk'` so that is visible rather than implied.
-// ---------------------------------------------------------------------------
-
-async function getText(url: string): Promise<string | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CareerBot/1.0)', Accept: 'application/rss+xml, application/xml, text/xml' },
-      next: { revalidate: 1800 },
-    });
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-/** Numeric and named XML entities, which WordPress emits liberally in titles. */
+/** Numeric and named XML entities, which WordPress and RSS feeds emit liberally in titles. */
 function decodeXml(s: string): string {
   return (s || '')
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
@@ -567,91 +427,555 @@ function tagValues(item: string, tag: string): string[] {
   return out;
 }
 
+async function getJsonFeed(url: string): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CareerBot/2.0)', Accept: 'application/json' },
+      next: { revalidate: 1800 },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function getText(url: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; CareerBot/2.0)',
+        Accept: 'application/rss+xml, application/xml, text/xml, */*',
+      },
+      next: { revalidate: 1800 },
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchRemotive(term: string): Promise<JobListing[]> {
+  try {
+    const url = term
+      ? `https://remotive.com/api/remote-jobs?search=${encodeURIComponent(term)}&limit=40`
+      : 'https://remotive.com/api/remote-jobs?limit=40';
+    const data = (await getJsonFeed(url)) as { jobs?: Array<Record<string, unknown>> } | null;
+    const jobs = data?.jobs;
+    if (!jobs?.length) return [];
+    return jobs
+      .filter((j) => {
+        const comp = String(j.company_name || '').toLowerCase().trim();
+        return !isCompanyExcluded(comp);
+      })
+      .map((j): JobListing => {
+        const body = stripHtml((j.description as string) || '');
+        return {
+          id: `remotive-${j.id}`,
+          title: (j.title as string) || 'Remote role',
+          company: (j.company_name as string) || 'Company',
+          company_logo: (j.company_logo as string) || undefined,
+          location: (j.candidate_required_location as string) || 'Remote (Worldwide)',
+          is_remote: true,
+          job_type: j.job_type === 'full_time' ? 'Full-time' : 'Contract',
+          experience_level: levelFrom((j.title as string) || ''),
+          salary_formatted: (j.salary as string) || undefined,
+          description: body,
+          snippet: body.slice(0, 190) + (body.length > 190 ? '…' : ''),
+          tags: Array.isArray(j.tags) ? (j.tags as string[]).slice(0, 6) : [],
+          apply_url: (j.url as string) || '',
+          career_page_url: (j.url as string) || '',
+          source: 'Remotive',
+          posted_at: relativeTime(j.publication_date as string),
+          age_days: ageInDays(j.publication_date as string),
+        };
+      });
+  } catch (err) {
+    console.warn('Remotive fetch error:', err);
+    return [];
+  }
+}
+
+/**
+ * Map free-form search terms to valid RemoteOK tag slugs.
+ */
+function toRemoteOkTag(term: string): string | null {
+  if (!term) return null;
+  const lower = term.toLowerCase().trim();
+  if (lower.includes('c++')) return 'dev';
+  if (lower.includes('c#') || lower.includes('csharp')) return 'csharp';
+  if (lower.includes('.net') || lower.includes('dotnet')) return 'dotnet';
+  if (lower.includes('frontend') || lower.includes('front-end') || lower.includes('react') || lower.includes('vue') || lower.includes('angular')) return 'frontend';
+  if (lower.includes('backend') || lower.includes('back-end') || lower.includes('node') || lower.includes('django') || lower.includes('rails')) return 'backend';
+  if (lower.includes('fullstack') || lower.includes('full-stack')) return 'fullstack';
+  if (lower.includes('devops') || lower.includes('sre') || lower.includes('cloud') || lower.includes('kubernetes')) return 'devops';
+  if (lower.includes('engineer') || lower.includes('engineering') || lower.includes('developer') || lower.includes('software')) return 'engineer';
+  if (lower.includes('python')) return 'python';
+  if (lower.includes('javascript') || lower.includes('typescript')) return 'javascript';
+  if (lower.includes('design') || lower.includes('designer') || lower.includes('ui') || lower.includes('ux')) return 'design';
+  if (lower.includes('product')) return 'product';
+  if (lower.includes('marketing') || lower.includes('growth')) return 'marketing';
+  if (lower.includes('sales')) return 'sales';
+
+  const firstWord = lower.split(/\s+/)[0]?.replace(/[^a-z0-9]/g, '');
+  return firstWord && firstWord.length >= 2 ? firstWord : null;
+}
+
+/**
+ * Fetch global remote jobs from RemoteOK API with tag search and location filtering.
+ */
+async function fetchRemoteOk(term: string, country?: string): Promise<JobListing[]> {
+  try {
+    const tag = toRemoteOkTag(term);
+    const url = tag
+      ? `https://remoteok.com/api?tag=${encodeURIComponent(tag)}`
+      : 'https://remoteok.com/api';
+    let data = await getJsonFeed(url);
+
+    // If tag query produced no jobs (<= 1 item is only legal metadata), fall back to main feed
+    if (tag && (!Array.isArray(data) || data.length <= 1)) {
+      data = await getJsonFeed('https://remoteok.com/api');
+    }
+
+    if (!Array.isArray(data)) return [];
+
+    // Item 0 is the legal metadata
+    const rawJobs = data.slice(1) as Array<Record<string, unknown>>;
+    if (!rawJobs.length) return [];
+
+    const results: JobListing[] = [];
+    for (const j of rawJobs) {
+      const comp = String(j.company || '').trim();
+      if (!comp || isCompanyExcluded(comp)) continue;
+
+      const location = String(j.location || 'Remote (Worldwide)');
+
+      // Location filtering: if country is Africa/Nigeria, exclude jobs explicitly restricted to other regions
+      if (country) {
+        const locLower = location.toLowerCase();
+        if ((country === 'NG' || country === 'AFRICA') && /\b(us|usa|north america|canada|latam|apac)\s*only\b/i.test(locLower)) {
+          continue;
+        }
+      }
+
+      const title = String(j.position || 'Remote role');
+      const body = stripHtml(String(j.description || ''));
+      const posted = (j.date as string) || (typeof j.epoch === 'number' ? j.epoch * 1000 : undefined);
+      const applyUrl = String(j.apply_url || j.url || (j.id ? `https://remoteok.com/l/${j.id}` : ''));
+
+      results.push({
+        id: `remoteok-${j.id || Math.random().toString(36).slice(2, 8)}`,
+        title,
+        company: comp,
+        company_logo: (j.company_logo as string) || (j.logo as string) || undefined,
+        location,
+        is_remote: true,
+        job_type: 'Full-time',
+        experience_level: levelFrom(title),
+        salary_formatted:
+          j.salary_min && j.salary_max
+            ? `USD ${Number(j.salary_min).toLocaleString()} – ${Number(j.salary_max).toLocaleString()}`
+            : (j.salary as string | undefined),
+        description: body,
+        snippet: body.slice(0, 190) + (body.length > 190 ? '…' : ''),
+        tags: Array.isArray(j.tags) ? (j.tags as string[]).slice(0, 6) : ['Remote', 'Tech'],
+        apply_url: applyUrl,
+        career_page_url: String(j.url || applyUrl),
+        source: 'RemoteOK',
+        posted_at: relativeTime(posted),
+        age_days: ageInDays(posted),
+      });
+      if (results.length >= 40) break;
+    }
+    return results;
+  } catch (err) {
+    console.warn('RemoteOK fetch error:', err);
+    return [];
+  }
+}
+
+/**
+ * Map search terms to the most relevant public WeWorkRemotely category RSS feed.
+ */
+function toWwrFeedUrl(term?: string): string {
+  if (!term) return 'https://weworkremotely.com/remote-jobs.rss';
+  const lower = term.toLowerCase();
+  if (lower.includes('design') || lower.includes('ui') || lower.includes('ux') || lower.includes('creative')) {
+    return 'https://weworkremotely.com/categories/remote-design-jobs.rss';
+  }
+  if (lower.includes('devops') || lower.includes('sysadmin') || lower.includes('sre') || lower.includes('cloud') || lower.includes('platform')) {
+    return 'https://weworkremotely.com/categories/remote-devops-sysadmin-jobs.rss';
+  }
+  if (lower.includes('product') || lower.includes('pm')) {
+    return 'https://weworkremotely.com/categories/remote-product-jobs.rss';
+  }
+  if (lower.includes('customer') || lower.includes('support') || lower.includes('service')) {
+    return 'https://weworkremotely.com/categories/remote-customer-support-jobs.rss';
+  }
+  if (lower.includes('finance') || lower.includes('accounting') || lower.includes('management') || lower.includes('operations')) {
+    return 'https://weworkremotely.com/categories/remote-management-and-finance-jobs.rss';
+  }
+  if (
+    lower.includes('developer') || lower.includes('engineer') || lower.includes('programming') ||
+    lower.includes('software') || lower.includes('frontend') || lower.includes('backend') ||
+    lower.includes('fullstack') || lower.includes('python') || lower.includes('react') ||
+    lower.includes('javascript') || lower.includes('typescript') || lower.includes('golang') ||
+    lower.includes('java') || lower.includes('c++') || lower.includes('c#') || lower.includes('dotnet')
+  ) {
+    return 'https://weworkremotely.com/categories/remote-programming-jobs.rss';
+  }
+  return 'https://weworkremotely.com/remote-jobs.rss';
+}
+
+/**
+ * Fetch verified remote postings from WeWorkRemotely public category and search RSS feeds.
+ */
+async function fetchWeWorkRemotely(term?: string): Promise<JobListing[]> {
+  try {
+    const url = toWwrFeedUrl(term);
+    let xml = await getText(url);
+    if (!xml && url !== 'https://weworkremotely.com/remote-jobs.rss') {
+      xml = await getText('https://weworkremotely.com/remote-jobs.rss');
+    }
+    if (!xml) return [];
+
+    const items = xml.split(/<item[\s>]/).slice(1);
+    const jobs: JobListing[] = [];
+
+    for (const item of items) {
+      const rawTitle = tagValue(item, 'title');
+      const link = tagValue(item, 'link') || tagValue(item, 'guid');
+      if (!rawTitle || !link) continue;
+
+      const titleMatch = rawTitle.match(/^([^:]+):\s*(.*)$/);
+      const company = titleMatch ? titleMatch[1].trim() : 'Remote Employer';
+      const title = titleMatch ? titleMatch[2].trim() : rawTitle;
+
+      if (isCompanyExcluded(company)) continue;
+
+      const region = tagValue(item, 'region') || 'Remote (Worldwide)';
+      const category = tagValue(item, 'category');
+      const body = tagValue(item, 'description');
+      const plain = stripHtml(body);
+      const posted = tagValue(item, 'pubDate');
+
+      jobs.push({
+        id: `wwr-${link.split('/').filter(Boolean).pop() || Math.random().toString(36).slice(2, 8)}`,
+        title,
+        company,
+        location: region.toLowerCase().includes('remote') ? region : `Remote (${region})`,
+        is_remote: true,
+        job_type: 'Full-time',
+        experience_level: levelFrom(title),
+        description: plain,
+        snippet: plain.slice(0, 190) + (plain.length > 190 ? '…' : ''),
+        tags: [category, 'Remote'].filter(Boolean),
+        apply_url: link,
+        career_page_url: link,
+        source: 'WeWorkRemotely',
+        posted_at: relativeTime(posted),
+        age_days: ageInDays(posted),
+      });
+      if (jobs.length >= 40) break;
+    }
+    return jobs;
+  } catch (err) {
+    console.warn('WeWorkRemotely fetch error:', err);
+    return [];
+  }
+}
+
+/**
+ * Fetch modern remote tech roles from Himalayas JSON API.
+ */
+async function fetchHimalayas(_term?: string): Promise<JobListing[]> {
+  try {
+    const url = 'https://himalayas.app/jobs/api';
+    const data = (await getJsonFeed(url)) as { jobs?: Array<Record<string, unknown>> } | null;
+    if (!Array.isArray(data?.jobs)) return [];
+
+    const results: JobListing[] = [];
+    for (const j of data.jobs) {
+      const comp = String(j.companyName || '').trim();
+      if (!comp || isCompanyExcluded(comp)) continue;
+
+      const title = String(j.title || 'Remote role');
+      const body = stripHtml(String(j.description || j.excerpt || ''));
+      const link = String(j.applicationLink || '');
+      if (!link) continue;
+
+      const pubSecs = typeof j.pubDate === 'number' ? j.pubDate * 1000 : undefined;
+      const restrictions = Array.isArray(j.locationRestrictions) && j.locationRestrictions.length
+        ? (j.locationRestrictions as string[]).join(', ')
+        : 'Remote (Worldwide)';
+
+      results.push({
+        id: `him-${j.guid || link.split('/').filter(Boolean).pop() || Math.random().toString(36).slice(2, 8)}`,
+        title,
+        company: comp,
+        company_logo: (j.companyLogo as string) || undefined,
+        location: restrictions,
+        is_remote: true,
+        job_type: String(j.employmentType || 'Full-time'),
+        experience_level: levelFrom(title, Array.isArray(j.seniority) ? String(j.seniority[0]) : undefined),
+        salary_formatted:
+          j.minSalary && j.maxSalary
+            ? `${String(j.currency || 'USD')} ${Number(j.minSalary).toLocaleString()} – ${Number(j.maxSalary).toLocaleString()}`
+            : undefined,
+        description: body,
+        snippet: body.slice(0, 190) + (body.length > 190 ? '…' : ''),
+        tags: Array.isArray(j.categories) ? (j.categories as string[]).slice(0, 5) : ['Remote', 'Tech'],
+        apply_url: link,
+        career_page_url: link,
+        source: 'Himalayas',
+        posted_at: relativeTime(pubSecs),
+        age_days: ageInDays(pubSecs),
+      });
+      if (results.length >= 35) break;
+    }
+    return results;
+  } catch (err) {
+    console.warn('Himalayas fetch error:', err);
+    return [];
+  }
+}
+
+/**
+ * Fetch global remote tech jobs from Working Nomads API.
+ */
+async function fetchWorkingNomads(_term?: string): Promise<JobListing[]> {
+  try {
+    const url = 'https://www.workingnomads.com/api/exposed_jobs/';
+    const data = await getJsonFeed(url);
+    if (!Array.isArray(data)) return [];
+
+    const results: JobListing[] = [];
+    for (const j of data as Array<Record<string, unknown>>) {
+      const comp = String(j.company_name || '').trim();
+      if (!comp || isCompanyExcluded(comp)) continue;
+
+      const title = String(j.title || 'Remote role');
+      const link = String(j.url || '');
+      if (!link) continue;
+
+      const body = stripHtml(String(j.description || ''));
+      const loc = String(j.location || '');
+      const location = loc === 'WORLDWIDE' ? 'Remote (Worldwide)' : (loc || 'Remote');
+      const tags = typeof j.tags === 'string'
+        ? (j.tags as string).split(',').map((t) => t.trim()).filter(Boolean).slice(0, 5)
+        : ['Remote', 'Tech'];
+
+      results.push({
+        id: `wn-${link.split('/').filter(Boolean).pop() || Math.random().toString(36).slice(2, 8)}`,
+        title,
+        company: comp,
+        location,
+        is_remote: true,
+        job_type: 'Full-time',
+        experience_level: levelFrom(title),
+        description: body,
+        snippet: body.slice(0, 190) + (body.length > 190 ? '…' : ''),
+        tags,
+        apply_url: link,
+        career_page_url: link,
+        source: 'Working Nomads',
+        posted_at: relativeTime(j.pub_date as string),
+        age_days: ageInDays(j.pub_date as string),
+      });
+      if (results.length >= 35) break;
+    }
+    return results;
+  } catch (err) {
+    console.warn('Working Nomads fetch error:', err);
+    return [];
+  }
+}
+
+async function fetchJobspresso(): Promise<JobListing[]> {
+  try {
+    let xml = await getText('https://jobspresso.co/jobs/feed/');
+    if (!xml || !xml.includes('<item')) {
+      xml = await getText('https://jobspresso.co/feed/');
+    }
+    if (!xml) return [];
+
+    const items = xml.split(/<item[\s>]/).slice(1);
+    const jobs: JobListing[] = [];
+
+    for (const item of items) {
+      const rawTitle = tagValue(item, 'title');
+      const link = tagValue(item, 'link');
+      if (!rawTitle || !link) continue;
+
+      const creator = tagValue(item, 'dc:creator');
+      const parts = creator.split(/<br\s*\/?>|⚲|&nbsp;/i).map((s) => stripHtml(s).trim()).filter(Boolean);
+      const company = parts[0] || 'Remote Employer';
+      const loc = parts[1] || 'Worldwide';
+
+      if (isCompanyExcluded(company)) continue;
+
+      const body = tagValue(item, 'content:encoded') || tagValue(item, 'description');
+      const plain = stripHtml(body);
+      const posted = tagValue(item, 'pubDate');
+
+      jobs.push({
+        id: `jp-${link.split('/').filter(Boolean).pop() || Math.random().toString(36).slice(2, 8)}`,
+        title: rawTitle,
+        company,
+        location: loc.toLowerCase().includes('remote') ? loc : `Remote (${loc})`,
+        is_remote: true,
+        job_type: 'Full-time',
+        experience_level: levelFrom(rawTitle),
+        description: plain,
+        snippet: plain.slice(0, 190) + (plain.length > 190 ? '…' : ''),
+        tags: ['Remote', 'Jobspresso'],
+        apply_url: link,
+        career_page_url: link,
+        source: 'Jobspresso',
+        posted_at: relativeTime(posted),
+        age_days: ageInDays(posted),
+      });
+      if (jobs.length >= 30) break;
+    }
+    return jobs;
+  } catch (err) {
+    console.warn('Jobspresso fetch error:', err);
+    return [];
+  }
+}
+
+async function fetchArbeitnow(): Promise<JobListing[]> {
+  try {
+    const data = (await getJsonFeed('https://www.arbeitnow.com/api/job-board-api')) as { data?: Array<Record<string, unknown>> } | null;
+    const dataList = data?.data;
+    if (!dataList?.length) return [];
+    return dataList.slice(0, 50).map((j): JobListing => {
+      const body = stripHtml((j.description as string) || '');
+      const posted = j.created_at ? (j.created_at as number) * 1000 : undefined;
+      return {
+        id: `arbeitnow-${j.slug}`,
+        title: (j.title as string) || 'Open role',
+        company: (j.company_name as string) || 'Company',
+        location: (j.location as string) || (j.remote ? 'Remote (Europe)' : 'Europe'),
+        is_remote: !!j.remote,
+        job_type: 'Full-time',
+        experience_level: levelFrom((j.title as string) || ''),
+        description: body,
+        snippet: body.slice(0, 190) + (body.length > 190 ? '…' : ''),
+        tags: Array.isArray(j.tags) ? (j.tags as string[]).slice(0, 5) : [],
+        apply_url: (j.url as string) || '',
+        career_page_url: (j.url as string) || '',
+        source: 'Arbeitnow',
+        posted_at: relativeTime(posted),
+        age_days: ageInDays(posted),
+      };
+    });
+  } catch (err) {
+    console.warn('Arbeitnow fetch error:', err);
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Inkdesk — a Nigerian job board (WP Job Manager) with a real RSS job feed.
+// ---------------------------------------------------------------------------
+
 /** Nigerian cities the feed names in titles, used to place a posting. */
 const NG_CITY =
   /\b(lagos|abuja|ibadan|port harcourt|kano|ikeja|lekki|yaba|benin city|enugu|kaduna|abeokuta|uyo|jos|ilorin|onitsha|owerri|calabar|warri|asaba)\b/i;
 
 async function fetchInkdesk(term: string): Promise<JobListing[]> {
-  const params = new URLSearchParams({ feed: 'job_feed' });
-  if (term) params.set('search_keywords', term);
-  const xml = await getText(`https://jobs.inkdeskng.org/?${params.toString()}`);
-  if (!xml) return [];
+  try {
+    const params = new URLSearchParams({ feed: 'job_feed' });
+    if (term) params.set('search_keywords', term);
+    const xml = await getText(`https://jobs.inkdeskng.org/?${params.toString()}`);
+    if (!xml) return [];
 
-  const items = xml.split(/<item>/).slice(1);
-  const jobs: JobListing[] = [];
+    const items = xml.split(/<item[\s>]/i).slice(1);
+    const jobs: JobListing[] = [];
 
-  for (const item of items) {
-    const rawTitle = tagValue(item, 'title');
-    const link = tagValue(item, 'link');
-    if (!rawTitle || !link) continue;
+    for (const item of items) {
+      const rawTitle = tagValue(item, 'title');
+      const link = tagValue(item, 'link');
+      if (!rawTitle || !link) continue;
 
-    // The feed carries no company or location tag, but its titles follow a
-    // consistent "Role at Employer" convention. The " at " has to be found in
-    // the WHOLE title before any suffix is stripped — titles like
-    // "UI/UX Designer – AI Products (Remote) at Hired" put the employer after
-    // the dash, so splitting on the dash first loses it entirely.
-    const atMatch = rawTitle.match(/^([\s\S]*?)\s+\bat\b\s+([^–—]+?)(?:\s+[–—]\s+.*)?$/i);
-    let title = (atMatch ? atMatch[1] : rawTitle).trim();
-    const company = atMatch ? atMatch[2].trim() : '';
-    // Drop trailing arrangement notes from the role name itself.
-    title = title
-      .replace(/\s*[–—]\s*(fully\s+)?(remote|hybrid|on[- ]?site|onsite)\b.*$/i, '')
-      .replace(/\s*\((fully\s+)?(remote|hybrid|on[- ]?site|onsite)\)\s*$/i, '')
-      .replace(/\s*[–—]\s*$/, '')
-      .trim();
-    if (!title) continue;
-    // No employer in the title means we cannot attribute the posting, and an
-    // invented placeholder reads as a bug on the card. Skip it instead.
-    if (!company) continue;
+      // The feed carries no company or location tag, but its titles follow a
+      // consistent "Role at Employer" convention. The " at " has to be found in
+      // the WHOLE title before any suffix is stripped — titles like
+      // "UI/UX Designer – AI Products (Remote) at Hired" put the employer after
+      // the dash, so splitting on the dash first loses it entirely.
+      const atMatch = rawTitle.match(/^([\s\S]*?)\s+\bat\b\s+([^–—]+?)(?:\s+[–—]\s+.*)?$/i);
+      let title = (atMatch ? atMatch[1] : rawTitle).trim();
+      const company = atMatch ? atMatch[2].trim() : '';
+      // Drop trailing arrangement notes from the role name itself.
+      title = title
+        .replace(/\s*[–—]\s*(fully\s+)?(remote|hybrid|on[- ]?site|onsite)\b.*$/i, '')
+        .replace(/\s*\((fully\s+)?(remote|hybrid|on[- ]?site|onsite)\)\s*$/i, '')
+        .replace(/\s*[–—]\s*$/, '')
+        .trim();
+      if (!title) continue;
+      // No employer in the title means we cannot attribute the posting, and an
+      // invented placeholder reads as a bug on the card. Skip it instead.
+      if (!company) continue;
+      if (isCompanyExcluded(company)) continue;
 
-    const body = tagValue(item, 'content:encoded') || tagValue(item, 'description');
-    const plain = stripHtml(body);
-    const jobType = tagValue(item, 'job_listing:job_type');
-    const categories = tagValues(item, 'job_listing:job_category');
-    const posted = tagValue(item, 'pubDate');
+      const body = tagValue(item, 'content:encoded') || tagValue(item, 'description');
+      const plain = stripHtml(body);
+      const jobType = tagValue(item, 'job_listing:job_type');
+      const categories = tagValues(item, 'job_listing:job_category');
+      const posted = tagValue(item, 'pubDate');
 
-    const arrangementText = `${rawTitle} ${jobType}`;
-    const isRemote = /\b(remote|work from home|wfh)\b/i.test(arrangementText);
-    const city = rawTitle.match(NG_CITY) || plain.slice(0, 400).match(NG_CITY);
-    const location = city
-      ? `${city[1].replace(/\b\w/g, (c) => c.toUpperCase())}, Nigeria`
-      : isRemote
-        ? 'Remote (Nigeria)'
-        : 'Nigeria';
+      const arrangementText = `${rawTitle} ${jobType}`;
+      const isRemote = /\b(remote|work from home|wfh)\b/i.test(arrangementText);
+      const city = rawTitle.match(NG_CITY) || plain.slice(0, 400).match(NG_CITY);
+      const location = city
+        ? `${city[1].replace(/\b\w/g, (c) => c.toUpperCase())}, Nigeria`
+        : isRemote
+          ? 'Remote (Nigeria)'
+          : 'Nigeria';
 
-    jobs.push({
-      id: `inkdesk-${link.split('/').filter(Boolean).pop()}`,
-      title,
-      company,
-      location,
-      is_remote: isRemote,
-      job_type: /part/i.test(jobType) ? 'Part-time'
-        : /intern/i.test(`${jobType} ${title}`) ? 'Internship'
-        : /contract|freelance/i.test(jobType) ? 'Contract'
-        : 'Full-time',
-      experience_level: levelFrom(title, jobType),
-      description: plain,
-      snippet: plain.slice(0, 190) + (plain.length > 190 ? '…' : ''),
-      tags: categories.slice(0, 5),
-      apply_url: link,
-      career_page_url: link,
-      source: 'Inkdesk',
-      posted_at: relativeTime(posted),
-      age_days: ageInDays(posted),
-    });
+      jobs.push({
+        id: `inkdesk-${link.split('/').filter(Boolean).pop()}`,
+        title,
+        company,
+        location,
+        is_remote: isRemote,
+        job_type: /part/i.test(jobType) ? 'Part-time'
+          : /intern/i.test(`${jobType} ${title}`) ? 'Internship'
+          : /contract|freelance/i.test(jobType) ? 'Contract'
+          : 'Full-time',
+        experience_level: levelFrom(title, jobType),
+        description: plain,
+        snippet: plain.slice(0, 190) + (plain.length > 190 ? '…' : ''),
+        tags: categories.slice(0, 5),
+        apply_url: link,
+        career_page_url: link,
+        source: 'Inkdesk',
+        posted_at: relativeTime(posted),
+        age_days: ageInDays(posted),
+      });
+    }
+    return jobs;
+  } catch (err) {
+    console.warn('Inkdesk fetch error:', err);
+    return [];
   }
-  return jobs;
 }
 
 // ---------------------------------------------------------------------------
 // Orchestration
 // ---------------------------------------------------------------------------
-
-/** Jobicy geo slugs for the countries we can map. */
-const JOBICY_GEO: Record<string, string> = {
-  NG: 'nigeria', KE: 'kenya', ZA: 'south-africa', GH: 'ghana', EG: 'egypt',
-  AFRICA: 'africa', UK: 'united-kingdom', US: 'usa', CA: 'canada', EU: 'europe', IN: 'india',
-};
 
 export async function runSearch(rawQuery: string, limit = 40): Promise<SearchResult> {
   const parsed = parseQuery(rawQuery);
@@ -666,36 +990,72 @@ export async function runSearch(rawQuery: string, limit = 40): Promise<SearchRes
   // is unscoped or actually pointed at Nigeria / the continent.
   const wantsInkdesk = !country || country === 'NG' || country === 'AFRICA';
 
-  const [boardJobs, remotive, jobicy, arbeitnow, inkdesk, crawled] = await Promise.all([
-    fetchBoards(boards),
-    wantsFeeds ? fetchRemotive(term) : Promise.resolve([]),
-    wantsFeeds ? fetchJobicy(term, country ? JOBICY_GEO[country] : undefined) : Promise.resolve([]),
-    wantsFeeds && (!country || ['EU', 'DE', 'UK'].includes(country)) ? fetchArbeitnow() : Promise.resolve([]),
-    wantsInkdesk ? fetchInkdesk(term) : Promise.resolve([]),
-    getCrawledJobs(150),
+  const [
+    boardJobs,
+    remotive,
+    remoteOk,
+    weWorkRemotely,
+    himalayas,
+    workingNomads,
+    jobspresso,
+    arbeitnow,
+    inkdesk,
+    crawled,
+  ] = await Promise.all([
+    fetchBoards(boards).catch(() => []),
+    (wantsFeeds ? fetchRemotive(term) : Promise.resolve([])).catch(() => []),
+    (wantsFeeds ? fetchRemoteOk(term, country) : Promise.resolve([])).catch(() => []),
+    (wantsFeeds ? fetchWeWorkRemotely(term) : Promise.resolve([])).catch(() => []),
+    (wantsFeeds ? fetchHimalayas(term) : Promise.resolve([])).catch(() => []),
+    (wantsFeeds ? fetchWorkingNomads(term) : Promise.resolve([])).catch(() => []),
+    (wantsFeeds ? fetchJobspresso() : Promise.resolve([])).catch(() => []),
+    (wantsFeeds && (!country || ['EU', 'DE', 'UK'].includes(country)) ? fetchArbeitnow() : Promise.resolve([])).catch(() => []),
+    (wantsInkdesk ? fetchInkdesk(term) : Promise.resolve([])).catch(() => []),
+    getCrawledJobs(150).catch(() => []),
   ]);
 
   const sourcesQueried = [
     ...boards.map((b) => b.company),
     ...(remotive.length ? ['Remotive'] : []),
-    ...(jobicy.length ? ['Jobicy'] : []),
+    ...(remoteOk.length ? ['RemoteOK'] : []),
+    ...(weWorkRemotely.length ? ['WeWorkRemotely'] : []),
+    ...(himalayas.length ? ['Himalayas'] : []),
+    ...(workingNomads.length ? ['Working Nomads'] : []),
+    ...(jobspresso.length ? ['Jobspresso'] : []),
     ...(arbeitnow.length ? ['Arbeitnow'] : []),
     ...(inkdesk.length ? ['Inkdesk'] : []),
-    ...(crawled.length ? ['Community & Ingested Feeds'] : []),
+    ...(crawled.length ? ['Regional & Harvester Feeds'] : []),
   ];
 
   // ---- dedupe on company + title and exclude blacklisted companies ----
-  const all = [...boardJobs, ...remotive, ...jobicy, ...arbeitnow, ...inkdesk, ...crawled];
-  const seen = new Set<string>();
+  const all = [
+    ...boardJobs,
+    ...remotive,
+    ...remoteOk,
+    ...weWorkRemotely,
+    ...himalayas,
+    ...workingNomads,
+    ...jobspresso,
+    ...arbeitnow,
+    ...inkdesk,
+    ...crawled,
+  ];
+  const seenKey = new Set<string>();
+  const seenUrl = new Set<string>();
   const unique: JobListing[] = [];
   for (const job of all) {
-    if (!job.apply_url) continue;
+    if (!job.apply_url || !job.title || !job.company) continue;
+    if (isJobicyExcluded(job)) continue;
     const compLower = job.company.toLowerCase().trim();
-    if (EXCLUDED_COMPANIES.has(compLower)) continue; // Never include Moniepoint
+    if (isCompanyExcluded(compLower)) continue; // Never include Moniepoint
 
-    const key = `${compLower}|${job.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const normTitle = job.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const key = `${compLower}|${normTitle}`;
+    const urlLower = job.apply_url.trim().toLowerCase();
+
+    if (seenKey.has(key) || seenUrl.has(urlLower)) continue;
+    seenKey.add(key);
+    seenUrl.add(urlLower);
     unique.push(job);
   }
 

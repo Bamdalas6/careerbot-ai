@@ -11,9 +11,9 @@ import React from 'react';
  */
 const FACTS: { value: string; label: string; detail: string }[] = [
   {
-    value: '20',
+    value: '20+',
     label: 'Live job sources',
-    detail: '16 employer career boards — Moniepoint, Renmoney, Kuda, Jumia, Andela — plus Inkdesk and 3 remote feeds.',
+    detail: 'Direct employer career boards — Renmoney, Kuda, Jumia, Interswitch, Andela — plus regional harvesters and remote feeds.',
   },
   {
     value: '0',

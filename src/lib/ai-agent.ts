@@ -42,9 +42,9 @@ export async function processChatQuery(
       message:
         `Hi 👋 I'm **CareerBot**. I read your question, work out the role, location and work ` +
         `arrangement you mean, then search live openings straight from employer career pages — ` +
-        `Moniepoint, Renmoney, FairMoney, Kuda, Jumia, Andela, One Acre Fund, Canonical and more — ` +
+        `Renmoney, FairMoney, Kuda, Jumia, Interswitch, Andela, One Acre Fund, Canonical and more — ` +
         `plus remote feeds that hire into Africa.\n\n` +
-        `Every card links to the company's own application form. Tell me what you're after, ` +
+        `Every card links to verified application pages or direct employer forms. Tell me what you're after, ` +
         `or upload your CV and I'll match you to what's open.`,
       jobs: [],
       suggested_queries: [
@@ -109,11 +109,9 @@ export async function processChatQuery(
       (rejected.stale
         ? `Nothing here is older than five months — filtered out ${plural(rejected.stale, 'stale posting')}. `
         : '') +
-      // Most cards go straight to the employer's ATS, but Inkdesk is a job
-      // board, so claiming "every card" would be untrue when one is in the mix.
-      (jobs.some((j) => j.source === 'Inkdesk')
-        ? `Cards from employer boards open the company's own application form; the ones marked Inkdesk go via that job board.`
-        : `Every card links to the employer's own application form.`) +
+      (jobs.some((j) => ['Greenhouse', 'Lever', 'Workable', 'Ashby', 'Direct ATS'].includes(j.source))
+        ? `Cards from employer boards open the company's application form directly; aggregated listings open verified application pages.`
+        : `Every card links directly to the verified application page.`) +
       `\n\n${displayCountNote}`;
 
     if (parsed.location) suggested.push(`Remote ${roleWords[0] || 'roles'} open to ${parsed.location.label}`);

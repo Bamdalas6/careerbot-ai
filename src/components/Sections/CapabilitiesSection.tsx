@@ -40,12 +40,12 @@ const CAPABILITIES: Capability[] = [
     index: '2.0',
     kicker: 'Sources',
     title: 'Aggregate live roles, skip the resellers',
-    body: 'Every search hits three sources in parallel and merges the results. Postings come from the companies themselves, so the link you click is the one you apply through.',
+    body: 'Every search queries direct employer boards, live remote feeds, and regional harvesters in parallel and merges the results.',
     items: [
-      { id: '2.1', label: 'Remotive', detail: 'Remote-first listings across engineering, design and data.' },
-      { id: '2.2', label: 'Arbeitnow', detail: 'European and visa-sponsored roles with direct company links.' },
-      { id: '2.3', label: 'Direct ATS feeds', detail: 'Curated Greenhouse, Lever and Workday boards, read at the source.' },
-      { id: '2.4', label: 'Deduplication', detail: 'The same role posted to two feeds is collapsed into one result.' },
+      { id: '2.1', label: 'Live Remote Boards', detail: 'Real-time feeds from RemoteOK, WeWorkRemotely, Himalayas, Working Nomads, Jobspresso, and Remotive.' },
+      { id: '2.2', label: 'Regional & Startup Harvesters', detail: 'Jobberman, MyJobMag, Y Combinator, Wellfound, Contra, and creative boards.' },
+      { id: '2.3', label: 'Direct ATS feeds', detail: 'Curated Greenhouse, Lever, Workable, and Ashby boards, read at the source.' },
+      { id: '2.4', label: 'Deduplication', detail: 'The same role cross-posted across multiple boards is collapsed into one pristine result.' },
     ],
     panel: {
       title: 'Result provenance',

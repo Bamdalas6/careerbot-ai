@@ -76,6 +76,26 @@ CREATE TABLE IF NOT EXISTS applications (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 7. Crawled Jobs Table (High-volume multi-source aggregation pool)
+CREATE TABLE IF NOT EXISTS crawled_jobs (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  company TEXT NOT NULL,
+  location TEXT,
+  is_remote BOOLEAN DEFAULT false,
+  job_type TEXT DEFAULT 'Full-time',
+  experience_level TEXT DEFAULT 'Mid-Level',
+  salary_formatted TEXT,
+  description TEXT,
+  snippet TEXT,
+  tags JSONB DEFAULT '[]'::jsonb,
+  apply_url TEXT UNIQUE NOT NULL,
+  source TEXT NOT NULL,
+  posted_at TEXT,
+  age_days INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- Indexes for ultra-fast queries
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
@@ -83,3 +103,6 @@ CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id);
 CREATE INDEX IF NOT EXISTS idx_resumes_user_id ON resumes(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_applications_user_id ON applications(user_id);
+CREATE INDEX IF NOT EXISTS idx_crawled_jobs_created_at ON crawled_jobs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_crawled_jobs_source ON crawled_jobs(source);
+CREATE INDEX IF NOT EXISTS idx_crawled_jobs_apply_url ON crawled_jobs(apply_url);

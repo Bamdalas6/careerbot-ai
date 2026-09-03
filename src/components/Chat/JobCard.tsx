@@ -73,7 +73,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-lg font-bold text-zinc-900 shadow-xs dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
-              {job.company.charAt(0)}
+              {(job.company || '?').charAt(0)}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -175,7 +175,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         )}
 
         {/* Tags */}
-        {job.tags && job.tags.length > 0 && (
+        {Array.isArray(job.tags) && job.tags.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {job.tags.slice(0, 4).map((tag, idx) => (
               <span

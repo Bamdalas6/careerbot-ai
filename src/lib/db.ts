@@ -3,6 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import type { SavedJob, ApplicationEvent, JobListing } from '@/types/job';
 import { supabase, isSupabaseConfigured } from './supabase';
+import { isCompanyExcluded, isJobicyExcluded } from './ats-boards';
 
 export interface ApplicationRecord {
   id: string;
@@ -138,6 +139,8 @@ function ensureLocalDb(): DatabaseSchema {
       resumes: parsed.resumes || [],
       transactions: parsed.transactions || [],
       applications: parsed.applications || [],
+      password_resets: parsed.password_resets || [],
+      crawled_jobs: parsed.crawled_jobs || [],
     };
   } catch (err) {
     console.error('Local database read error:', err);
@@ -1360,18 +1363,34 @@ export async function saveCrawledJobs(
   const db = ensureLocalDb();
   if (!db.crawled_jobs) db.crawled_jobs = [];
 
-  const existingKeys = new Set(
-    db.crawled_jobs.map(
-      (j) => j.apply_url || `${j.company.toLowerCase()}-${j.title.toLowerCase()}`
-    )
-  );
+  const dedupeKey = (comp: string, title: string) =>
+    `${comp.toLowerCase().trim()}|${title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`;
+
+  const existingKeys = new Set<string>();
+  const existingUrls = new Set<string>();
+
+  for (const j of db.crawled_jobs) {
+    if (j.apply_url) existingUrls.add(j.apply_url.trim().toLowerCase());
+    if (j.company && j.title) existingKeys.add(dedupeKey(j.company, j.title));
+  }
 
   let added = 0;
   for (const job of newJobs) {
-    const key =
-      job.apply_url || `${job.company.toLowerCase()}-${job.title.toLowerCase()}`;
-    if (!existingKeys.has(key)) {
+    if (!job.apply_url || !job.title || !job.company) continue;
+    if (isJobicyExcluded(job)) continue;
+
+    const compLower = job.company.toLowerCase().trim();
+    if (isCompanyExcluded(compLower)) continue;
+
+    // Freshness filter: postings older than 150 days are dropped
+    if (job.age_days !== undefined && job.age_days > 150) continue;
+
+    const urlLower = job.apply_url.trim().toLowerCase();
+    const key = dedupeKey(job.company, job.title);
+
+    if (!existingKeys.has(key) && !existingUrls.has(urlLower)) {
       existingKeys.add(key);
+      existingUrls.add(urlLower);
       db.crawled_jobs.push(job);
       added++;
     }
@@ -1386,26 +1405,41 @@ export async function saveCrawledJobs(
 
   if (isSupabaseConfigured && supabase) {
     try {
-      // If jobs table exists in Supabase, insert unique jobs
-      const formatted = newJobs.map((j) => ({
-        id: j.id,
-        title: j.title,
-        company: j.company,
-        location: j.location,
-        is_remote: j.is_remote,
-        job_type: j.job_type || 'Full-time',
-        experience_level: j.experience_level || 'Mid-Level',
-        description: j.description || '',
-        snippet: j.snippet || '',
-        tags: j.tags || [],
-        apply_url: j.apply_url,
-        source: j.source,
-        posted_at: j.posted_at || 'Recently',
-      }));
+      // If crawled_jobs or jobs table exists in Supabase, insert unique jobs
+      const formatted = newJobs
+        .filter((j) => {
+          const comp = j.company?.toLowerCase().trim() || '';
+          return !isCompanyExcluded(comp) && !isJobicyExcluded(j) && (!j.age_days || j.age_days <= 150);
+        })
+        .map((j) => ({
+          id: j.id,
+          title: j.title,
+          company: j.company,
+          location: j.location,
+          is_remote: j.is_remote,
+          job_type: j.job_type || 'Full-time',
+          experience_level: j.experience_level || 'Mid-Level',
+          salary_formatted: j.salary_formatted || null,
+          description: j.description || '',
+          snippet: j.snippet || '',
+          tags: j.tags || [],
+          apply_url: j.apply_url,
+          source: j.source,
+          posted_at: j.posted_at || 'Recently',
+          age_days: j.age_days || null,
+          created_at: new Date().toISOString(),
+        }));
 
-      await supabase
-        .from('jobs')
-        .upsert(formatted, { onConflict: 'apply_url', ignoreDuplicates: true });
+      if (formatted.length > 0) {
+        const { error } = await supabase
+          .from('crawled_jobs')
+          .upsert(formatted, { onConflict: 'apply_url', ignoreDuplicates: true });
+        if (error) {
+          await supabase
+            .from('jobs')
+            .upsert(formatted, { onConflict: 'apply_url', ignoreDuplicates: true });
+        }
+      }
     } catch {
       /* ignore if table does not exist */
     }
@@ -1414,8 +1448,24 @@ export async function saveCrawledJobs(
   return { added, total: db.crawled_jobs.length };
 }
 
-export async function getCrawledJobs(limit = 100): Promise<JobListing[]> {
+export async function getCrawledJobs(limit = 150): Promise<JobListing[]> {
   if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('crawled_jobs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return (data as JobListing[]).filter(
+          (j) => !isCompanyExcluded(j.company) && !isJobicyExcluded(j) && (!j.age_days || j.age_days <= 150)
+        );
+      }
+    } catch {
+      /* try fallback to jobs */
+    }
+
     try {
       const { data, error } = await supabase
         .from('jobs')
@@ -1424,7 +1474,9 @@ export async function getCrawledJobs(limit = 100): Promise<JobListing[]> {
         .limit(limit);
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return data as JobListing[];
+        return (data as JobListing[]).filter(
+          (j) => !isCompanyExcluded(j.company) && !isJobicyExcluded(j) && (!j.age_days || j.age_days <= 150)
+        );
       }
     } catch {
       /* fallback to local */
@@ -1432,5 +1484,8 @@ export async function getCrawledJobs(limit = 100): Promise<JobListing[]> {
   }
 
   const db = ensureLocalDb();
-  return (db.crawled_jobs || []).slice(-limit);
+  const valid = (db.crawled_jobs || []).filter(
+    (j) => !isCompanyExcluded(j.company) && !isJobicyExcluded(j) && (!j.age_days || j.age_days <= 150)
+  );
+  return valid.slice(-limit);
 }

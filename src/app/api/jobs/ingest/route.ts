@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveCrawledJobs } from '@/lib/db';
-import { EXCLUDED_COMPANIES } from '@/lib/ats-boards';
+import { isCompanyExcluded, isJobicyExcluded } from '@/lib/ats-boards';
 import { JobListing } from '@/types/job';
 
 /**
@@ -22,8 +22,8 @@ function parseRawJobPost(rawText: string, sourceUrl?: string, sourceName = 'Comm
   const atMatch = rawText.match(/(?:at|@)\s*([A-Za-z0-9_\s]{2,30})/i);
   let company = atMatch ? atMatch[1].trim() : 'Tech Company';
 
-  // Check if excluded company
-  if (EXCLUDED_COMPANIES.has(company.toLowerCase())) {
+  // Check if excluded company or Jobicy
+  if (isCompanyExcluded(company) || isJobicyExcluded({ source: sourceName, apply_url: applyUrl, title, company })) {
     return null;
   }
 
@@ -72,8 +72,19 @@ export async function POST(req: NextRequest) {
       // If structured job
       if (item.title && item.company && item.apply_url) {
         const companyStr = String(item.company).trim();
-        if (EXCLUDED_COMPANIES.has(companyStr.toLowerCase())) {
+        if (isCompanyExcluded(companyStr)) {
           continue; // Skip blacklisted companies like Moniepoint
+        }
+        if (
+          isJobicyExcluded({
+            source: item.source ? String(item.source) : undefined,
+            apply_url: String(item.apply_url),
+            id: item.id ? String(item.id) : undefined,
+            title: String(item.title),
+            company: companyStr,
+          })
+        ) {
+          continue; // Strictly reject any Jobicy postings
         }
 
         parsedJobs.push({
