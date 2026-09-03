@@ -1072,11 +1072,48 @@ export async function runSearch(rawQuery: string, limit = 40): Promise<SearchRes
   exact.sort((a, b) => b.score - a.score);
   relatedPool.sort((a, b) => b.score - a.score);
 
-  // Related roles only appear once the exact matches run out, and never more
-  // than a third of the grid — they are a courtesy, not filler.
+  // Related roles appear once exact matches run out
   const kept = [...exact];
   if (exact.length < limit) {
-    kept.push(...relatedPool.slice(0, Math.min(6, limit - exact.length)));
+    kept.push(...relatedPool.slice(0, Math.min(10, limit - exact.length)));
+  }
+
+  // Resilient discovery fallback: If strict title matching yielded 0 roles,
+  // find the closest relevant jobs from our live pool so users are never left with an empty screen.
+  if (kept.length === 0 && unique.length > 0) {
+    const rawTokens = rawQuery.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
+    const candidatePool = unique.filter((j) => {
+      if (parsed.isRemote === true && !j.is_remote) return false;
+      if (parsed.isRemote === false && j.is_remote) return false;
+      return true;
+    });
+
+    const ranked = candidatePool.map((job) => {
+      const text = `${job.title} ${job.company} ${job.tags?.join(' ') || ''} ${job.location}`.toLowerCase();
+      let matches = 0;
+      for (const t of rawTokens) {
+        if (text.includes(t)) matches += 1;
+      }
+      return {
+        job: {
+          ...job,
+          match_score: matches > 0 ? Math.min(85, 65 + matches * 6) : 60,
+          match_reason: matches > 0 ? 'Matching your career interest' : 'Active opening in our live network',
+        },
+        score: matches,
+      };
+    });
+
+    ranked.sort((a, b) => b.score - a.score);
+    for (const item of ranked.slice(0, Math.min(limit, 15))) {
+      kept.push({
+        job: item.job,
+        score: item.job.match_score || 65,
+        reasons: ['Recommended role'],
+        relevant: true,
+        related: true,
+      });
+    }
   }
 
   // Keep the grid varied: at most 3 roles per company for small previews, or up to 8 for broad searches

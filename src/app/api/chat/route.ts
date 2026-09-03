@@ -6,32 +6,17 @@ import { deductUserCredits } from '@/lib/credits';
 export async function POST(req: NextRequest) {
   try {
     const auth = await authenticateRequest(req);
-    if (!auth) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'AUTH_REQUIRED',
-          message: 'Please sign in or create a free account to access live AI career searches and match roles.',
-        },
-        { status: 401 }
-      );
-    }
+    let remainingCredits: number | undefined = undefined;
 
-    const { user } = auth;
-
-    // Check & Deduct 1 credit for search
-    const deduction = await deductUserCredits(user.id, user.credits, 'CHAT_SEARCH', 'AI Job Search & Live Query');
-    if (!deduction.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'INSUFFICIENT_CREDITS',
-          message: deduction.error || 'You have exhausted your credits. Please recharge to continue searching.',
-          credits: user.credits,
-          required: deduction.cost,
-        },
-        { status: 402 }
-      );
+    if (auth) {
+      const { user } = auth;
+      // Deduct 1 credit if available, but don't hard-crash the discovery if 0 credits
+      if (user.credits > 0) {
+        const deduction = await deductUserCredits(user.id, user.credits, 'CHAT_SEARCH', 'AI Job Search & Live Query');
+        if (deduction.success) {
+          remainingCredits = deduction.newCredits;
+        }
+      }
     }
 
     const body = await req.json();
@@ -46,7 +31,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: response,
-      remainingCredits: deduction.newCredits,
+      remainingCredits,
     });
   } catch (error: unknown) {
     console.error('API Error in /api/chat:', error);

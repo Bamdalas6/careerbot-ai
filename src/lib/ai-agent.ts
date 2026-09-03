@@ -92,14 +92,15 @@ export async function processChatQuery(
     const filteredOut =
       rejected.offTopic + rejected.wrongLocation + rejected.wrongArrangement + rejected.stale;
 
+    const totalCount = Math.max(jobs.length, relevant);
     const displayCountNote =
-      jobs.length < relevant
-        ? `Showing the top ${jobs.length} best-matched roles out of ${plural(relevant, 'matching opening')} below:`
+      jobs.length < totalCount
+        ? `Showing the top ${jobs.length} best-matched roles out of ${plural(totalCount, 'active opening')} below:`
         : `Showing all ${jobs.length} matching roles below:`;
 
     message =
       (understood.length ? `Reading that as ${understood.join(' · ')}.\n\n` : '') +
-      `${sourceLine} Found ${plural(relevant, 'matching opening')}` +
+      `${sourceLine} Found ${plural(totalCount, 'active opening')}` +
       (filteredOut ? ` (filtered out ${filteredOut} non-matching or stale postings)` : '') +
       `.\n\n` +
       `Best fit is **${top.title}** at **${top.company}** — ${top.match_reason} (${top.match_score}%). ` +

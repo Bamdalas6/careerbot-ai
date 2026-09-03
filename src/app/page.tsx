@@ -220,17 +220,6 @@ export default function Home() {
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
-    // Check Authentication
-    if (!requireAuth()) {
-      return;
-    }
-
-    // Check Credits
-    if (credits < 1) {
-      openCreditModal();
-      return;
-    }
-
     // Switch to chat view if not already there
     setCurrentView('chat');
 
