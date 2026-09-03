@@ -4,11 +4,16 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Lock, Eye, EyeOff, ShieldCheck, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { getSupabaseBrowserClient } from '@/lib/supabase';
 
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') || '';
+
+  const [hasValidAccess, setHasValidAccess] = useState(false);
+  const [supabaseUserEmail, setSupabaseUserEmail] = useState<string | null>(null);
+  const [supabaseAccessToken, setSupabaseAccessToken] = useState<string | null>(null);
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -19,29 +24,86 @@ function ResetPasswordForm() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    if (!token) {
-      setError('Missing or invalid reset token. Please request a new password reset link.');
+    if (token) {
+      setHasValidAccess(true);
+      setError(null);
+      return;
+    }
+
+    // Check if Supabase recovery session exists or hash contains access_token / type=recovery
+    try {
+      const supabase = getSupabaseBrowserClient();
+      if (supabase) {
+        supabase.auth.getSession().then(({ data }) => {
+          if (data?.session) {
+            setHasValidAccess(true);
+            setSupabaseUserEmail(data.session.user.email || null);
+            setSupabaseAccessToken(data.session.access_token || null);
+            setError(null);
+          } else {
+            if (typeof window !== 'undefined') {
+              const hash = window.location.hash || '';
+              if (hash.includes('access_token') || hash.includes('type=recovery')) {
+                setHasValidAccess(true);
+                setError(null);
+              } else {
+                setError('Missing or invalid reset token. Please request a new password reset link.');
+              }
+            }
+          }
+        });
+      }
+    } catch {
+      if (!token) {
+        setError('Missing or invalid reset token. Please request a new password reset link.');
+      }
     }
   }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) return;
+    if (!token && !hasValidAccess) return;
     if (newPassword.length < 6) { setError('Password must be at least 6 characters.'); return; }
     if (newPassword !== confirmPassword) { setError('Passwords do not match.'); return; }
 
     setError(null);
     setLoading(true);
     try {
+      // If we have a Supabase active recovery session, update in Supabase Auth directly
+      const supabase = getSupabaseBrowserClient();
+      let emailFromSession = supabaseUserEmail;
+      if (supabase && (supabaseAccessToken || !token)) {
+        try {
+          const { data: updatedSb } = await supabase.auth.updateUser({
+            password: newPassword,
+          });
+          if (updatedSb?.user?.email) {
+            emailFromSession = updatedSb.user.email;
+          }
+        } catch (e) {
+          console.warn('Supabase updateUser error:', e);
+        }
+      }
+
       const res = await fetch('/api/auth/reset-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, newPassword }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(supabaseAccessToken ? { Authorization: `Bearer ${supabaseAccessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          token: token || undefined,
+          email: emailFromSession || undefined,
+          newPassword,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || 'Failed to reset password.');
       setSuccess(true);
-      setTimeout(() => router.push('/'), 3000);
+      // Auto-redirect directly to dashboard/home after 2 seconds
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to reset password.');
     } finally {
@@ -56,9 +118,9 @@ function ResetPasswordForm() {
           <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
         </div>
         <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">Password Updated!</h2>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">Redirecting you to sign in...</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">You are now logged in. Redirecting to your dashboard...</p>
         <Link href="/" className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700 transition dark:bg-white dark:text-black">
-          Go to Sign In
+          Enter Dashboard
         </Link>
       </div>
     );
@@ -102,7 +164,7 @@ function ResetPasswordForm() {
             </button>
           </div>
         </div>
-        <button type="submit" disabled={loading || !token} className="w-full flex items-center justify-center gap-2 rounded-xl bg-zinc-900 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700 transition disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-zinc-200">
+        <button type="submit" disabled={loading || (!token && !hasValidAccess)} className="w-full flex items-center justify-center gap-2 rounded-xl bg-zinc-900 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700 transition disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-zinc-200">
           {loading ? (<><Loader2 className="h-4 w-4 animate-spin" /><span>Updating password...</span></>) : (<><ShieldCheck className="h-4 w-4" /><span>Update Password</span></>)}
         </button>
         <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">

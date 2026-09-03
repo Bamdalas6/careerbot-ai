@@ -15,9 +15,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // If this is a password recovery flow, redirect to home with recovery hash
+  // If this is a password recovery flow, redirect directly to the reset-password page
   if (type === 'recovery') {
-    return NextResponse.redirect(new URL('/#type=recovery', origin));
+    return NextResponse.redirect(new URL('/auth/reset-password', origin));
   }
 
   return NextResponse.redirect(new URL(next, origin));

@@ -98,8 +98,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (supabase) {
         const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
           if (event === 'PASSWORD_RECOVERY') {
-            setAuthModalMode('forgot-reset');
-            setIsAuthModalOpen(true);
+            if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth/reset-password')) {
+              window.location.href = '/auth/reset-password';
+            }
           }
         });
 
@@ -118,8 +119,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const hash = window.location.hash || '';
       const search = window.location.search || '';
       if (hash.includes('type=recovery') || search.includes('type=recovery')) {
-        setAuthModalMode('forgot-reset');
-        setIsAuthModalOpen(true);
+        if (!window.location.pathname.startsWith('/auth/reset-password')) {
+          window.location.href = '/auth/reset-password' + (hash || search);
+        }
       }
 
       // Capture referral code if present in URL

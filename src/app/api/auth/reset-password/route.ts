@@ -1,27 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { hashPassword } from '@/lib/auth';
-import { verifyPasswordResetToken, updateUserPasswordByEmail } from '@/lib/db';
+import { hashPassword, setSessionCookie, sanitizeUser } from '@/lib/auth';
+import { verifyPasswordResetToken, updateUserPasswordByEmail, getUserByEmail, createSession } from '@/lib/db';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { token, newPassword } = body;
+    const { token, newPassword, email: providedEmail } = body;
 
-    if (!token || typeof token !== 'string') {
-      return NextResponse.json(
-        { success: false, error: 'A valid reset token is required.' },
-        { status: 400 }
-      );
-    }
-    if (!newPassword || newPassword.length < 6) {
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
       return NextResponse.json(
         { success: false, error: 'Password must be at least 6 characters.' },
         { status: 400 }
       );
     }
 
-    const email = await verifyPasswordResetToken(token.trim());
+    let email: string | null = null;
+
+    // 1. Primary: Verify token if token is provided
+    if (token && typeof token === 'string' && token.trim().length > 0) {
+      email = await verifyPasswordResetToken(token.trim());
+    }
+
+    // 2. Secondary: If from Supabase Auth recovery session
+    if (!email && providedEmail && typeof providedEmail === 'string') {
+      const authHeader = req.headers.get('authorization');
+      if (authHeader && isSupabaseConfigured && supabase) {
+        try {
+          const sbToken = authHeader.replace(/^Bearer\s+/i, '');
+          const { data: userData } = await supabase.auth.getUser(sbToken);
+          if (userData?.user?.email?.toLowerCase() === providedEmail.trim().toLowerCase()) {
+            email = providedEmail.trim().toLowerCase();
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
     if (!email) {
       return NextResponse.json(
         { success: false, error: 'This reset link is invalid or has expired. Please request a new one.' },
@@ -39,6 +55,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Sync to Supabase Auth cloud
     if (isSupabaseConfigured && supabase) {
       try {
         const { data: usersData } = await supabase.auth.admin.listUsers();
@@ -51,10 +68,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    // Auto-login: Create session so the user does NOT need to type email & password again
+    const user = await getUserByEmail(email);
+    let sessionToken = '';
+    if (user) {
+      const session = await createSession(user.id);
+      sessionToken = session.token;
+    }
+
+    const response = NextResponse.json({
       success: true,
-      message: 'Password updated successfully. You can now sign in with your new password.',
+      message: 'Password updated successfully! Logging you in...',
+      user: user ? sanitizeUser(user) : null,
+      token: sessionToken,
     });
+
+    if (sessionToken) {
+      return setSessionCookie(response, sessionToken);
+    }
+
+    return response;
   } catch (err: unknown) {
     console.error('Reset password error:', err);
     return NextResponse.json(
