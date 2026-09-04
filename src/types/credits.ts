@@ -5,7 +5,19 @@ export const CREDIT_RATES = {
   TAILOR_PITCH: 2,      // 2 credits for generating tailored bullet points and cover note
 } as const;
 
-export const CREDIT_PACKAGES = [
+export interface CreditPackage {
+  id: string;
+  name: string;
+  credits: number;
+  price_usd: number;
+  price_ngn: number;
+  badge?: string;
+  popular?: boolean;
+  description: string;
+  features: readonly string[];
+}
+
+export const CREDIT_PACKAGES: readonly CreditPackage[] = [
   {
     id: 'starter',
     name: 'Starter Pack',
@@ -13,6 +25,7 @@ export const CREDIT_PACKAGES = [
     price_usd: 5,
     price_ngn: 5000,
     badge: 'Beginner',
+    popular: false,
     description: 'Perfect for quick searches and CV tune-ups',
     features: ['50 Search / Action Credits', '5+ Complete CV Rebuilds', '10+ Tailored Pitch Letters'],
   },
@@ -34,6 +47,7 @@ export const CREDIT_PACKAGES = [
     price_usd: 29,
     price_ngn: 29000,
     badge: 'Power User',
+    popular: false,
     description: 'Maximum firepower for aggressive career pivots & multiple applications',
     features: ['500 Action Credits', 'Unlimited Searches & Rebuilds', 'Instant Interview Preparation', 'Lifetime History Storage'],
   },

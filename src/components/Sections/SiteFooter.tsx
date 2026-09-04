@@ -18,27 +18,28 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
       heading: 'Product',
       links: [
         { label: 'Search roles', onClick: onStartSearch },
+        { label: 'Pricing & Plans', href: '/pricing' },
         { label: 'Resume matching', onClick: onOpenResume },
         { label: 'Saved pipeline', onClick: onOpenSaved },
         { label: 'Capabilities', href: '#capabilities' },
       ],
     },
     {
-      heading: 'Capabilities',
+      heading: 'Pricing & Trust',
       links: [
-        { label: 'Intent parsing', href: '#capabilities' },
-        { label: 'Match scoring', href: '#capabilities' },
-        { label: 'Pitch generation', href: '#capabilities' },
-        { label: 'Pipeline tracking', href: '#capabilities' },
+        { label: 'Pricing Policy', href: '/pricing#policy' },
+        { label: 'Action Credit Rates', href: '/pricing' },
+        { label: 'Refund Policy', href: '/pricing#refund-policy' },
+        { label: 'Paystack Payment Security', href: '/pricing#policy' },
       ],
     },
     {
-      heading: 'Sources',
+      heading: 'Legal & Terms',
       links: [
-        { label: 'Remotive', href: 'https://remotive.com' },
-        { label: 'Arbeitnow', href: 'https://arbeitnow.com' },
-        { label: 'Greenhouse boards', href: 'https://www.greenhouse.io' },
-        { label: 'Lever boards', href: 'https://www.lever.co' },
+        { label: 'Terms of Service', href: '/terms' },
+        { label: 'Privacy Policy', href: '/privacy' },
+        { label: 'Merchant Agreement Info', href: '/pricing#policy' },
+        { label: 'Contact & Support', href: 'mailto:hello@bamdalas.com' },
       ],
     },
     {
@@ -46,7 +47,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
       links: [
         { label: 'How results are ranked', href: '#facts' },
         { label: 'What is stored', href: '#facts' },
-        { label: 'Why no sign-up', href: '#facts' },
+        { label: 'Direct ATS verified', href: '#facts' },
       ],
     },
   ];

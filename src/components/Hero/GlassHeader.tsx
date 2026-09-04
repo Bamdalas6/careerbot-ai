@@ -36,9 +36,9 @@ interface GlassHeaderProps {
 }
 
 const NAV_LINKS = [
-  { label: 'Facts', href: '#facts' },
-  { label: 'Capabilities', href: '#capabilities' },
-  { label: 'Get started', href: '#start' },
+  { label: 'Pricing', href: '/pricing' },
+  { label: 'Facts', href: '/#facts' },
+  { label: 'Capabilities', href: '/#capabilities' },
 ];
 
 export const GlassHeader: React.FC<GlassHeaderProps> = ({
@@ -453,6 +453,15 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
             >
               <span>{currentView === 'home' ? '🔍 Search Jobs' : '🏠 Home Page'}</span>
             </button>
+
+            <a
+              href="/pricing"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06]"
+            >
+              <Zap className="h-3.5 w-3.5 text-amber-500" />
+              <span>Pricing & Plans</span>
+            </a>
 
             <button
               type="button"

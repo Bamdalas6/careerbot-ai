@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Zap, Gift, Clock, Lock, ChevronRight, Sparkles } from 'lucide-react';
+import { X, Zap, Gift, Clock, Lock, ChevronRight, Sparkles, ShieldCheck, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { CREDIT_PACKAGES } from '@/types/credits';
 import confetti from 'canvas-confetti';
+import Link from 'next/link';
 
 export const CreditTopUpModal: React.FC = () => {
   const { isCreditModalOpen, closeCreditModal, credits, updateCredits, user, openAuthModal } = useAuth();
@@ -215,21 +217,56 @@ export const CreditTopUpModal: React.FC = () => {
           </div>
         </div>
 
-        {/* Paystack Coming Soon */}
-        <div className="px-5 pt-3 pb-5">
-          <div className="flex items-center justify-between rounded-2xl border border-black/10 bg-zinc-50/40 px-4 py-3.5 dark:border-white/[0.06] dark:bg-white/[0.02]">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-black/10 bg-white dark:border-white/[0.08] dark:bg-white/[0.04]">
-                <Lock className="h-4 w-4 text-zinc-400 dark:text-[#8a8f98]" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-zinc-900 dark:text-[#f7f8f8]">Pay with Paystack</p>
-                <p className="text-[11px] text-zinc-400 dark:text-[#8a8f98] mt-0.5">₦ Naira payments — coming very soon</p>
-              </div>
-            </div>
-            <span className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-600 dark:text-amber-400">
-              Soon
+        {/* Paystack Credit Packages */}
+        <div className="px-5 pt-3 pb-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-zinc-900 dark:text-white uppercase tracking-wider">
+              Credit Top-Up Packages
             </span>
+            <Link
+              href="/pricing"
+              onClick={closeCreditModal}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white underline"
+            >
+              <span>Pricing Policy</span>
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
+
+          <div className="space-y-2">
+            {CREDIT_PACKAGES.map((pkg) => (
+              <div
+                key={pkg.id}
+                className="flex items-center justify-between rounded-xl border border-black/10 bg-zinc-50/60 p-3 dark:border-white/[0.06] dark:bg-white/[0.02]"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-bold text-zinc-900 dark:text-white">{pkg.name}</p>
+                    {pkg.popular && (
+                      <span className="rounded-full bg-zinc-900 px-1.5 py-0.2 text-[9px] font-bold text-white dark:bg-white dark:text-black">
+                        Popular
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{pkg.credits} Action Credits</p>
+                </div>
+
+                <div className="text-right">
+                  <p className="text-xs font-black text-zinc-900 dark:text-white">
+                    ₦{pkg.price_ngn.toLocaleString('en-NG')} <span className="text-[10px] font-normal text-zinc-400">(${pkg.price_usd})</span>
+                  </p>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">Paystack Verified</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-zinc-400 dark:text-zinc-500 pt-1">
+            <span className="flex items-center gap-1">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+              Secured by Paystack
+            </span>
+            <span>7-Day Refund Policy</span>
           </div>
 
           {/* Credit usage guide */}
