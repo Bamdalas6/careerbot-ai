@@ -17,6 +17,33 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark h-full antialiased" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var stored = localStorage.getItem('careerbot_theme');
+                  var theme = (stored === 'light' || stored === 'dark')
+                    ? stored
+                    : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+                  var root = document.documentElement;
+                  root.setAttribute('data-theme', theme);
+                  if (theme === 'light') {
+                    root.classList.remove('dark');
+                    root.classList.add('light');
+                    root.style.colorScheme = 'light';
+                  } else {
+                    root.classList.remove('light');
+                    root.classList.add('dark');
+                    root.style.colorScheme = 'dark';
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="flex min-h-full flex-col font-sans transition-colors duration-200">
         <ThemeProvider>
           <AuthProvider>
