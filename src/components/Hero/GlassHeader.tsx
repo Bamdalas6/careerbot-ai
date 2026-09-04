@@ -87,8 +87,9 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
   }, [mobileMenuOpen]);
 
   return (
-    <header className="glass-header sticky top-0 z-40 w-full transition-colors duration-200">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3.5 sm:px-8">
+    <>
+      <header className="glass-header fixed top-0 inset-x-0 z-50 w-full transition-colors duration-200">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3.5 sm:px-8">
         {/* Brand */}
         <div className="flex items-center gap-3 sm:gap-7">
           <button
@@ -610,6 +611,9 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
           </div>
         </>
       )}
-    </header>
+      </header>
+      {/* Persistent layout spacer so page flow is 100% preserved underneath fixed header */}
+      <div className="h-14 w-full shrink-0 pointer-events-none" aria-hidden="true" />
+    </>
   );
 };

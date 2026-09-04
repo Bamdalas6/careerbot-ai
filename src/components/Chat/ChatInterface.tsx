@@ -7,8 +7,11 @@ import {
   User, 
   Bot, 
   Loader2, 
-  Search
+  Search,
+  Mic,
+  MicOff
 } from 'lucide-react';
+import { useVoiceSpeech } from '@/hooks/useVoiceSpeech';
 import { ChatMessage, JobListing, SavedJob } from '@/types/job';
 import { JobCard } from './JobCard';
 import { QuickPrompts } from './QuickPrompts';
@@ -74,6 +77,21 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [expandedMessages, setExpandedMessages] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const baseInputRef = useRef('');
+
+  const { isListening, isSupported, errorMessage, toggleListening, stopListening } = useVoiceSpeech({
+    onTranscript: (spokenText) => {
+      const prefix = baseInputRef.current ? `${baseInputRef.current.trim()} ` : '';
+      setInput(`${prefix}${spokenText}`);
+    },
+  });
+
+  const handleVoiceToggle = () => {
+    if (!isListening) {
+      baseInputRef.current = input;
+    }
+    toggleListening();
+  };
 
   const isJobSaved = (jobId: string) => savedJobs.some((j) => j.id === jobId);
 
@@ -88,8 +106,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+    if (isListening) {
+      stopListening();
+    }
     onSendMessage(input.trim());
     setInput('');
+    baseInputRef.current = '';
   };
 
   const handleSelectQuery = (query: string) => {
@@ -97,7 +119,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   return (
-    <div className="flex flex-1 flex-col h-[calc(100vh-4rem)] max-w-5xl mx-auto w-full px-3 sm:px-6 py-4">
+    <div className="flex flex-1 flex-col h-full min-h-0 max-w-5xl mx-auto w-full px-3 sm:px-6 py-2 sm:py-3 overflow-hidden">
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto space-y-6 pb-6 pr-1 custom-scrollbar">
         {messages.length === 0 ? (
@@ -234,6 +256,39 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
       {/* Chat Input Bar */}
       <div className="mt-2 pt-2 border-t border-black/10 dark:border-zinc-800/80">
+        {/* Active Speech Recognition Banner */}
+        {isListening && (
+          <div className="mb-2 flex items-center justify-between gap-2 px-3.5 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold animate-in fade-in slide-in-from-bottom-1 duration-150 shadow-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500" />
+              </span>
+              <span className="truncate">Listening... Speak what roles or skills you are looking for</span>
+            </div>
+            <button
+              type="button"
+              onClick={stopListening}
+              className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-md bg-rose-500 text-white hover:bg-rose-600 transition cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="mb-2 px-3.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
+            <span>{errorMessage}</span>
+            <button
+              type="button"
+              onClick={() => stopListening()}
+              className="text-[10px] font-bold uppercase underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="relative flex items-center">
           <div className="absolute left-4 text-zinc-400">
             <Search className="h-4 w-4" />
@@ -243,18 +298,46 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Search roles, skills, companies, salary (e.g. 'Senior React Remote $160k')..."
-            className="field w-full rounded-2xl py-3.5 pl-11 pr-24 text-sm sm:text-base min-h-[44px] shadow-xs bg-white dark:bg-white/[0.04] text-zinc-900 dark:text-[#f7f8f8] border border-black/15 dark:border-white/10 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
+            placeholder={isListening ? "Listening to your voice..." : "Search roles, skills, companies, salary (e.g. 'Senior React Remote $160k')..."}
+            className="field w-full rounded-2xl py-3.5 pl-11 pr-28 sm:pr-32 text-sm sm:text-base min-h-[44px] shadow-xs bg-white dark:bg-white/[0.04] text-zinc-900 dark:text-[#f7f8f8] border border-black/15 dark:border-white/10 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
             disabled={isLoading}
           />
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            className="btn-primary absolute right-2 flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <span>Ask</span>
-            <Send className="h-3.5 w-3.5" />
-          </button>
+
+          <div className="absolute right-2 flex items-center gap-1.5">
+            {/* Voice Speech Microphone Button (Beside Send Button) */}
+            {isSupported && (
+              <button
+                type="button"
+                onClick={handleVoiceToggle}
+                className={`relative flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-200 cursor-pointer select-none active:scale-95 ${
+                  isListening
+                    ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 scale-105 ring-2 ring-rose-400/50 animate-pulse'
+                    : 'border border-black/10 bg-black/[0.04] text-zinc-600 hover:text-zinc-900 hover:bg-black/[0.08] dark:border-white/10 dark:bg-white/[0.06] dark:text-[#8a8f98] dark:hover:text-white dark:hover:bg-white/[0.12]'
+                }`}
+                title={isListening ? 'Listening... Click to stop' : 'Use voice speech to type'}
+                aria-label={isListening ? 'Stop listening' : 'Start voice speech'}
+              >
+                {isListening ? (
+                  <span className="relative flex h-3.5 w-3.5 items-center justify-center">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-200 opacity-75" />
+                    <Mic className="h-3.5 w-3.5 text-white" />
+                  </span>
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+              </button>
+            )}
+
+            {/* Send / Ask Button */}
+            <button
+              type="submit"
+              disabled={!input.trim() || isLoading}
+              className="btn-primary flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 shadow-xs active:scale-95 transition-all"
+            >
+              <span>Ask</span>
+              <Send className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </form>
         <p className="mt-2 text-center text-[11px] text-zinc-500">
           CareerBot AI connects directly to verified company career pages & public job feeds.

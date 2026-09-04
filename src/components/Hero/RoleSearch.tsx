@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Loader2, Search } from 'lucide-react';
+import { ArrowUp, Loader2, Search, Mic } from 'lucide-react';
+import { useVoiceSpeech } from '@/hooks/useVoiceSpeech';
 
 const PLACEHOLDERS = [
   'Senior React developer, remote, $150k+…',
@@ -36,22 +37,37 @@ export const RoleSearch: React.FC<RoleSearchProps> = ({
   const [focused, setFocused] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const baseValueRef = useRef('');
+
+  const { isListening, isSupported, errorMessage, toggleListening, stopListening } = useVoiceSpeech({
+    onTranscript: (spokenText) => {
+      const prefix = baseValueRef.current ? `${baseValueRef.current.trim()} ` : '';
+      setValue(`${prefix}${spokenText}`);
+    },
+  });
+
+  const handleVoiceToggle = () => {
+    if (!isListening) {
+      baseValueRef.current = value;
+    }
+    toggleListening();
+  };
 
   // Rotate the placeholder only while the field is empty and unfocused.
   useEffect(() => {
-    if (focused || value) return;
+    if (focused || value || isListening) return;
     const id = window.setInterval(() => {
       setPlaceholderIndex((i) => (i + 1) % PLACEHOLDERS.length);
     }, 3400);
     return () => window.clearInterval(id);
-  }, [focused, value]);
+  }, [focused, value, isListening]);
 
   // Wake the orb up as the visitor engages with the field.
   useEffect(() => {
     if (!onExcitementChange) return;
     const typed = Math.min(1, value.trim().length / 24);
-    onExcitementChange(focused ? 0.45 + 0.55 * typed : typed * 0.3);
-  }, [focused, value, onExcitementChange]);
+    onExcitementChange(focused || isListening ? 0.45 + 0.55 * typed : typed * 0.3);
+  }, [focused, value, isListening, onExcitementChange]);
 
   // ⌘K / Ctrl+K focuses the field instead of jumping straight to chat.
   useEffect(() => {
@@ -68,24 +84,50 @@ export const RoleSearch: React.FC<RoleSearchProps> = ({
   const submit = (query: string) => {
     const trimmed = query.trim();
     if (!trimmed || isLoading) return;
+    if (isListening) stopListening();
     onSearch(trimmed);
     setValue('');
+    baseValueRef.current = '';
   };
 
   return (
-    <div className="flex w-full max-w-2xl flex-col items-center gap-4">
+    <div className="flex w-full max-w-2xl flex-col items-center gap-3">
+      {/* Speech Listening Pill */}
+      {isListening && (
+        <div className="flex items-center gap-2 px-3.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold animate-in fade-in slide-in-from-top-1 duration-150">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
+          </span>
+          <span>Listening... Speak what role you are looking for</span>
+          <button
+            type="button"
+            onClick={stopListening}
+            className="text-[10px] uppercase font-bold underline ml-1 cursor-pointer"
+          >
+            Done
+          </button>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="px-3.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs">
+          {errorMessage}
+        </div>
+      )}
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
           submit(value);
         }}
         className={`glass-search group relative flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 ${
-          focused ? 'is-focused' : ''
+          focused || isListening ? 'is-focused ring-1 ring-zinc-400/30' : ''
         }`}
       >
         <Search
           className={`h-4 w-4 shrink-0 transition-colors ${
-            focused ? 'text-zinc-900 dark:text-[#f7f8f8]' : 'text-zinc-400 dark:text-[#62666d]'
+            focused || isListening ? 'text-zinc-900 dark:text-[#f7f8f8]' : 'text-zinc-400 dark:text-[#62666d]'
           }`}
         />
 
@@ -98,9 +140,10 @@ export const RoleSearch: React.FC<RoleSearchProps> = ({
             onBlur={() => setFocused(false)}
             disabled={isLoading}
             aria-label="Search for a role"
-            className="w-full bg-transparent text-[15px] font-medium text-zinc-900 dark:text-[#f7f8f8] outline-none placeholder:text-transparent disabled:opacity-60"
+            placeholder={isListening ? "Listening to your voice..." : undefined}
+            className="w-full bg-transparent text-[15px] font-medium text-zinc-900 dark:text-[#f7f8f8] outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-500 disabled:opacity-60"
           />
-          {!value && (
+          {!value && !isListening && (
             <span
               key={placeholderIndex}
               aria-hidden="true"
@@ -115,18 +158,43 @@ export const RoleSearch: React.FC<RoleSearchProps> = ({
           ⌘K
         </kbd>
 
-        <button
-          type="submit"
-          disabled={!value.trim() || isLoading}
-          aria-label="Find roles"
-          className="btn-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-30"
-        >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <ArrowUp className="h-4 w-4" />
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isSupported && (
+            <button
+              type="button"
+              onClick={handleVoiceToggle}
+              className={`relative flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200 cursor-pointer select-none active:scale-95 ${
+                isListening
+                  ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 scale-105 ring-2 ring-rose-400/50 animate-pulse'
+                  : 'border border-black/10 bg-black/[0.04] text-zinc-600 hover:text-zinc-900 hover:bg-black/[0.08] dark:border-white/10 dark:bg-white/[0.06] dark:text-[#8a8f98] dark:hover:text-white'
+              }`}
+              title={isListening ? 'Listening... Click to stop' : 'Use voice speech to search'}
+              aria-label={isListening ? 'Stop listening' : 'Start voice speech'}
+            >
+              {isListening ? (
+                <span className="relative flex h-3.5 w-3.5 items-center justify-center">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-200 opacity-75" />
+                  <Mic className="h-3.5 w-3.5 text-white" />
+                </span>
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
+            </button>
           )}
-        </button>
+
+          <button
+            type="submit"
+            disabled={!value.trim() || isLoading}
+            aria-label="Find roles"
+            className="btn-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-30 active:scale-95"
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowUp className="h-4 w-4" />
+            )}
+          </button>
+        </div>
       </form>
 
       <div className="flex flex-wrap items-center justify-center gap-1.5">
