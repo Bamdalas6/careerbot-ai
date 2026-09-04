@@ -34,6 +34,7 @@ export interface UserRecord {
   password_hash: string;
   salt: string;
   credits: number;
+  last_free_credit_claim_at?: string;
   referral_code?: string;
   referred_by?: string;
   referral_count?: number;
@@ -81,7 +82,7 @@ export interface CVRecord {
 export interface TransactionRecord {
   id: string;
   user_id: string;
-  type: 'initial_bonus' | 'purchase' | 'usage';
+  type: 'initial_bonus' | 'purchase' | 'usage' | 'free_claim';
   amount?: number;
   currency?: string;
   credits_delta: number;
@@ -261,6 +262,16 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
       if (!error && data) {
         const user = data as UserRecord;
         user.credits = await getActualUserCredits(user.id, user.email);
+        if (!user.last_free_credit_claim_at) {
+          try {
+            const { data: authUser } = await supabase.auth.admin.getUserById(user.id);
+            if (authUser?.user?.user_metadata?.last_free_credit_claim_at) {
+              user.last_free_credit_claim_at = authUser.user.user_metadata.last_free_credit_claim_at;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
         return user;
       }
     } catch (err) {
@@ -288,6 +299,7 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
           password_hash: '',
           salt: '',
           credits: actualCredits,
+          last_free_credit_claim_at: found.user_metadata?.last_free_credit_claim_at,
           referral_code: found.user_metadata?.referral_code,
           referral_count: found.user_metadata?.referral_count || 0,
           referral_earnings: found.user_metadata?.referral_earnings || 0,
@@ -322,6 +334,16 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
       if (!error && data) {
         const user = data as UserRecord;
         user.credits = await getActualUserCredits(user.id, user.email);
+        if (!user.last_free_credit_claim_at) {
+          try {
+            const { data: authUser } = await supabase.auth.admin.getUserById(id);
+            if (authUser?.user?.user_metadata?.last_free_credit_claim_at) {
+              user.last_free_credit_claim_at = authUser.user.user_metadata.last_free_credit_claim_at;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
         return user;
       }
     } catch (err) {
@@ -349,6 +371,7 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
           password_hash: '',
           salt: '',
           credits: actualCredits,
+          last_free_credit_claim_at: u.user_metadata?.last_free_credit_claim_at,
           referral_code: u.user_metadata?.referral_code,
           referral_count: u.user_metadata?.referral_count || 0,
           referral_earnings: u.user_metadata?.referral_earnings || 0,
@@ -926,14 +949,33 @@ export async function updateUserCredits(
 
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('users').update({ credits: newCredits, updated_at: now }).eq('id', userId);
+      const updateData: Record<string, unknown> = { credits: newCredits, updated_at: now };
+      if (type === 'free_claim') {
+        updateData.last_free_credit_claim_at = now;
+      }
+      const { error: upErr } = await supabase.from('users').update(updateData).eq('id', userId);
+      if (upErr && type === 'free_claim') {
+        // Fallback in case column last_free_credit_claim_at does not exist in Supabase yet
+        await supabase.from('users').update({ credits: newCredits, updated_at: now }).eq('id', userId);
+      }
       if (user.email) {
-        await supabase.from('users').update({ credits: newCredits, updated_at: now }).ilike('email', user.email.toLowerCase());
+        const { error: emailErr } = await supabase.from('users').update(updateData).ilike('email', user.email.toLowerCase());
+        if (emailErr && type === 'free_claim') {
+          await supabase.from('users').update({ credits: newCredits, updated_at: now }).ilike('email', user.email.toLowerCase());
+        }
       }
       await supabase.from('transactions').insert([tx]);
       // Also sync user_metadata in Supabase Auth admin
       try {
-        await supabase.auth.admin.updateUserById(userId, { user_metadata: { credits: newCredits } });
+        const metaUpdate: Record<string, unknown> = { credits: newCredits };
+        if (type === 'free_claim') {
+          metaUpdate.last_free_credit_claim_at = now;
+        }
+        const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+        const existingMeta = authUser?.user?.user_metadata || {};
+        await supabase.auth.admin.updateUserById(userId, {
+          user_metadata: { ...existingMeta, ...metaUpdate },
+        });
       } catch {
         /* ignore */
       }
@@ -948,6 +990,9 @@ export async function updateUserCredits(
   );
   if (localUser) {
     localUser.credits = newCredits;
+    if (type === 'free_claim') {
+      localUser.last_free_credit_claim_at = now;
+    }
     localUser.updated_at = now;
   }
   db.transactions.push(tx);
@@ -1053,6 +1098,7 @@ export async function getSessionByToken(token: string): Promise<{ session: Sessi
         referral_code: payload.referral_code,
         referral_count: 0,
         referral_earnings: 0,
+        last_free_credit_claim_at: payload.last_free_credit_claim_at,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -1531,53 +1577,250 @@ export async function getApplicationsDueForFollowUp(userId: string): Promise<App
 
 // ================= FREE CREDIT CLAIM (7-DAY CYCLE) ================= //
 
-export async function claimFreeCredits(userId: string): Promise<{
-  success: boolean;
-  credits?: number;
-  nextClaimAt?: string;
-  hoursRemaining?: number;
-  error?: string;
-}> {
-  const user = await getUserById(userId);
-  if (!user) return { success: false, error: 'User not found' };
+const activeClaimLocks = new Set<string>();
 
-  const FREE_CREDITS = 5;
-  const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+export async function recordFreeCreditClaim(
+  userId: string,
+  email: string | undefined,
+  claimTimeIso: string,
+  newCredits: number
+): Promise<void> {
+  // 1. Update Supabase users table (with graceful fallback if column hasn't been migrated yet)
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          credits: newCredits,
+          last_free_credit_claim_at: claimTimeIso,
+          updated_at: claimTimeIso,
+        })
+        .eq('id', userId);
 
-  const txs = await getUserTransactions(userId);
-  const lastClaim = txs.find((t) => t.description === 'Free weekly credit refill');
+      if (error) {
+        await supabase
+          .from('users')
+          .update({ credits: newCredits, updated_at: claimTimeIso })
+          .eq('id', userId);
+      }
 
-  const now = Date.now();
-  if (lastClaim) {
-    const elapsed = now - new Date(lastClaim.created_at).getTime();
-    if (elapsed < COOLDOWN_MS) {
-      const msRemaining = COOLDOWN_MS - elapsed;
-      const hoursRemaining = Math.ceil(msRemaining / (1000 * 60 * 60));
-      const nextClaimAt = new Date(new Date(lastClaim.created_at).getTime() + COOLDOWN_MS).toISOString();
-      return { success: false, hoursRemaining, nextClaimAt, error: `Next free claim available in ${hoursRemaining} hours.` };
+      if (email) {
+        const { error: emailErr } = await supabase
+          .from('users')
+          .update({
+            credits: newCredits,
+            last_free_credit_claim_at: claimTimeIso,
+            updated_at: claimTimeIso,
+          })
+          .ilike('email', email.toLowerCase());
+
+        if (emailErr) {
+          await supabase
+            .from('users')
+            .update({ credits: newCredits, updated_at: claimTimeIso })
+            .ilike('email', email.toLowerCase());
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase recordFreeCreditClaim users table error:', err);
+    }
+
+    // 2. Update Supabase Auth admin user_metadata
+    try {
+      if (supabase.auth?.admin) {
+        const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+        const existingMeta = authUser?.user?.user_metadata || {};
+        await supabase.auth.admin.updateUserById(userId, {
+          user_metadata: {
+            ...existingMeta,
+            credits: newCredits,
+            last_free_credit_claim_at: claimTimeIso,
+          },
+        });
+      }
+    } catch (err) {
+      console.warn('Supabase recordFreeCreditClaim user_metadata error:', err);
     }
   }
 
-  const res = await updateUserCredits(userId, FREE_CREDITS, 'initial_bonus', 'Free weekly credit refill');
-  return { success: res.success, credits: res.credits };
+  // 3. Update local database
+  try {
+    const db = ensureLocalDb();
+    const localUser = db.users.find(
+      (u) => u.id === userId || (email && u.email.toLowerCase() === email.toLowerCase())
+    );
+    if (localUser) {
+      localUser.credits = newCredits;
+      localUser.last_free_credit_claim_at = claimTimeIso;
+      localUser.updated_at = claimTimeIso;
+      writeLocalDb(db);
+    }
+  } catch (err) {
+    console.warn('Local db recordFreeCreditClaim error:', err);
+  }
 }
 
-export async function getNextFreeClaimInfo(userId: string): Promise<{ canClaim: boolean; hoursRemaining: number; nextClaimAt: string | null }> {
-  const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+export async function getNextFreeClaimInfo(
+  userId: string,
+  cachedUser?: UserRecord | null
+): Promise<{
+  canClaim: boolean;
+  hoursRemaining: number;
+  daysRemaining: number;
+  nextClaimAt: string | null;
+}> {
+  const COOLDOWN_DAYS = 7;
+  const COOLDOWN_MS = COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+
+  const user = cachedUser !== undefined ? cachedUser : await getUserById(userId);
+
+  // Collect all possible claim timestamps across sources
+  const claimTimestamps: number[] = [];
+
+  // 1. Direct user record field
+  if (user?.last_free_credit_claim_at) {
+    const ts = new Date(user.last_free_credit_claim_at).getTime();
+    if (!isNaN(ts) && ts > 0) claimTimestamps.push(ts);
+  }
+
+  // 2. User transaction history
   const txs = await getUserTransactions(userId);
-  const lastClaim = txs.find((t) => t.description === 'Free weekly credit refill');
-  const lastBonus = txs.find((t) => t.type === 'initial_bonus');
+  for (const t of txs) {
+    const isFreeClaim =
+      t.description === 'Free weekly credit refill' ||
+      t.type === 'free_claim' ||
+      (t.type === 'initial_bonus' && t.description?.toLowerCase().includes('refill'));
 
-  const reference = lastClaim || lastBonus;
-  if (!reference) return { canClaim: true, hoursRemaining: 0, nextClaimAt: null };
+    if (isFreeClaim) {
+      const ts = new Date(t.created_at).getTime();
+      if (!isNaN(ts) && ts > 0) claimTimestamps.push(ts);
+    }
+  }
 
-  const elapsed = Date.now() - new Date(reference.created_at).getTime();
-  if (elapsed >= COOLDOWN_MS) return { canClaim: true, hoursRemaining: 0, nextClaimAt: null };
+  // 3. Local database fallback
+  try {
+    const db = ensureLocalDb();
+    const localUser = db.users.find(
+      (u) => u.id === userId || (user?.email && u.email.toLowerCase() === user.email.toLowerCase())
+    );
+    if (localUser?.last_free_credit_claim_at) {
+      const ts = new Date(localUser.last_free_credit_claim_at).getTime();
+      if (!isNaN(ts) && ts > 0) claimTimestamps.push(ts);
+    }
+    for (const t of db.transactions || []) {
+      const matchesUser =
+        t.user_id === userId ||
+        (user?.email && db.users.find((u) => u.id === t.user_id)?.email.toLowerCase() === user.email.toLowerCase());
+      if (
+        matchesUser &&
+        (t.description === 'Free weekly credit refill' || t.type === 'free_claim')
+      ) {
+        const ts = new Date(t.created_at).getTime();
+        if (!isNaN(ts) && ts > 0) claimTimestamps.push(ts);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // If no previous claims found, user can claim immediately
+  if (claimTimestamps.length === 0) {
+    return { canClaim: true, hoursRemaining: 0, daysRemaining: 0, nextClaimAt: null };
+  }
+
+  const latestClaimTime = Math.max(...claimTimestamps);
+  const elapsed = now - latestClaimTime;
+
+  if (elapsed >= COOLDOWN_MS) {
+    return { canClaim: true, hoursRemaining: 0, daysRemaining: 0, nextClaimAt: null };
+  }
 
   const msRemaining = COOLDOWN_MS - elapsed;
-  const hoursRemaining = Math.ceil(msRemaining / (1000 * 60 * 60));
-  const nextClaimAt = new Date(new Date(reference.created_at).getTime() + COOLDOWN_MS).toISOString();
-  return { canClaim: false, hoursRemaining, nextClaimAt };
+  const hoursRemaining = Math.max(1, Math.ceil(msRemaining / (1000 * 60 * 60)));
+  const daysRemaining = Math.max(1, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)));
+  const nextClaimAt = new Date(latestClaimTime + COOLDOWN_MS).toISOString();
+
+  return { canClaim: false, hoursRemaining, daysRemaining, nextClaimAt };
+}
+
+export async function claimFreeCredits(userId: string): Promise<{
+  success: boolean;
+  credits?: number;
+  canClaim?: boolean;
+  nextClaimAt?: string;
+  hoursRemaining?: number;
+  daysRemaining?: number;
+  error?: string;
+}> {
+  if (!userId) {
+    return { success: false, error: 'User ID is required' };
+  }
+
+  // Concurrency mutex lock to prevent rapid repeated clicks from bypassing cooldown
+  if (activeClaimLocks.has(userId)) {
+    return {
+      success: false,
+      error: 'A claim request is already processing. Please wait a moment.',
+    };
+  }
+
+  activeClaimLocks.add(userId);
+
+  try {
+    const user = await getUserById(userId);
+    if (!user) {
+      return { success: false, error: 'User not found' };
+    }
+
+    const FREE_CREDITS = 5;
+    const COOLDOWN_DAYS = 7;
+    const COOLDOWN_MS = COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    const claimInfo = await getNextFreeClaimInfo(userId, user);
+    if (!claimInfo.canClaim) {
+      const days = claimInfo.daysRemaining;
+      const hours = claimInfo.hoursRemaining;
+      const formattedTime = days > 1 ? `${days} days` : `${hours} hour${hours === 1 ? '' : 's'}`;
+      return {
+        success: false,
+        canClaim: false,
+        hoursRemaining: claimInfo.hoursRemaining,
+        daysRemaining: claimInfo.daysRemaining,
+        nextClaimAt: claimInfo.nextClaimAt || undefined,
+        error: `Free credits can only be claimed once every 7 days. Next claim available in ${formattedTime}.`,
+      };
+    }
+
+    const claimTimeIso = new Date(now).toISOString();
+    const nextClaimAtIso = new Date(now + COOLDOWN_MS).toISOString();
+
+    const res = await updateUserCredits(
+      userId,
+      FREE_CREDITS,
+      'free_claim',
+      'Free weekly credit refill'
+    );
+
+    if (!res.success) {
+      return { success: false, error: res.error || 'Failed to update credit balance.' };
+    }
+
+    // Persist last_free_credit_claim_at across Supabase table, Auth admin metadata, and local DB
+    await recordFreeCreditClaim(userId, user.email, claimTimeIso, res.credits);
+
+    return {
+      success: true,
+      credits: res.credits,
+      canClaim: false,
+      hoursRemaining: 168,
+      daysRemaining: 7,
+      nextClaimAt: nextClaimAtIso,
+    };
+  } finally {
+    activeClaimLocks.delete(userId);
+  }
 }
 
 export async function saveCrawledJobs(

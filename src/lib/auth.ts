@@ -11,6 +11,7 @@ export interface SessionTokenPayload {
   exp: number;
   name?: string;
   credits?: number;
+  last_free_credit_claim_at?: string;
   referral_code?: string;
 }
 
@@ -210,6 +211,7 @@ export function sanitizeUser(user: UserRecord): Omit<UserRecord, 'password_hash'
     email: user.email,
     username: user.username,
     credits: user.credits,
+    last_free_credit_claim_at: user.last_free_credit_claim_at,
     referral_code: user.referral_code,
     referral_count: user.referral_count || 0,
     referral_earnings: user.referral_earnings || 0,

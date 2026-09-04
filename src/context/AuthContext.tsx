@@ -9,6 +9,7 @@ export interface AuthUser {
   email: string;
   username?: string;
   credits: number;
+  last_free_credit_claim_at?: string;
   referral_code?: string;
   referral_count?: number;
   referral_earnings?: number;

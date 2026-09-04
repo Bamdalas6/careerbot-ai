@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   salt TEXT NOT NULL,
   credits INTEGER DEFAULT 25,
+  last_free_credit_claim_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -106,3 +107,6 @@ CREATE INDEX IF NOT EXISTS idx_applications_user_id ON applications(user_id);
 CREATE INDEX IF NOT EXISTS idx_crawled_jobs_created_at ON crawled_jobs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_crawled_jobs_source ON crawled_jobs(source);
 CREATE INDEX IF NOT EXISTS idx_crawled_jobs_apply_url ON crawled_jobs(apply_url);
+
+-- Migration for 7-day free credit claim tracking
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_free_credit_claim_at TIMESTAMP WITH TIME ZONE;

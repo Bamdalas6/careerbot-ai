@@ -10,14 +10,20 @@ import Link from 'next/link';
 export const CreditTopUpModal: React.FC = () => {
   const { isCreditModalOpen, closeCreditModal, credits, updateCredits, user, openAuthModal } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(true);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [canClaim, setCanClaim] = useState(false);
   const [hoursRemaining, setHoursRemaining] = useState(0);
+  const [daysRemaining, setDaysRemaining] = useState(0);
   const [nextClaimAt, setNextClaimAt] = useState<string | null>(null);
 
   const fetchClaimStatus = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setCheckingStatus(false);
+      return;
+    }
+    setCheckingStatus(true);
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('careerbot_token') : null;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -32,12 +38,21 @@ export const CreditTopUpModal: React.FC = () => {
       });
       const data = await res.json();
       if (data.success) {
-        setCanClaim(data.canClaim);
-        setHoursRemaining(data.hoursRemaining || 0);
+        setCanClaim(Boolean(data.canClaim));
+        const hrs = data.hoursRemaining || 0;
+        const days = typeof data.daysRemaining === 'number'
+          ? data.daysRemaining
+          : hrs > 24
+          ? Math.ceil(hrs / 24)
+          : 0;
+        setHoursRemaining(hrs);
+        setDaysRemaining(days);
         setNextClaimAt(data.nextClaimAt || null);
       }
     } catch {
       // silent fail
+    } finally {
+      setCheckingStatus(false);
     }
   }, [user]);
 
@@ -46,6 +61,27 @@ export const CreditTopUpModal: React.FC = () => {
       fetchClaimStatus();
     }
   }, [isCreditModalOpen, user, fetchClaimStatus]);
+
+  // Live countdown ticker for cooldown expiration
+  useEffect(() => {
+    if (!nextClaimAt) return;
+    const updateTimes = () => {
+      const diff = new Date(nextClaimAt).getTime() - Date.now();
+      if (diff <= 0) {
+        setCanClaim(true);
+        setHoursRemaining(0);
+        setDaysRemaining(0);
+      } else {
+        const hrs = Math.max(1, Math.ceil(diff / (1000 * 60 * 60)));
+        const days = Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+        setHoursRemaining(hrs);
+        setDaysRemaining(days);
+      }
+    };
+    updateTimes();
+    const interval = setInterval(updateTimes, 30000);
+    return () => clearInterval(interval);
+  }, [nextClaimAt]);
 
   if (!isCreditModalOpen) return null;
 
@@ -56,7 +92,11 @@ export const CreditTopUpModal: React.FC = () => {
       return;
     }
 
+    // Immediately stop if already loading or claim cooldown is active
+    if (loading || !canClaim) return;
+
     setLoading(true);
+    setCanClaim(false); // Disallow further clicks immediately
     setError(null);
     setSuccessMsg(null);
 
@@ -77,9 +117,13 @@ export const CreditTopUpModal: React.FC = () => {
 
       if (res.ok && data.success) {
         updateCredits(data.newCredits);
-        setSuccessMsg(data.message || '5 free credits added!');
+        setSuccessMsg(data.message || '🎉 5 free credits added!');
         setCanClaim(false);
-        setHoursRemaining(168); // 7 days
+        const nextIso = data.nextClaimAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        setNextClaimAt(nextIso);
+        setHoursRemaining(data.hoursRemaining ?? 168);
+        setDaysRemaining(data.daysRemaining ?? 7);
+
         confetti({
           particleCount: 80,
           spread: 90,
@@ -89,23 +133,32 @@ export const CreditTopUpModal: React.FC = () => {
         setTimeout(() => {
           setSuccessMsg(null);
           closeCreditModal();
-        }, 2800);
+        }, 3000);
       } else {
         setError(data.error || 'Could not claim credits right now.');
-        if (data.hoursRemaining) setHoursRemaining(data.hoursRemaining);
-        if (data.nextClaimAt) setNextClaimAt(data.nextClaimAt);
         setCanClaim(false);
+        if (typeof data.hoursRemaining === 'number') setHoursRemaining(data.hoursRemaining);
+        if (typeof data.daysRemaining === 'number') {
+          setDaysRemaining(data.daysRemaining);
+        } else if (data.hoursRemaining > 24) {
+          setDaysRemaining(Math.ceil(data.hoursRemaining / 24));
+        }
+        if (data.nextClaimAt) setNextClaimAt(data.nextClaimAt);
       }
     } catch {
       setError('Network error. Please try again.');
+      setCanClaim(false);
+      fetchClaimStatus();
     } finally {
       setLoading(false);
     }
   };
 
-  const daysRemaining = hoursRemaining > 24 ? Math.ceil(hoursRemaining / 24) : 0;
   const nextClaimDate = nextClaimAt ? new Date(nextClaimAt).toLocaleDateString('en-NG', {
     weekday: 'short', month: 'short', day: 'numeric',
+  }) : null;
+  const nextClaimTimeStr = nextClaimAt ? new Date(nextClaimAt).toLocaleTimeString('en-NG', {
+    hour: '2-digit', minute: '2-digit',
   }) : null;
 
   return (
@@ -167,21 +220,33 @@ export const CreditTopUpModal: React.FC = () => {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-bold text-zinc-900 dark:text-[#f7f8f8]">Free Weekly Credits</p>
-                    {canClaim && (
+                    {checkingStatus ? (
+                      <span className="rounded-full bg-zinc-200/60 dark:bg-white/10 px-2 py-0.5 text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
+                        Checking...
+                      </span>
+                    ) : canClaim ? (
                       <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400">
                         Available now!
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-zinc-200/70 border border-black/5 dark:bg-white/[0.06] dark:border-white/[0.08] px-2 py-0.5 text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
+                        7-day cooldown
                       </span>
                     )}
                   </div>
                   <p className="mt-1 text-[12px] text-zinc-500 dark:text-[#8a8f98] leading-relaxed">
                     {canClaim
                       ? 'Claim 5 free credits right now — no payment needed!'
-                      : `Come back in ${daysRemaining > 0 ? `${daysRemaining} day${daysRemaining > 1 ? 's' : ''}` : `${hoursRemaining} hour${hoursRemaining !== 1 ? 's' : ''}`} for your next free refill.`}
+                      : daysRemaining > 0
+                      ? `Available again in ${daysRemaining} day${daysRemaining > 1 ? 's' : ''}. Free credits refill every 7 days.`
+                      : hoursRemaining > 0
+                      ? `Available again in ${hoursRemaining} hour${hoursRemaining > 1 ? 's' : ''}. Free credits refill every 7 days.`
+                      : 'Free credits refill once every 7 days.'}
                   </p>
                   {nextClaimDate && !canClaim && (
-                    <div className="mt-2 flex items-center gap-1.5 text-[11px] text-zinc-400 dark:text-[#8a8f98]">
-                      <Clock className="h-3 w-3 shrink-0" />
-                      <span>Next claim: <span className="font-semibold text-zinc-600 dark:text-[#f7f8f8]">{nextClaimDate}</span></span>
+                    <div className="mt-2 flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-[#8a8f98]">
+                      <Clock className="h-3 w-3 shrink-0 text-amber-500" />
+                      <span>Next refill: <span className="font-semibold text-zinc-700 dark:text-[#f7f8f8]">{nextClaimDate}{nextClaimTimeStr ? ` at ${nextClaimTimeStr}` : ''}</span></span>
                     </div>
                   )}
                 </div>
@@ -208,22 +273,42 @@ export const CreditTopUpModal: React.FC = () => {
               </div>
             )}
 
-            {/* Claim Button */}
-            {canClaim && (
+            {/* Claim / Cooldown Button */}
+            {canClaim ? (
               <button
                 type="button"
                 onClick={handleClaim}
                 disabled={loading}
-                className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm active:scale-[0.99]"
               >
                 {loading ? (
-                  <span className="animate-spin text-sm">⏳</span>
+                  <>
+                    <span className="animate-spin text-sm">⏳</span>
+                    <span>Claiming 5 Free Credits...</span>
+                  </>
                 ) : (
                   <>
                     <Gift className="h-4 w-4" />
-                    Claim 5 Free Credits
+                    <span>Claim 5 Free Credits</span>
                   </>
                 )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl border border-black/10 bg-zinc-100 dark:border-white/[0.08] dark:bg-white/[0.04] px-4 py-2.5 text-xs sm:text-sm font-semibold text-zinc-500 dark:text-[#8a8f98] cursor-not-allowed select-none opacity-80"
+              >
+                <Lock className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                <span>
+                  {checkingStatus
+                    ? 'Checking eligibility...'
+                    : daysRemaining > 0
+                    ? `Available in ${daysRemaining} day${daysRemaining > 1 ? 's' : ''}`
+                    : hoursRemaining > 0
+                    ? `Available in ${hoursRemaining} hour${hoursRemaining > 1 ? 's' : ''}`
+                    : 'Claim Available in 7 Days'}
+                </span>
               </button>
             )}
           </div>
