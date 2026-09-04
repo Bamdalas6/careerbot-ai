@@ -166,6 +166,7 @@ function writeLocalDb(data: DatabaseSchema): void {
 // ================= USER OPERATIONS ================= //
 
 export async function getUserByEmail(email: string): Promise<UserRecord | null> {
+  if (!email || typeof email !== 'string') return null;
   const normalized = email.trim().toLowerCase();
 
   if (isSupabaseConfigured && supabase) {
@@ -213,6 +214,7 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
 }
 
 export async function getUserById(id: string): Promise<UserRecord | null> {
+  if (!id || typeof id !== 'string' || !id.trim()) return null;
   if (isSupabaseConfigured && supabase) {
     try {
       const { data, error } = await supabase
@@ -848,7 +850,8 @@ export async function createSession(userId: string, durationDays = 30, email?: s
   if (user) {
     userEmail = user.email || userEmail;
     userName = user.name;
-    userCredits = user.credits;
+    userCredits =
+      typeof user.credits === 'number' && Number.isFinite(user.credits) && user.credits >= 0 ? user.credits : 25;
     userRefCode = user.referral_code;
   }
 
@@ -878,9 +881,13 @@ export async function createSession(userId: string, durationDays = 30, email?: s
     }
   }
 
-  const db = ensureLocalDb();
-  db.sessions.push(session);
-  writeLocalDb(db);
+  try {
+    const db = ensureLocalDb();
+    db.sessions.push(session);
+    writeLocalDb(db);
+  } catch {
+    /* ignore file system errors in read-only lambda */
+  }
 
   return session;
 }
@@ -911,7 +918,9 @@ export async function getSessionByToken(token: string): Promise<{ session: Sessi
     // Resilient serverless fallback: If local .data/db.json was wiped or this is a fresh lambda instance
     if (!user) {
       const fallbackCredits =
-        typeof payload.credits === 'number' && Number.isFinite(payload.credits) ? payload.credits : 25;
+        typeof payload.credits === 'number' && Number.isFinite(payload.credits) && payload.credits >= 0
+          ? payload.credits
+          : 25;
 
       user = {
         id: payload.userId,

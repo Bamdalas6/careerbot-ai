@@ -78,6 +78,19 @@ export function verifySessionToken(token: string): SessionTokenPayload | null {
       return null;
     }
 
+    if (payload.email !== undefined && typeof payload.email !== 'string') {
+      return null;
+    }
+    if (payload.name !== undefined && typeof payload.name !== 'string') {
+      return null;
+    }
+    if (
+      payload.credits !== undefined &&
+      (typeof payload.credits !== 'number' || !Number.isFinite(payload.credits) || payload.credits < 0)
+    ) {
+      return null;
+    }
+
     const now = Date.now();
     const expMs = payload.exp > 1e11 ? payload.exp : payload.exp * 1000;
     if (!Number.isFinite(expMs) || expMs < now) {
@@ -140,11 +153,27 @@ export function extractTokenFromRequest(req: NextRequest): string | null {
 
 /**
  * Authenticates the current request and returns the UserRecord if valid.
+ * Tries the Authorization Bearer header first, with automatic fallback to session cookie.
  */
 export async function authenticateRequest(req: NextRequest): Promise<{ user: UserRecord; session: SessionRecord } | null> {
-  const token = extractTokenFromRequest(req);
-  if (!token) return null;
-  return await getSessionByToken(token);
+  // 1. Try Bearer token from Authorization header
+  const authHeader = req.headers.get('authorization');
+  if (authHeader) {
+    const match = authHeader.match(/^Bearer\s+(\S+)/i);
+    if (match && match[1] && match[1] !== 'undefined' && match[1] !== 'null') {
+      const auth = await getSessionByToken(match[1].trim());
+      if (auth) return auth;
+    }
+  }
+
+  // 2. Try HTTP cookie (fallback if Bearer header is missing, expired, or invalid)
+  const cookie = req.cookies.get(SESSION_COOKIE_NAME);
+  if (cookie?.value && cookie.value !== 'undefined' && cookie.value !== 'null') {
+    const auth = await getSessionByToken(cookie.value.trim());
+    if (auth) return auth;
+  }
+
+  return null;
 }
 
 /**

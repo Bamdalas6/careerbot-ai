@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
       success: true,
       user: sanitizeUser(auth.user),
       credits: auth.user.credits,
+      token: auth.session.token,
     });
   } catch (err: unknown) {
     console.error('Error fetching auth user:', err);

@@ -256,10 +256,10 @@ export default function SettingsPage() {
         <div className="py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-base font-bold text-black shadow-xs">
-              {user.name.charAt(0).toUpperCase()}
+              {(user.name || user.email || 'U').charAt(0).toUpperCase()}
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">{user.name}</h1>
+              <h1 className="text-xl font-bold text-white">{user.name || user.email || 'User'}</h1>
               <p className="text-xs text-zinc-400">
                 {user.username ? `@${user.username}` : user.email}
               </p>

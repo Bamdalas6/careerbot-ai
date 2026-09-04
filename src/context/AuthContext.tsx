@@ -61,7 +61,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const stored = localStorage.getItem('careerbot_user');
         if (stored) {
           const parsed = JSON.parse(stored);
-          if (parsed && typeof parsed.credits === 'number') return parsed.credits;
+          if (parsed && typeof parsed.credits === 'number' && Number.isFinite(parsed.credits) && parsed.credits >= 0) {
+            return parsed.credits;
+          }
         }
       } catch {
         /* ignore */
@@ -99,9 +101,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await res.json().catch(() => ({ success: false }));
       if (data.success && data.user) {
         setUser(data.user);
-        setCredits(data.user.credits ?? data.credits ?? 0);
+        const resolvedCredits =
+          typeof data.user.credits === 'number' && Number.isFinite(data.user.credits) && data.user.credits >= 0
+            ? data.user.credits
+            : typeof data.credits === 'number' && Number.isFinite(data.credits) && data.credits >= 0
+            ? data.credits
+            : 0;
+        setCredits(resolvedCredits);
         if (typeof window !== 'undefined') {
           localStorage.setItem('careerbot_user', JSON.stringify(data.user));
+          if (data.token) {
+            localStorage.setItem('careerbot_token', data.token);
+          }
         }
       } else if (res.status === 401 || (res.ok && !data.user)) {
         setUser(null);
@@ -128,8 +139,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed && parsed.id) {
+            const initialCredits =
+              typeof parsed.credits === 'number' && Number.isFinite(parsed.credits) && parsed.credits >= 0
+                ? parsed.credits
+                : 0;
             setUser(parsed);
-            setCredits(typeof parsed.credits === 'number' ? parsed.credits : 0);
+            setCredits(initialCredits);
             setIsLoading(false);
           }
         }
@@ -154,9 +169,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!isMounted) return;
         if (data.success && data.user) {
           setUser(data.user);
-          setCredits(data.user.credits ?? data.credits ?? 0);
+          const resolvedCredits =
+            typeof data.user.credits === 'number' && Number.isFinite(data.user.credits) && data.user.credits >= 0
+              ? data.user.credits
+              : typeof data.credits === 'number' && Number.isFinite(data.credits) && data.credits >= 0
+              ? data.credits
+              : 0;
+          setCredits(resolvedCredits);
           if (typeof window !== 'undefined') {
             localStorage.setItem('careerbot_user', JSON.stringify(data.user));
+            if (data.token) {
+              localStorage.setItem('careerbot_token', data.token);
+            }
           }
         } else if (status === 401 || (ok && !data.user)) {
           setUser(null);
@@ -180,8 +204,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (e.newValue) {
           try {
             const parsed = JSON.parse(e.newValue);
+            const storageCredits =
+              typeof parsed.credits === 'number' && Number.isFinite(parsed.credits) && parsed.credits >= 0
+                ? parsed.credits
+                : 0;
             setUser(parsed);
-            setCredits(parsed.credits ?? 0);
+            setCredits(storageCredits);
           } catch {
             /* ignore */
           }
@@ -279,10 +307,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const updateCredits = useCallback((newAmount: number) => {
-    setCredits(newAmount);
+    const safeAmount =
+      typeof newAmount === 'number' && Number.isFinite(newAmount) && newAmount >= 0 ? newAmount : 0;
+    setCredits(safeAmount);
     setUser((prev) => {
       if (!prev) return null;
-      const updated = { ...prev, credits: newAmount };
+      const updated = { ...prev, credits: safeAmount };
       if (typeof window !== 'undefined') {
         localStorage.setItem('careerbot_user', JSON.stringify(updated));
       }

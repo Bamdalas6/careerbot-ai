@@ -261,10 +261,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         <div className="flex items-center justify-between border-b border-black/10 bg-zinc-50/50 px-6 py-3.5 dark:border-white/[0.06] dark:bg-white/[0.01]">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-900 text-sm font-bold text-white shadow-xs dark:bg-white dark:text-black">
-              {user.name.charAt(0).toUpperCase()}
+              {(user.name || user.email || 'U').charAt(0).toUpperCase()}
             </div>
             <div>
-              <p className="text-xs font-bold text-zinc-900 dark:text-[#f7f8f8]">{user.name}</p>
+              <p className="text-xs font-bold text-zinc-900 dark:text-[#f7f8f8]">{user.name || user.email || 'User'}</p>
               <p className="text-[11px] text-zinc-500 dark:text-[#8a8f98]">
                 {user.username ? `@${user.username}` : user.email}
               </p>

@@ -412,10 +412,10 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
             <div className="flex items-center justify-between rounded-xl border border-black/10 bg-zinc-50 p-3 dark:border-white/[0.08] dark:bg-white/[0.03]">
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-black">
-                  {user.name.charAt(0).toUpperCase()}
+                  {(user.name || user.email || 'U').charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-zinc-900 dark:text-[#f7f8f8] truncate">{user.name}</p>
+                  <p className="text-xs font-semibold text-zinc-900 dark:text-[#f7f8f8] truncate">{user.name || user.email || 'User'}</p>
                   <p className="text-[10px] text-zinc-500 dark:text-[#8a8f98] truncate">{user.email}</p>
                 </div>
               </div>
