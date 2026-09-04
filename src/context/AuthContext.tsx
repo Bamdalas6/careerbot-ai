@@ -31,7 +31,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (name: string, email: string, password: string, explicitRefCode?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  updateCredits: (newAmount: number) => void;
+  updateCredits: (newAmount: number, lastClaimAt?: string, newToken?: string) => void;
   updateProfile: (updatedData: { name?: string; username?: string }) => void;
   refreshUser: () => Promise<void>;
   requireAuth: (callback?: () => void) => boolean;
@@ -335,16 +335,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsCreditModalOpen(false);
   }, []);
 
-  const updateCredits = useCallback((newAmount: number) => {
+  const updateCredits = useCallback((newAmount: number, lastClaimAt?: string, newToken?: string) => {
     const safeAmount =
       typeof newAmount === 'number' && Number.isFinite(newAmount) && newAmount >= 0 ? newAmount : 0;
     setCredits(safeAmount);
     setUser((prev) => {
       if (!prev) return null;
-      const updated = { ...prev, credits: safeAmount };
+      const updated: AuthUser = {
+        ...prev,
+        credits: safeAmount,
+        ...(lastClaimAt ? { last_free_credit_claim_at: lastClaimAt } : {}),
+      };
       if (typeof window !== 'undefined') {
         localStorage.setItem('careerbot_user', JSON.stringify(updated));
         localStorage.setItem('careerbot_credits', String(safeAmount));
+        if (newToken) {
+          localStorage.setItem('careerbot_token', newToken);
+        }
+        if (lastClaimAt) {
+          localStorage.setItem(`careerbot_last_free_claim_${prev.id}`, lastClaimAt);
+          const nextIso = new Date(new Date(lastClaimAt).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+          localStorage.setItem(`careerbot_next_free_claim_${prev.id}`, nextIso);
+          document.cookie = `careerbot_last_claim_${prev.id}=${encodeURIComponent(lastClaimAt)}; path=/; max-age=604800; SameSite=Lax`;
+        }
       }
       return updated;
     });

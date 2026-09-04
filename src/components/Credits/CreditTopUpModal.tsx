@@ -7,6 +7,60 @@ import { CREDIT_PACKAGES } from '@/types/credits';
 import confetti from 'canvas-confetti';
 import Link from 'next/link';
 
+interface LocalCooldownInfo {
+  latest: number;
+  hoursRemaining: number;
+  daysRemaining: number;
+  nextClaimAt: string;
+}
+
+function getLocalCooldown(userId?: string, userClaimAt?: string): LocalCooldownInfo | null {
+  if (!userId) return null;
+  const timestamps: number[] = [];
+
+  if (userClaimAt) {
+    const t = new Date(userClaimAt).getTime();
+    if (!isNaN(t) && t > 0) timestamps.push(t);
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const localClaim = localStorage.getItem(`careerbot_last_free_claim_${userId}`);
+      if (localClaim) {
+        const t = new Date(localClaim).getTime();
+        if (!isNaN(t) && t > 0) timestamps.push(t);
+      }
+      const genericClaim = localStorage.getItem('careerbot_last_free_claim');
+      if (genericClaim) {
+        const t = new Date(genericClaim).getTime();
+        if (!isNaN(t) && t > 0) timestamps.push(t);
+      }
+
+      const match = document.cookie.match(new RegExp(`(?:^|;\\s*)careerbot_last_claim_${userId}=([^;]*)`));
+      if (match && match[1]) {
+        const t = new Date(decodeURIComponent(match[1])).getTime();
+        if (!isNaN(t) && t > 0) timestamps.push(t);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (timestamps.length === 0) return null;
+
+  const latest = Math.max(...timestamps);
+  const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+  const elapsed = Date.now() - latest;
+  if (elapsed >= COOLDOWN_MS) return null;
+
+  const msRemaining = COOLDOWN_MS - elapsed;
+  const hoursRemaining = Math.max(1, Math.ceil(msRemaining / (1000 * 60 * 60)));
+  const daysRemaining = Math.max(1, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)));
+  const nextClaimAt = new Date(latest + COOLDOWN_MS).toISOString();
+
+  return { latest, hoursRemaining, daysRemaining, nextClaimAt };
+}
+
 export const CreditTopUpModal: React.FC = () => {
   const { isCreditModalOpen, closeCreditModal, credits, updateCredits, user, openAuthModal } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -18,12 +72,27 @@ export const CreditTopUpModal: React.FC = () => {
   const [daysRemaining, setDaysRemaining] = useState(0);
   const [nextClaimAt, setNextClaimAt] = useState<string | null>(null);
 
+  const syncCooldownState = useCallback((info: LocalCooldownInfo | null) => {
+    if (info) {
+      setCanClaim(false);
+      setHoursRemaining(info.hoursRemaining);
+      setDaysRemaining(info.daysRemaining);
+      setNextClaimAt(info.nextClaimAt);
+    }
+  }, []);
+
   const fetchClaimStatus = useCallback(async () => {
     if (!user) {
       setCheckingStatus(false);
       return;
     }
-    setCheckingStatus(true);
+
+    const localCd = getLocalCooldown(user.id, user.last_free_credit_claim_at);
+    if (localCd) {
+      syncCooldownState(localCd);
+      setCheckingStatus(false);
+    }
+
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('careerbot_token') : null;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -34,33 +103,50 @@ export const CreditTopUpModal: React.FC = () => {
       const res = await fetch('/api/credits/topup', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ action: 'claim_status' }),
+        body: JSON.stringify({
+          action: 'claim_status',
+          clientLastClaimAt: localCd ? new Date(localCd.latest).toISOString() : undefined,
+        }),
       });
       const data = await res.json();
       if (data.success) {
-        setCanClaim(Boolean(data.canClaim));
-        const hrs = data.hoursRemaining || 0;
-        const days = typeof data.daysRemaining === 'number'
-          ? data.daysRemaining
-          : hrs > 24
-          ? Math.ceil(hrs / 24)
-          : 0;
-        setHoursRemaining(hrs);
-        setDaysRemaining(days);
-        setNextClaimAt(data.nextClaimAt || null);
+        // Redundant check: if local cooldown is still active, never allow server to prematurely unlock
+        const freshCd = getLocalCooldown(user.id, user.last_free_credit_claim_at);
+        if (freshCd) {
+          syncCooldownState(freshCd);
+        } else {
+          setCanClaim(Boolean(data.canClaim));
+          const hrs = data.hoursRemaining || 0;
+          const days = typeof data.daysRemaining === 'number'
+            ? data.daysRemaining
+            : hrs > 24
+            ? Math.ceil(hrs / 24)
+            : 0;
+          setHoursRemaining(hrs);
+          setDaysRemaining(days);
+          setNextClaimAt(data.nextClaimAt || null);
+        }
       }
     } catch {
-      // silent fail
+      // Retain local state
     } finally {
       setCheckingStatus(false);
     }
-  }, [user]);
+  }, [user, syncCooldownState]);
 
   useEffect(() => {
     if (isCreditModalOpen && user) {
+      const initialCd = getLocalCooldown(user.id, user.last_free_credit_claim_at);
+      if (initialCd) {
+        syncCooldownState(initialCd);
+        setCheckingStatus(false);
+      } else {
+        setCanClaim(false);
+        setCheckingStatus(true);
+      }
       fetchClaimStatus();
     }
-  }, [isCreditModalOpen, user, fetchClaimStatus]);
+  }, [isCreditModalOpen, user, fetchClaimStatus, syncCooldownState]);
 
   // Live countdown ticker for cooldown expiration
   useEffect(() => {
@@ -92,6 +178,13 @@ export const CreditTopUpModal: React.FC = () => {
       return;
     }
 
+    const activeCd = getLocalCooldown(user.id, user.last_free_credit_claim_at);
+    if (activeCd) {
+      syncCooldownState(activeCd);
+      setError(`Free credits can only be claimed once every 7 days. Next claim available in ${activeCd.daysRemaining > 1 ? activeCd.daysRemaining + ' days' : activeCd.hoursRemaining + ' hours'}.`);
+      return;
+    }
+
     // Immediately stop if already loading or claim cooldown is active
     if (loading || !canClaim) return;
 
@@ -110,16 +203,35 @@ export const CreditTopUpModal: React.FC = () => {
       const res = await fetch('/api/credits/topup', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ action: 'claim_free' }),
+        body: JSON.stringify({
+          action: 'claim_free',
+          clientLastClaimAt: activeCd ? new Date((activeCd as LocalCooldownInfo).latest).toISOString() : undefined,
+        }),
       });
 
       const data = await res.json();
 
       if (res.ok && data.success) {
-        updateCredits(data.newCredits);
+        const claimIso = data.claimTimeIso || new Date().toISOString();
+        const nextIso = data.nextClaimAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(`careerbot_last_free_claim_${user.id}`, claimIso);
+            localStorage.setItem('careerbot_last_free_claim', claimIso);
+            localStorage.setItem(`careerbot_next_free_claim_${user.id}`, nextIso);
+            document.cookie = `careerbot_last_claim_${user.id}=${encodeURIComponent(claimIso)}; path=/; max-age=604800; SameSite=Lax`;
+            if (data.token) {
+              localStorage.setItem('careerbot_token', data.token);
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+
+        updateCredits(data.newCredits, claimIso, data.token);
         setSuccessMsg(data.message || '🎉 5 free credits added!');
         setCanClaim(false);
-        const nextIso = data.nextClaimAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
         setNextClaimAt(nextIso);
         setHoursRemaining(data.hoursRemaining ?? 168);
         setDaysRemaining(data.daysRemaining ?? 7);

@@ -91,6 +91,9 @@ export function verifySessionToken(token: string): SessionTokenPayload | null {
     ) {
       return null;
     }
+    if (payload.last_free_credit_claim_at !== undefined && typeof payload.last_free_credit_claim_at !== 'string') {
+      return null;
+    }
 
     const now = Date.now();
     const expMs = payload.exp > 1e11 ? payload.exp : payload.exp * 1000;

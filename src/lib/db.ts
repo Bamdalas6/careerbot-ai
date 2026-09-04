@@ -1028,6 +1028,7 @@ export async function createSession(userId: string, durationDays = 30, email?: s
     exp,
     name: userName,
     credits: userCredits,
+    last_free_credit_claim_at: user?.last_free_credit_claim_at,
     referral_code: userRefCode,
   });
 
@@ -1078,6 +1079,19 @@ export async function getSessionByToken(token: string): Promise<{ session: Sessi
       const byEmail = await getUserByEmail(payload.email);
       if (byEmail && byEmail.id === payload.userId) {
         user = byEmail;
+      }
+    }
+
+    // Synchronize last_free_credit_claim_at from HMAC token if DB was missing it or older
+    if (user && payload.last_free_credit_claim_at) {
+      if (!user.last_free_credit_claim_at) {
+        user.last_free_credit_claim_at = payload.last_free_credit_claim_at;
+      } else {
+        const dbTime = new Date(user.last_free_credit_claim_at).getTime();
+        const tokenTime = new Date(payload.last_free_credit_claim_at).getTime();
+        if (!isNaN(tokenTime) && tokenTime > dbTime) {
+          user.last_free_credit_claim_at = payload.last_free_credit_claim_at;
+        }
       }
     }
 
@@ -1578,6 +1592,7 @@ export async function getApplicationsDueForFollowUp(userId: string): Promise<App
 // ================= FREE CREDIT CLAIM (7-DAY CYCLE) ================= //
 
 const activeClaimLocks = new Set<string>();
+const userLastClaimInMemory = new Map<string, number>();
 
 export async function recordFreeCreditClaim(
   userId: string,
@@ -1585,6 +1600,13 @@ export async function recordFreeCreditClaim(
   claimTimeIso: string,
   newCredits: number
 ): Promise<void> {
+  // Update in-memory lock map
+  const ts = new Date(claimTimeIso).getTime();
+  if (!isNaN(ts) && ts > 0) {
+    userLastClaimInMemory.set(userId, ts);
+    if (email) userLastClaimInMemory.set(email.toLowerCase(), ts);
+  }
+
   // 1. Update Supabase users table (with graceful fallback if column hasn't been migrated yet)
   if (isSupabaseConfigured && supabase) {
     try {
@@ -1625,7 +1647,25 @@ export async function recordFreeCreditClaim(
       console.warn('Supabase recordFreeCreditClaim users table error:', err);
     }
 
-    // 2. Update Supabase Auth admin user_metadata
+    // 2. Also record in Supabase transactions table as free_claim
+    try {
+      const tx: TransactionRecord = {
+        id: `tx_${crypto.randomUUID()}`,
+        user_id: userId,
+        type: 'free_claim',
+        amount: 0,
+        currency: 'USD',
+        credits_delta: 5,
+        balance_after: newCredits,
+        description: 'Free weekly credit refill',
+        created_at: claimTimeIso,
+      };
+      await supabase.from('transactions').insert([tx]);
+    } catch (err) {
+      console.warn('Supabase recordFreeCreditClaim transaction insert error:', err);
+    }
+
+    // 3. Update Supabase Auth admin user_metadata
     try {
       if (supabase.auth?.admin) {
         const { data: authUser } = await supabase.auth.admin.getUserById(userId);
@@ -1643,7 +1683,7 @@ export async function recordFreeCreditClaim(
     }
   }
 
-  // 3. Update local database
+  // 4. Update local database
   try {
     const db = ensureLocalDb();
     const localUser = db.users.find(
@@ -1653,8 +1693,19 @@ export async function recordFreeCreditClaim(
       localUser.credits = newCredits;
       localUser.last_free_credit_claim_at = claimTimeIso;
       localUser.updated_at = claimTimeIso;
-      writeLocalDb(db);
     }
+    db.transactions.push({
+      id: `tx_${crypto.randomUUID()}`,
+      user_id: userId,
+      type: 'free_claim',
+      amount: 0,
+      currency: 'USD',
+      credits_delta: 5,
+      balance_after: newCredits,
+      description: 'Free weekly credit refill',
+      created_at: claimTimeIso,
+    });
+    writeLocalDb(db);
   } catch (err) {
     console.warn('Local db recordFreeCreditClaim error:', err);
   }
@@ -1662,7 +1713,8 @@ export async function recordFreeCreditClaim(
 
 export async function getNextFreeClaimInfo(
   userId: string,
-  cachedUser?: UserRecord | null
+  cachedUser?: UserRecord | null,
+  clientReportedClaimAt?: string
 ): Promise<{
   canClaim: boolean;
   hoursRemaining: number;
@@ -1678,13 +1730,29 @@ export async function getNextFreeClaimInfo(
   // Collect all possible claim timestamps across sources
   const claimTimestamps: number[] = [];
 
-  // 1. Direct user record field
+  // 0. In-memory recent claim cache
+  if (userLastClaimInMemory.has(userId)) {
+    claimTimestamps.push(userLastClaimInMemory.get(userId)!);
+  }
+  if (user?.email && userLastClaimInMemory.has(user.email.toLowerCase())) {
+    claimTimestamps.push(userLastClaimInMemory.get(user.email.toLowerCase())!);
+  }
+
+  // 1. Client-reported claim timestamp (from client localStorage / cookie)
+  if (clientReportedClaimAt) {
+    const ts = new Date(clientReportedClaimAt).getTime();
+    if (!isNaN(ts) && ts > 0 && ts <= now + 60000) {
+      claimTimestamps.push(ts);
+    }
+  }
+
+  // 2. Direct user record field
   if (user?.last_free_credit_claim_at) {
     const ts = new Date(user.last_free_credit_claim_at).getTime();
     if (!isNaN(ts) && ts > 0) claimTimestamps.push(ts);
   }
 
-  // 2. User transaction history
+  // 3. User transaction history
   const txs = await getUserTransactions(userId);
   for (const t of txs) {
     const isFreeClaim =
@@ -1698,7 +1766,7 @@ export async function getNextFreeClaimInfo(
     }
   }
 
-  // 3. Local database fallback
+  // 4. Local database fallback
   try {
     const db = ensureLocalDb();
     const localUser = db.users.find(
@@ -1744,13 +1812,18 @@ export async function getNextFreeClaimInfo(
   return { canClaim: false, hoursRemaining, daysRemaining, nextClaimAt };
 }
 
-export async function claimFreeCredits(userId: string): Promise<{
+export async function claimFreeCredits(
+  userId: string,
+  clientReportedClaimAt?: string
+): Promise<{
   success: boolean;
   credits?: number;
   canClaim?: boolean;
   nextClaimAt?: string;
   hoursRemaining?: number;
   daysRemaining?: number;
+  newToken?: string;
+  claimTimeIso?: string;
   error?: string;
 }> {
   if (!userId) {
@@ -1778,7 +1851,7 @@ export async function claimFreeCredits(userId: string): Promise<{
     const COOLDOWN_MS = COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
     const now = Date.now();
 
-    const claimInfo = await getNextFreeClaimInfo(userId, user);
+    const claimInfo = await getNextFreeClaimInfo(userId, user, clientReportedClaimAt);
     if (!claimInfo.canClaim) {
       const days = claimInfo.daysRemaining;
       const hours = claimInfo.hoursRemaining;
@@ -1796,6 +1869,10 @@ export async function claimFreeCredits(userId: string): Promise<{
     const claimTimeIso = new Date(now).toISOString();
     const nextClaimAtIso = new Date(now + COOLDOWN_MS).toISOString();
 
+    // Cache claim in memory immediately
+    userLastClaimInMemory.set(userId, now);
+    if (user.email) userLastClaimInMemory.set(user.email.toLowerCase(), now);
+
     const res = await updateUserCredits(
       userId,
       FREE_CREDITS,
@@ -1810,6 +1887,18 @@ export async function claimFreeCredits(userId: string): Promise<{
     // Persist last_free_credit_claim_at across Supabase table, Auth admin metadata, and local DB
     await recordFreeCreditClaim(userId, user.email, claimTimeIso, res.credits);
 
+    // Resign session token with new credits and last_free_credit_claim_at
+    const exp = Math.floor((Date.now() + 30 * 24 * 60 * 60 * 1000) / 1000);
+    const newToken = signSessionToken({
+      userId,
+      email: user.email || '',
+      exp,
+      name: user.name,
+      credits: res.credits,
+      last_free_credit_claim_at: claimTimeIso,
+      referral_code: user.referral_code,
+    });
+
     return {
       success: true,
       credits: res.credits,
@@ -1817,6 +1906,8 @@ export async function claimFreeCredits(userId: string): Promise<{
       hoursRemaining: 168,
       daysRemaining: 7,
       nextClaimAt: nextClaimAtIso,
+      claimTimeIso,
+      newToken,
     };
   } finally {
     activeClaimLocks.delete(userId);
