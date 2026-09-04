@@ -1,5 +1,6 @@
 import { JobListing, JobSearchQuery, ResumeProfile } from '@/types/job';
 import { runSearch } from './job-providers';
+import { ParsedQuery, parseQuery } from './query-parser';
 
 export interface ChatResponse {
   message: string;
@@ -22,36 +23,235 @@ function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
+}
+
+/**
+ * Dynamic, charismatic wingman commentary tailored to parsed intent:
+ * remote pajamas dream, entry-level grinds, senior battle scars, salary bags, tech stacks.
+ */
+function generateWingmanCommentary(parsed: ParsedQuery, rawPrompt: string): string {
+  const quips: string[] = [];
+
+  // 1. Remote vs On-site vs Hybrid
+  if (parsed.isRemote === true) {
+    const remoteQuips = [
+      'Sweatpants on, commute skipped, and zero morning traffic jams? Elite lifestyle choice. 🛋️💻',
+      'Hunting for that work-from-anywhere freedom where your daily commute is walking to the coffee pot.',
+      'Filtering strictly for pajamas-friendly, high-trust remote setups with zero cubicle surveillance.',
+    ];
+    quips.push(remoteQuips[Math.abs(hashString(rawPrompt + 'remote')) % remoteQuips.length]);
+  } else if (parsed.isRemote === false) {
+    if (/\bhybrid\b/i.test(rawPrompt)) {
+      const hybridQuips = [
+        'Best of both worlds: Deep work from your couch on Tuesday, high-fives and whiteboard energy on Thursday. 🛋️🏢',
+        'Hunting for that goldilocks hybrid balance — focused autonomy when you need it, face-to-face team synergy when it counts. ⚡✨',
+      ];
+      quips.push(hybridQuips[Math.abs(hashString(rawPrompt + 'hybrid')) % hybridQuips.length]);
+    } else {
+      const onsiteQuips = [
+        'Gearing up for real-world collaboration! Whiteboards, actual high-fives, and office AC on blast. 🏢✨',
+        'Looking for a proper in-office base where you can brainstorm in person (and raid the office snack stash).',
+      ];
+      quips.push(onsiteQuips[Math.abs(hashString(rawPrompt + 'onsite')) % onsiteQuips.length]);
+    }
+  }
+
+  // 2. Seniority & Level
+  if (parsed.seniority === 'Entry') {
+    const entryQuips = [
+      "No 'must have 8 years experience with a tool launched last summer' absurdity allowed here. Real launchpads only! 🚀",
+      "Breaking into the arena without the usual entry-level catch-22 paradox. Let's get that foot firmly in the door!",
+      'Time to trade student lecture slides and NYSC boots for an honest paycheck. Hunting for teams ready to sponsor your learning curve.',
+    ];
+    quips.push(entryQuips[Math.abs(hashString(rawPrompt + 'entry')) % entryQuips.length]);
+  } else if (parsed.seniority === 'Senior') {
+    const seniorQuips = [
+      'Senior tier: Time to get paid for making tricky architecture look effortless and putting out production fires before lunch. ⚡👑',
+      'Heavy-hitter mode activated. Seeking teams ready to respect your battle scars and compensate accordingly.',
+    ];
+    quips.push(seniorQuips[Math.abs(hashString(rawPrompt + 'senior')) % seniorQuips.length]);
+  } else if (parsed.seniority === 'Lead' || parsed.seniority === 'Executive') {
+    const leadQuips = [
+      'Leadership radar on: Looking for teams that need strategic vision, roadmap clarity, and someone to herd the brilliant cats. 🎯💼',
+      'Steering the ship: Seeking a desk with real ownership, autonomy, and high-impact influence.',
+    ];
+    quips.push(leadQuips[Math.abs(hashString(rawPrompt + 'lead')) % leadQuips.length]);
+  } else if (parsed.seniority === 'Mid') {
+    quips.push('Mid-level powerhouse: The absolute sweet spot of autonomous building and minimal corporate overhead. 🛠️');
+  }
+
+  // 3. Salary & Bag Hunting
+  const wantsHighPay =
+    parsed.minSalary != null ||
+    /(?:[$₦£€]|\b(?:salary|pay|paying|pays|money|bag|high[- ]paying|well[- ]paid|cash|compensation|six[- ]figures|\d+k|\d+m|naira|dollars?|pounds?|euros?|shillings?|cedis?|rands?|usd|ngn|gbp|eur|kes|ghs|zar|cad|aud)\b)/i.test(rawPrompt);
+  if (wantsHighPay && quips.length < 2) {
+    const payQuips = [
+      "Bag-securing protocol engaged 💰: Filtering for offers that pay real compensation, not just 'valuable exposure'.",
+      'Hunting for compensation packages that actually respect your craft and leave plenty of room for savings and good coffee. 📈',
+    ];
+    quips.push(payQuips[Math.abs(hashString(rawPrompt + 'pay')) % payQuips.length]);
+  }
+
+  // 4. Skills & Tech Stack or Role Family
+  if (quips.length < 2 && parsed.skills.length > 0) {
+    const skillNames = parsed.skills.map((s) => s.toLowerCase());
+    if (skillNames.some((s) => ['react', 'next.js', 'vue', 'angular', 'svelte', 'frontend'].includes(s))) {
+      quips.push('Crafting pixel-perfect layouts and snappy interfaces that never break layout shift. 🎨✨');
+    } else if (skillNames.some((s) => ['python', 'node.js', 'go', 'rust', 'java', 'backend', 'fastapi', 'c++', 'c#'].includes(s))) {
+      quips.push('Backend firepower: Clean APIs, rock-solid endpoints, and databases that hum under load. ⚙️🔥');
+    } else if (skillNames.some((s) => ['machine learning', 'ml', 'ai', 'data science', 'pytorch', 'tensorflow'].includes(s))) {
+      quips.push('Taming messy datasets and building intelligence that actually moves the needle. 🤖📊');
+    } else if (skillNames.some((s) => ['figma', 'ui/ux', 'design'].includes(s))) {
+      quips.push('Making sure the world looks less like Windows 95 and more like pure digital poetry. ✨');
+    } else {
+      quips.push(`Dialing in on ${parsed.skills.slice(0, 3).join(', ')} — weapon of choice primed and ready.`);
+    }
+  } else if (quips.length < 2 && parsed.family) {
+    if (parsed.family === 'product') {
+      quips.push('Writing crisp PRDs, slaying roadmap scope creep, and keeping everyone aligned. 📋🚀');
+    } else if (parsed.family === 'marketing' || parsed.family === 'sales') {
+      quips.push('Driving real pipeline, closing deals, and generating revenue velocity. 📈💼');
+    } else if (parsed.family === 'finance') {
+      quips.push('Balancing books, calculating DCFs, and delivering the kind of ROI that makes leadership cheer. 📊💵');
+    }
+  }
+
+  // 5. Target Location or Company Shoutouts
+  if (quips.length < 2 && parsed.location) {
+    if (parsed.location.country === 'NG' || parsed.location.label.toLowerCase().includes('lagos')) {
+      quips.push('Tapping into the Nigerian tech scene — high-velocity fintechs, direct employer portals, and zero middleman delay. 🇳🇬⚡');
+    } else if (parsed.location.isRegion) {
+      quips.push(`Sweeping verified opportunities across ${parsed.location.label} — premier cross-border pipelines primed and ready. 🌍`);
+    } else {
+      quips.push(`Targeting ${parsed.location.label} — hunting verified openings in your preferred territory. 📍`);
+    }
+  }
+
+  const companyMatch = rawPrompt.match(/\b(fairmoney|kuda|renmoney|interswitch|andela|paystack|flutterwave|piggyvest|cowrywise|reliance\s*health|helium\s*health|seamlesshr)\b/i);
+  if (quips.length < 2 && companyMatch) {
+    const matchedCompany = companyMatch[0].charAt(0).toUpperCase() + companyMatch[0].slice(1);
+    quips.push(`Direct target lock on ${matchedCompany}: High-conviction play. Connecting directly to their live employer feed. 🎯`);
+  }
+
+  // Fallback if no specific tag triggered
+  if (quips.length === 0) {
+    const generalQuips = [
+      "Let's get you in front of teams that genuinely value top talent and ship meaningful work.",
+      'Sifting through the noise to find real openings where your craftsmanship can shine.',
+      'Career wingman locked and loaded — searching verified company pipelines with zero fluff.',
+    ];
+    quips.push(generalQuips[Math.abs(hashString(rawPrompt)) % generalQuips.length]);
+  }
+
+  return quips.slice(0, 2).join(' ');
+}
+
+/**
+ * Natural, engaging commentary on the #1 best match instead of robotic formula text.
+ */
+function generateTopMatchCommentary(top: JobListing): string {
+  const score = top.match_score || 85;
+  let endorsement = '';
+  if (score >= 90) {
+    endorsement = `Absolute bullseye match (${score}% 🔥) — your profile aligns with their stack so tightly it's almost suspicious.`;
+  } else if (score >= 80) {
+    endorsement = `Prime contender (${score}% match ⚡) — heavy alignment here, and their team is actively hiring.`;
+  } else {
+    endorsement = `Solid prospect (${score}% match 🎯) — checks the key boxes and gives you immediate leverage.`;
+  }
+
+  const reasonText = top.match_reason
+    ? top.match_reason.endsWith('.')
+      ? top.match_reason
+      : `${top.match_reason}.`
+    : 'Strong alignment with your profile requirements.';
+
+  return (
+    `🥇 **Wingman's Top Pick:**\n` +
+    `**${top.title}** at **${top.company}**\n` +
+    `${endorsement} ${reasonText} Direct ATS portal is verified and primed.`
+  );
+}
+
+/**
+ * Humorous yet encouraging career coach energy for zero-result states.
+ */
+function generateZeroResultCoaching(
+  parsed: ParsedQuery,
+  rawPrompt: string,
+  rejected: { offTopic: number; wrongLocation: number; wrongArrangement: number; stale: number }
+): string {
+  const tips: string[] = [];
+
+  if (parsed.isRemote === false) {
+    tips.push('• **Unlock Remote:** On-site roles can be regionally tight right now. Allowing remote opens up 4x more employer pipelines.');
+  } else if (parsed.isRemote === true && rejected.wrongArrangement > 0) {
+    tips.push('• **Hybrid / Regional Flex:** Several high-caliber local teams are hiring on-site or hybrid nearby if you are open to the occasional commute.');
+  }
+
+  if (parsed.location && (rejected.wrongLocation > 0 || !rejected.offTopic)) {
+    tips.push(`• **Widen the Geography:** Broaden from ${parsed.location.label} to across Africa or global remote hubs.`);
+  }
+
+  if (parsed.skills.length > 2) {
+    tips.push('• **Trim the Stack Filter:** Asking for 4+ niche technologies simultaneously narrows the net. Search by your primary title or core framework first.');
+  } else {
+    tips.push('• **Try an Adjacent Title:** Companies often title roles creatively (e.g. "Software Engineer" instead of "Fullstack Next.js Specialist").');
+  }
+
+  if (rejected.stale > 0) {
+    tips.push('• **Fresh Bread Guarantee:** We discarded expired ghost requisitions so you do not waste effort. Mid-week sweeps catch fresh openings as team budgets unlock.');
+  }
+
+  return `🥊 **Career Coach Game Plan:**\n${tips.join('\n')}`;
+}
+
 /**
  * Natural-language job discovery.
  *
- * The reply deliberately states what was understood and what was searched.
- * A user who sees "role: product designer · Lagos, Nigeria · 14 boards" can
- * tell instantly when the bot misread them — which is impossible when the
- * reply is just "I found 6 relevant positions".
+ * Charismatic, conversational career wingman voice with factual telemetry,
+ * witty commentary, and encouraging zero-match coaching.
  */
 export async function processChatQuery(
   userPrompt: string,
   conversationHistory: { role: string; content: string }[] = []
 ): Promise<ChatResponse> {
   const trimmed = (userPrompt || '').trim();
+  const preParsed = parseQuery(trimmed);
 
-  // A bare greeting with no role words in it is conversation, not a search.
-  if (GREETING.test(trimmed) && trimmed.split(/\s+/).length <= 5) {
+  const preRoleWords = preParsed.terms.filter(
+    (t) => !LEVEL_WORDS.has(t) && !preParsed.skills.some((s) => s.toLowerCase() === t)
+  );
+
+  const hasSearchIntent =
+    preRoleWords.length > 0 ||
+    preParsed.skills.length > 0 ||
+    preParsed.location !== null ||
+    preParsed.family !== null ||
+    preParsed.isRemote !== undefined ||
+    preParsed.seniority !== undefined ||
+    preParsed.minSalary != null;
+
+  // A bare greeting with no role words or filters in it is conversation, not a search.
+  if (GREETING.test(trimmed) && !hasSearchIntent) {
     return {
       message:
-        `Hi 👋 I'm **CareerBot**. I read your question, work out the role, location and work ` +
-        `arrangement you mean, then search live openings straight from employer career pages — ` +
-        `Renmoney, FairMoney, Kuda, Jumia, Interswitch, Andela, One Acre Fund, Canonical and more — ` +
-        `plus remote feeds that hire into Africa.\n\n` +
-        `Every card links to verified application pages or direct employer forms. Tell me what you're after, ` +
-        `or upload your CV and I'll match you to what's open.`,
+        `Hey there! 👋 I'm **CareerBot**, your personal career wingman with zero chill and direct access to live employer pipelines.\n\n` +
+        `No expired listings from 2022, no phantom recruiters, and zero corporate fluff. I sweep real company boards — from African tech powerhouses like FairMoney, Kuda, Renmoney, Interswitch, and Andela to global remote teams hiring worldwide.\n\n` +
+        `Drop a target role, dream stack, desired location, or even that ambitious salary number into the chat (or upload your CV), and let's go hunt some offers! 🚀`,
       jobs: [],
       suggested_queries: [
-        'Frontend developer jobs in Lagos',
-        'Remote data analyst roles open to Nigeria',
-        'Entry level product designer in Africa',
-        'Backend engineer, Python, Kenya',
+        'Frontend developer roles in Lagos',
+        'Remote data analyst roles open to Africa',
+        'Entry level product designer in Nigeria',
+        'Backend engineer, Python, remote',
       ],
       extracted_filters: {},
     };
@@ -72,7 +272,15 @@ export async function processChatQuery(
   if (parsed.seniority) understood.push(`${parsed.seniority}-level`);
   if (parsed.location) understood.push(parsed.location.label);
   if (parsed.isRemote === true) understood.push('remote');
-  if (parsed.isRemote === false) understood.push('on-site');
+  if (parsed.isRemote === false) understood.push(/\bhybrid\b/i.test(trimmed) ? 'hybrid' : 'on-site');
+  if (parsed.minSalary != null) {
+    const rawSalaryMatch =
+      trimmed.match(/(?:[$₦£€]|usd|ngn|gbp|eur|kes|ghs|zar|cad|aud|n)\s*\d[\d,.]*\s*(?:k|m)?\s*(?:naira|ngn|usd|dollars?|pounds?|euros?|gbp|eur|kes|shillings?|ghs|cedis?|zar|rands?|cad|aud)?\b/i) ||
+      trimmed.match(/\b\d[\d,.]*\s*(?:k|m)\s*(?:naira|ngn|usd|dollars?|pounds?|euros?|gbp|eur|kes|shillings?|ghs|cedis?|zar|rands?|cad|aud)?\b/i) ||
+      trimmed.match(/\b\d[\d,]{3,}\s*(?:naira|ngn|usd|dollars?|pounds?|euros?|gbp|eur|kes|shillings?|ghs|cedis?|zar|rands?|cad|aud)\b/i);
+    const salaryTag = rawSalaryMatch && rawSalaryMatch[0].trim() ? rawSalaryMatch[0].trim() : `${parsed.minSalary.toLocaleString()}+`;
+    understood.push(salaryTag);
+  }
 
   const extractedFilters: Partial<JobSearchQuery> = {
     query: parsed.terms.join(' ') || trimmed,
@@ -81,8 +289,6 @@ export async function processChatQuery(
     is_remote: parsed.isRemote,
     experience_level: parsed.seniority,
   };
-
-  const sourceLine = `Searched ${plural(sourcesQueried.length, 'live source')} and read ${plural(fetched, 'open posting')}.`;
 
   let message: string;
   const suggested: string[] = [];
@@ -95,47 +301,80 @@ export async function processChatQuery(
     const totalCount = Math.max(jobs.length, relevant);
     const displayCountNote =
       jobs.length < totalCount
-        ? `Showing the top ${jobs.length} best-matched roles out of ${plural(totalCount, 'active opening')} below:`
-        : `Showing all ${jobs.length} matching roles below:`;
+        ? `Showing the top **${jobs.length}** best-matched roles below (out of ${plural(totalCount, 'active opening')}):`
+        : `All **${jobs.length}** matching roles are laid out below:`;
 
-    message =
-      (understood.length ? `Reading that as ${understood.join(' · ')}.\n\n` : '') +
-      `${sourceLine} Found ${plural(totalCount, 'active opening')}` +
-      (filteredOut ? ` (filtered out ${filteredOut} non-matching or stale postings)` : '') +
-      `.\n\n` +
-      `Best fit is **${top.title}** at **${top.company}** — ${top.match_reason} (${top.match_score}%). ` +
-      (related
-        ? `Exact matches were thin, so I've added ${plural(related, 'nearby role')} from the same field — those are marked *Related field* so you can tell them apart. `
-        : '') +
-      (rejected.stale
-        ? `Nothing here is older than five months — filtered out ${plural(rejected.stale, 'stale posting')}. `
-        : '') +
-      (jobs.some((j) => ['Greenhouse', 'Lever', 'Workable', 'Ashby', 'Direct ATS'].includes(j.source))
-        ? `Cards from employer boards open the company's application form directly; aggregated listings open verified application pages.`
-        : `Every card links directly to the verified application page.`) +
-      `\n\n${displayCountNote}`;
+    const wingmanNotes: string[] = [];
+
+    if (related > 0) {
+      wingmanNotes.push(
+        `💡 *Field Expansion:* Exact titles were tight, so I added ${plural(related, 'adjacent role')} from your field (marked *Related field*) to give you high-yield options.`
+      );
+    }
+    if (rejected.stale > 0) {
+      wingmanNotes.push(
+        `🧹 *Freshness Guarantee:* Purged ${plural(rejected.stale, 'stale posting')} older than 5 months into the digital bin. Fresh bread only!`
+      );
+    }
+
+    const atsLinksNote = jobs.some((j) => ['Greenhouse', 'Lever', 'Workable', 'Ashby', 'Direct ATS'].includes(j.source))
+      ? `Verified direct company links attached — cards open the official application form with zero aggregator spam.`
+      : `Every card below links directly to the verified employer application page.`;
+
+    const targetHeader = understood.length
+      ? `🎯 **Radar Target:** ${understood.join(' · ')}`
+      : parsed.isBrowse || !trimmed
+        ? `🎯 **Radar Target:** Curated Top Openings Across the Ecosystem`
+        : `🎯 **Radar Swept:** "${trimmed}"`;
+
+    const commentary = generateWingmanCommentary(parsed, trimmed);
+    const topPickHighlight = generateTopMatchCommentary(top);
+    const sourceStat = `Scanned **${plural(sourcesQueried.length, 'live company board')}** across **${plural(fetched, 'raw posting')}**`;
+    const filterStat = filteredOut > 0 ? ` (tossed out ${filteredOut} stale listings or mismatches so your feed stays pristine)` : '';
+    const resultStat = `We struck gold on **${plural(totalCount, 'verified active opening')}**!`;
+
+    message = [
+      `${targetHeader}\n${commentary}`,
+      `⚡ **The Sweep:**\n${sourceStat}${filterStat}. ${resultStat}`,
+      topPickHighlight,
+      wingmanNotes.length > 0 ? wingmanNotes.join('\n') : '',
+      `🔗 **Verified Pipeline:** ${atsLinksNote} Tap **"Tailor Application"** on any card to whip up a bespoke pitch, cover letter, or recruiter DM!`,
+      displayCountNote,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
 
     if (parsed.location) suggested.push(`Remote ${roleWords[0] || 'roles'} open to ${parsed.location.label}`);
+    if (parsed.isRemote) suggested.push(`Top-paying remote ${roleWords[0] || 'tech'} roles`);
     if (!parsed.seniority) suggested.push(`Entry level ${roleWords.slice(0, 2).join(' ') || 'roles'}`);
     suggested.push(`${roleWords.slice(0, 2).join(' ') || 'Jobs'} in Lagos`, 'Remote roles hiring across Africa');
   } else {
-    // Explain the actual reason nothing came back rather than shrugging.
+    // Explain the actual reason nothing came back with humorous yet encouraging career coach energy.
     const why: string[] = [];
-    if (rejected.stale) why.push(`${rejected.stale} were older than five months`);
-    if (rejected.wrongLocation) why.push(`${rejected.wrongLocation} were outside ${parsed.location?.label ?? 'your location'}`);
-    if (rejected.wrongArrangement) why.push(`${rejected.wrongArrangement} weren't ${parsed.isRemote ? 'remote' : 'on-site'}`);
-    if (rejected.offTopic) why.push(`${rejected.offTopic} were a different kind of role`);
+    if (rejected.stale) why.push(`${plural(rejected.stale, 'posting')} were dinosaur relics older than five months`);
+    if (rejected.wrongLocation) why.push(`${plural(rejected.wrongLocation, 'posting')} were located outside ${parsed.location?.label ?? 'your target zone'}`);
+    if (rejected.wrongArrangement) why.push(`${plural(rejected.wrongArrangement, 'posting')} didn't support ${parsed.isRemote ? 'remote' : 'on-site'}`);
+    if (rejected.offTopic) why.push(`${plural(rejected.offTopic, 'posting')} were completely different roles masquerading under your keywords`);
 
-    message =
-      (understood.length ? `Reading that as ${understood.join(' · ')}.\n\n` : '') +
-      `${sourceLine} None of them genuinely fit` +
-      (why.length ? ` — ${why.join(', ')}` : '') +
-      `.\n\nI'd rather show you nothing than pad the list with roles you didn't ask for. ` +
-      `Try a broader title, drop the location, or allow remote.`;
+    const targetHeader = understood.length
+      ? `🎯 **Radar Sweep for:** ${understood.join(' · ')}`
+      : `🎯 **Radar Sweep for:** "${trimmed || 'General Search'}"`;
+
+    const coachCommentary = generateZeroResultCoaching(parsed, trimmed, rejected);
+
+    message = [
+      targetHeader,
+      `🔎 **Sweep Breakdown:**\nSearched ${plural(sourcesQueried.length, 'live board')} across ${plural(fetched, 'raw posting')}. And honestly? None of them made the cut${why.length ? ` — ${why.join(', ')}` : ''}.`,
+      `🛡️ **Wingman's Honor:**\nI'd rather hand you a blank screen than pad your feed with 3-month-old ghost jobs or irrelevant roles you never asked for. Your time is too valuable to waste on low-probability applications!`,
+      coachCommentary,
+      `Try one of the curated pivots below, or drop the location filter to let the search run wild! 👇`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
 
     if (parsed.location) suggested.push(`${roleWords.slice(0, 2).join(' ') || 'Roles'} anywhere in Africa`);
-    if (parsed.isRemote === true) suggested.push(`${roleWords.slice(0, 2).join(' ') || 'Roles'} including on-site`);
-    suggested.push('Frontend developer jobs in Lagos', 'Remote data analyst roles', 'Entry level roles in Nigeria');
+    if (parsed.isRemote === true || parsed.isRemote === false) suggested.push(`Remote ${roleWords.slice(0, 2).join(' ') || 'roles'}`);
+    suggested.push('Frontend developer jobs in Lagos', 'Remote data analyst roles', 'Product designer roles');
   }
 
   return {

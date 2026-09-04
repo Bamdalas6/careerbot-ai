@@ -12,6 +12,7 @@ export type StoryVibeId =
   | 'user_empathy'
   | 'origin_spark'
   | 'high_stakes_scale'
+  | 'bold_contrarian'
   | 'craft_resilience'
   | 'zero_to_one';
 
@@ -46,22 +47,28 @@ export interface StoryVibeOption {
 
 export const STORY_VIBES: StoryVibeOption[] = [
   {
-    id: 'user_empathy',
-    label: 'User Empathy',
-    icon: '🎯',
-    desc: 'Human friction, dignity & solving real user pain',
-  },
-  {
     id: 'origin_spark',
-    label: 'Origin Memory',
+    label: 'Origin Spark',
     icon: '🌟',
     desc: 'Formative spark, early life turning point & curiosity',
   },
   {
     id: 'high_stakes_scale',
-    label: 'High Stakes & Scale',
+    label: 'High Stakes',
     icon: '⚡',
-    desc: 'Outages, high-volume pressure & mission-critical reliability',
+    desc: 'High-pressure scale, mission-critical uptime & resilience',
+  },
+  {
+    id: 'bold_contrarian',
+    label: 'Bold Contrarian',
+    icon: '💡',
+    desc: 'Challenging consensus, non-consensus bets & high conviction',
+  },
+  {
+    id: 'user_empathy',
+    label: 'User Empathy',
+    icon: '🎯',
+    desc: 'Human friction, dignity & solving real user pain',
   },
   {
     id: 'craft_resilience',
@@ -91,10 +98,28 @@ export interface DomainStoryArc {
 export function getDomainStoryArc(
   jobTitle: string,
   company: string,
-  domain?: string,
+  domainOrVibe?: string | StoryVibeId,
   vibeId?: StoryVibeId
 ): DomainStoryArc {
+  const validVibes = new Set<string>([
+    'user_empathy',
+    'origin_spark',
+    'high_stakes_scale',
+    'bold_contrarian',
+    'craft_resilience',
+    'zero_to_one',
+  ]);
+
+  let domain = domainOrVibe;
+  let resolvedVibe = vibeId;
+
+  if (!resolvedVibe && domainOrVibe && validVibes.has(domainOrVibe)) {
+    resolvedVibe = domainOrVibe as StoryVibeId;
+    domain = undefined;
+  }
+
   const combined = `${jobTitle} ${company} ${domain || ''}`.toLowerCase();
+  vibeId = resolvedVibe;
 
   // 1. DESIGN / UI / UX / FRONTEND
   if (/design|ui|ux|product\s*design|brand|creative|visual|interface|frontend|front-end/i.test(combined)) {
@@ -153,6 +178,17 @@ export function getDomainStoryArc(
           "I've always believed in high agency, rapid prototyping, and delivering tangible value directly into user hands without unnecessary friction.",
         click: (c, t) =>
           `When I discovered ${c}'s pace of product delivery and bold roadmap, it felt like something clicked. The velocity. The autonomy. The chance to build and ship meaningful features rapidly as a ${t}.`,
+      },
+      bold_contrarian: {
+        vibeId: 'bold_contrarian',
+        origin:
+          'While the industry was obsessively chasing fleeting visual fads and bloated micro-animations that alienated real users, I took a contrarian stance: true innovation lies in ruthless clarity, lightning accessibility, and radical simplicity that respects human attention.',
+        journey: (skills, exp) =>
+          `Standing by that conviction over ${exp}+ years, I have leveraged ${skills} to build durable design systems that resist fashion cycles and deliver measurable conversion and usability lifts.`,
+        philosophy:
+          "I've always believed that the boldest design decision is often doing less, but doing it with uncompromising precision.",
+        click: (c, t) =>
+          `Looking at ${c}'s products, I admire that your team refuses to compromise on pure utility and taste. I'd love to bring that disciplined, contrarian perspective to ${c} as a ${t}.`,
       },
     };
     const chosenVibe = vibeId && vibes[vibeId] ? vibeId : 'user_empathy';
@@ -217,6 +253,17 @@ export function getDomainStoryArc(
         click: (c, t) =>
           `So when I discovered ${c}'s ambitious expansion and product roadmap, it felt like something clicked. The momentum. The mission. The opportunity to build transformative financial products as a ${t}.`,
       },
+      bold_contrarian: {
+        vibeId: 'bold_contrarian',
+        origin:
+          'When conventional wisdom insisted that complex financial systems required slow, bureaucratic release cadences and layers of manual reconciliation, I challenged that premise by introducing automated idempotent verification and continuous auditability.',
+        journey: (skills, exp) =>
+          `Backing non-consensus ideas with rigorous execution has driven my work for ${exp}+ years. Using ${skills}, I prove that high-velocity engineering and audit-grade safety are not trade-offs, but mutual accelerators.`,
+        philosophy:
+          "I believe the biggest leaps in financial technology come from questioning outdated operational dogmas while protecting customer trust with mathematical rigor.",
+        click: (c, t) =>
+          `What excites me most about ${c} is your willingness to disrupt established financial norms. I'd love to bring my conviction and technical depth to ${c} as your next ${t}.`,
+      },
     };
     const chosenVibe = vibeId && vibes[vibeId] ? vibeId : 'origin_spark';
     return vibes[chosenVibe];
@@ -279,6 +326,17 @@ export function getDomainStoryArc(
           "I've always believed in fast execution, rugged field validation, and turning bold environmental ideas into operational realities.",
         click: (c, t) =>
           `When I read about ${c}'s technological approach, it felt like something clicked. The velocity. The global mission. The chance to build solutions where the stakes are highest as your next ${t}.`,
+      },
+      bold_contrarian: {
+        vibeId: 'bold_contrarian',
+        origin:
+          'When prevailing practices treated climate solutions as compliance checkboxes or greenwashing PR, I pushed for measurable, first-principles resource efficiency and unit-economic viability that proved clean technology can outperform legacy systems on pure merits.',
+        journey: (skills, exp) =>
+          `That contrarian discipline has driven my ${exp}+ years. Using ${skills}, I turn sustainability goals into high-uptime telemetry pipelines, automated optimization engines, and verifiable metrics.`,
+        philosophy:
+          "I've always believed that sustainable impact requires undeniable economic reality and systems-level engineering discipline.",
+        click: (c, t) =>
+          `Seeing how ${c} tackles hard real-world constraints without superficial shortcuts resonates with how I build. I'd love to join as a ${t}.`,
       },
     };
     const chosenVibe = vibeId && vibes[vibeId] ? vibeId : 'origin_spark';
@@ -343,6 +401,17 @@ export function getDomainStoryArc(
         click: (c, t) =>
           `So when I saw ${c}'s rapid growth and vision, it felt like an instant click. The urgency. The reach. The chance to contribute as your next ${t}.`,
       },
+      bold_contrarian: {
+        vibeId: 'bold_contrarian',
+        origin:
+          'In a sector where technology adoption is notoriously bogged down by archaic legacy software and risk aversion, I challenged standard dogma by showing that modern, consumer-grade UX and rapid iterations can coexist seamlessly with stringent HIPAA compliance.',
+        journey: (skills, exp) =>
+          `Advocating that clinicians and patients deserve software that respects their dignity has shaped my ${exp}+ years. Using ${skills}, I deliver compliant platforms that eliminate bureaucratic drag and elevate care delivery.`,
+        philosophy:
+          "I believe healthcare innovation happens when we stop excusing broken user experiences as unavoidable regulatory costs.",
+        click: (c, t) =>
+          `The bold, patient-first modernization ${c} brings to healthcare is truly inspiring. I'd love to contribute as a ${t}.`,
+      },
     };
     const chosenVibe = vibeId && vibes[vibeId] ? vibeId : 'origin_spark';
     return vibes[chosenVibe];
@@ -405,6 +474,17 @@ export function getDomainStoryArc(
           "I've always believed in building targeted, purpose-driven intelligence that solves specific domain bottlenecks with high accuracy.",
         click: (c, t) =>
           `So when I learned about ${c}'s bold product vision, it felt like an instant click. The velocity. The innovation. The chance to build novel AI products as a ${t}.`,
+      },
+      bold_contrarian: {
+        vibeId: 'bold_contrarian',
+        origin:
+          'While the industry got caught in the speculative hype of blindly wrapping third-party foundational models, I insisted on first-principles data curation, deterministic eval benchmarks, and fine-tuning lightweight architectures that slashed inference costs by 70%.',
+        journey: (skills, exp) =>
+          `Proving that domain precision trumps brute-force parameter counts has defined my ${exp}+ years. Leveraging ${skills}, I build defensible, cost-effective AI systems grounded in verifiable business utility.`,
+        philosophy:
+          "I believe sustainable AI moats aren't built on hype, but on disciplined data flywheels, rigorous evals, and low-latency execution.",
+        click: (c, t) =>
+          `Your pragmatic, high-impact approach to AI at ${c} resonates deeply with my philosophy. I'd love to join as a ${t} to build models that drive real value.`,
       },
     };
     const chosenVibe = vibeId && vibes[vibeId] ? vibeId : 'origin_spark';
@@ -469,6 +549,17 @@ export function getDomainStoryArc(
         click: (c, t) =>
           `When I saw ${c}'s rapid scaling trajectory, it felt like something clicked. The momentum. The challenges. The opportunity to build scalable cloud foundations as a ${t}.`,
       },
+      bold_contrarian: {
+        vibeId: 'bold_contrarian',
+        origin:
+          'When everyone was blindly adopting hyper-complex microservices and over-engineered distributed meshes for simple workloads, I championed boring, robust architecture and zero-dependency primitives that delivered 10x lower latency and zero 3 AM alerts.',
+        journey: (skills, exp) =>
+          `Over ${exp}+ years, that independent mindset guided my work with ${skills}. I build resilient systems designed around clear data models and mechanical sympathy rather than resume-driven development.`,
+        philosophy:
+          "I've always believed that the best architectural choice is the simplest one that solves the hard problem under real production constraints.",
+        click: (c, t) =>
+          `Reading about ${c}'s engineering culture, I see a team that values real performance over tech hype. That's the exact arena where I want to contribute as a ${t}.`,
+      },
     };
     const chosenVibe = vibeId && vibes[vibeId] ? vibeId : 'high_stakes_scale';
     return vibes[chosenVibe];
@@ -530,6 +621,17 @@ export function getDomainStoryArc(
         "I've always believed in high agency, rapid iteration, and delivering value early and often.",
       click: (c, t) =>
         `When I saw the pace of execution and vision at ${c}, it felt like an instant click. The velocity. The mission. The chance to build transformative software as your next ${t}.`,
+    },
+    bold_contrarian: {
+      vibeId: 'bold_contrarian',
+      origin:
+        'Throughout my career, I noticed that teams often default to safe consensus, only to produce incremental, mediocre results. I have consistently challenged comfortable assumptions, advocating for bold, high-conviction paths that unlocked step-function business growth.',
+      journey: (skills, exp) =>
+        `Over the past ${exp}+ years, I have combined that contrarian courage with deep hands-on mastery in ${skills}, turning ambitious, unconventional bets into dependable, revenue-generating reality.`,
+      philosophy:
+        "I believe outsized impact belongs to those who ask 'why not?' and back their conviction with world-class craftsmanship and relentless execution.",
+      click: (c, t) =>
+        `Seeing how ${c} leads from the front and takes calculated, visionary bets makes me thrilled. I'd love to bring that high-conviction mindset to ${c} as a ${t}.`,
     },
   };
   const chosenVibe = vibeId && vibes[vibeId] ? vibeId : 'origin_spark';

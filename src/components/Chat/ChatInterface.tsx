@@ -22,6 +22,46 @@ interface ChatInterfaceProps {
   onOpenTailor: (job: JobListing) => void;
 }
 
+function FormattedMessageText({ text, isUser }: { text: string; isUser?: boolean }) {
+  if (!text) return null;
+  const lines = text.split('\n');
+
+  return (
+    <div className="space-y-1.5 leading-relaxed">
+      {lines.map((line, lIdx) => {
+        if (!line.trim()) {
+          return <div key={lIdx} className="h-1.5" />;
+        }
+        const parts = line.split(/(\*\*(?!\s)[^*]+?(?<!\s)\*\*|\*(?!\s)[^*]+?(?<!\s)\*)/g);
+        return (
+          <p key={lIdx} className="m-0 leading-relaxed">
+            {parts.map((part, pIdx) => {
+              if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+                return (
+                  <strong
+                    key={pIdx}
+                    className={isUser ? 'font-bold underline decoration-white/30' : 'font-bold text-zinc-950 dark:text-white'}
+                  >
+                    {part.slice(2, -2)}
+                  </strong>
+                );
+              }
+              if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
+                return (
+                  <em key={pIdx} className={isUser ? 'italic opacity-90' : 'italic text-zinc-700 dark:text-zinc-300'}>
+                    {part.slice(1, -1)}
+                  </em>
+                );
+              }
+              return part;
+            })}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   messages,
   isLoading,
@@ -102,7 +142,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       : 'panel text-zinc-900 dark:text-[#e6e7ea]'
                   }`}
                 >
-                  <p className="whitespace-pre-line">{msg.content}</p>
+                  <FormattedMessageText text={msg.content} isUser={msg.role === 'user'} />
                 </div>
 
                 {msg.role === 'user' && (

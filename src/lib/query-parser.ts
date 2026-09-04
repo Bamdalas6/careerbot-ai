@@ -47,7 +47,7 @@ export interface ParsedQuery {
  * Anything here is stripped before scoring — see the module docstring for why
  * that matters so much.
  */
-const STOPWORDS = new Set([
+export const STOPWORDS = new Set([
   'a', 'an', 'the', 'and', 'or', 'but', 'if', 'of', 'to', 'in', 'on', 'at', 'by', 'for',
   'with', 'from', 'as', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'that', 'this',
   'these', 'those', 'it', 'its', 'my', 'me', 'i', 'you', 'your', 'we', 'our', 'us', 'they',
@@ -62,6 +62,9 @@ const STOPWORDS = new Set([
   'type', 'well', 'pay', 'paying', 'pays', 'salary', 'paid', 'level', 'years', 'year',
   'experience', 'exp', 'company', 'companies', 'startup', 'startups', 'who', 'what',
   'where', 'which', 'how', 'there', 'here', 'now', 'today', 'please', 'thanks',
+  'hi', 'hii', 'hey', 'hello', 'yo', 'sup', 'howdy', 'greetings', 'morning', 'afternoon', 'evening',
+  'naira', 'ngn', 'usd', 'dollar', 'dollars', 'gbp', 'pound', 'pounds', 'eur', 'euro', 'euros',
+  'kes', 'shilling', 'shillings', 'ghs', 'cedi', 'cedis', 'zar', 'rand', 'rands', 'cad', 'aud',
 ]);
 
 /**
@@ -217,14 +220,22 @@ export function parseQuery(raw: string): ParsedQuery {
   else if (/\b(senior|sr\.?|experienced)\b/.test(text)) seniority = 'Senior';
   else if (/\b(mid|intermediate)\b/.test(text)) seniority = 'Mid';
 
-  // --- salary: "$120k", "120k", "500000 naira", "N500,000" ---
+  // --- salary: "$120k", "120k", "5m naira", "2.5m naira", "500000 naira", "N500,000", "£80k", "€90k", "500k kes", "80k zar", "500,000 kes" ---
   let minSalary: number | undefined;
-  const salaryMatch =
-    text.match(/(?:\$|usd|₦|n|ngn)?\s?(\d[\d,.]*)\s?k\b/) ||
-    text.match(/(?:\$|usd|₦|ngn)\s?(\d[\d,]{4,})/);
-  if (salaryMatch) {
-    const n = parseFloat(salaryMatch[1].replace(/,/g, ''));
-    if (!Number.isNaN(n)) minSalary = /k\b/.test(salaryMatch[0]) ? n * 1000 : n;
+  const kmMatch = text.match(/(?:[$₦£€]|usd|ngn|gbp|eur|kes|ghs|zar|cad|aud|naira|dollars?|pounds?|euros?|shillings?|cedis?|rands?|n)?\s*(\d[\d,.]*)\s*(k|m)\b/i);
+  if (kmMatch) {
+    const n = parseFloat(kmMatch[1].replace(/,/g, ''));
+    if (!Number.isNaN(n)) {
+      minSalary = kmMatch[2].toLowerCase() === 'm' ? n * 1_000_000 : n * 1_000;
+    }
+  } else {
+    const fullMatch =
+      text.match(/(?:[$₦£€]|usd|ngn|gbp|eur|kes|ghs|zar|cad|aud|n)\s*(\d[\d,]{4,})/i) ||
+      text.match(/(\d[\d,]{4,})\s*(?:usd|ngn|gbp|eur|kes|ghs|zar|cad|aud|naira|dollars?|pounds?|euros?|shillings?|cedis?|rands?)/i);
+    if (fullMatch) {
+      const n = parseFloat(fullMatch[1].replace(/,/g, ''));
+      if (!Number.isNaN(n)) minSalary = n;
+    }
   }
 
   // --- location: longest token wins, so "south africa" beats "africa" ---
@@ -255,7 +266,7 @@ export function parseQuery(raw: string): ParsedQuery {
     if (w.length < 2) continue;
     if (STOPWORDS.has(w)) continue;
     if (locationTokens.has(w)) continue;
-    if (/^\d+k?$/.test(w)) continue;
+    if (/^\d+(\.\d+)?[km]?$/.test(w)) continue;
     if (/^(remote|wfh|onsite|hybrid)$/.test(w)) continue;
     if (!terms.includes(w)) terms.push(w);
   }

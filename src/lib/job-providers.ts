@@ -6,6 +6,7 @@ import {
   familyOfTitle,
   locationMatches,
   locationAllowsRemote,
+  STOPWORDS,
 } from './query-parser';
 import { BOARDS, fetchBoards, selectBoards, levelFrom, relativeTime, ageInDays, EXCLUDED_COMPANIES, isCompanyExcluded, isJobicyExcluded } from './ats-boards';
 import { getCrawledJobs } from './db';
@@ -1081,7 +1082,8 @@ export async function runSearch(rawQuery: string, limit = 40): Promise<SearchRes
   // Resilient discovery fallback: If strict title matching yielded 0 roles,
   // find the closest relevant jobs from our live pool so users are never left with an empty screen.
   if (kept.length === 0 && unique.length > 0) {
-    const rawTokens = rawQuery.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
+    const rawTokens = (parsed.terms.length > 0 ? parsed.terms : rawQuery.toLowerCase().split(/[^a-z0-9+#.]+/))
+      .filter((w) => w.length >= 2 && !STOPWORDS.has(w));
     const candidatePool = unique.filter((j) => {
       if (parsed.isRemote === true && !j.is_remote) return false;
       if (parsed.isRemote === false && j.is_remote) return false;
@@ -1092,7 +1094,10 @@ export async function runSearch(rawQuery: string, limit = 40): Promise<SearchRes
       const text = `${job.title} ${job.company} ${job.tags?.join(' ') || ''} ${job.location}`.toLowerCase();
       let matches = 0;
       for (const t of rawTokens) {
-        if (text.includes(t)) matches += 1;
+        const esc = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const start = /^\w/.test(t) ? '\\b' : '(?<=^|[^a-zA-Z0-9_])';
+        const end = /\w$/.test(t) ? '\\b' : '(?=[^a-zA-Z0-9_]|$)';
+        if (new RegExp(`${start}${esc}${end}`, 'i').test(text)) matches += 1;
       }
       return {
         job: {
@@ -1104,8 +1109,8 @@ export async function runSearch(rawQuery: string, limit = 40): Promise<SearchRes
       };
     });
 
-    ranked.sort((a, b) => b.score - a.score);
-    for (const item of ranked.slice(0, Math.min(limit, 15))) {
+    const matchedItems = ranked.filter((item) => item.score > 0);
+    for (const item of matchedItems.slice(0, Math.min(limit, 15))) {
       kept.push({
         job: item.job,
         score: item.job.match_score || 65,
