@@ -101,7 +101,7 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black text-white">
+      <div className="flex min-h-screen items-center justify-center bg-[#fafafa] dark:bg-black text-zinc-900 dark:text-white">
         <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
       </div>
     );
@@ -109,15 +109,15 @@ export default function SettingsPage() {
 
   if (!isAuthenticated || !user) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-black p-4 text-center text-white">
-        <ShieldCheck className="h-12 w-12 text-zinc-600 mb-4" />
+      <div className="flex min-h-screen flex-col items-center justify-center bg-[#fafafa] dark:bg-black p-4 text-center text-zinc-900 dark:text-white">
+        <ShieldCheck className="h-12 w-12 text-zinc-400 dark:text-zinc-600 mb-4" />
         <h1 className="text-xl font-bold">Sign in required</h1>
-        <p className="mt-2 text-sm text-zinc-400 max-w-sm">
+        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 max-w-sm">
           Please log in to your account to view and update your profile settings.
         </p>
         <Link
           href="/"
-          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-2.5 text-xs font-bold text-black hover:bg-zinc-200 transition"
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-zinc-900 dark:bg-white px-5 py-2.5 text-xs font-bold text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 transition"
         >
           <ArrowLeft className="h-4 w-4" />
           <span>Return Home</span>
@@ -235,18 +235,18 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-[#f7f8f8] py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#fafafa] dark:bg-black text-zinc-900 dark:text-[#f7f8f8] py-12 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
       <div className="max-w-3xl mx-auto">
         {/* Navigation Bar */}
-        <div className="flex items-center justify-between border-b border-white/[0.08] pb-6">
+        <div className="flex items-center justify-between border-b border-zinc-200 dark:border-white/[0.08] pb-6">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-400 hover:text-white transition"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Back to Dashboard</span>
           </Link>
-          <div className="flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400">
+          <div className="flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
             <Zap className="h-3.5 w-3.5" />
             <span>{credits} Credits</span>
           </div>
@@ -255,26 +255,26 @@ export default function SettingsPage() {
         {/* Page Title & Profile Snapshot */}
         <div className="py-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-base font-bold text-black shadow-xs">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-900 text-white dark:bg-white dark:text-black text-base font-bold shadow-xs">
               {(user.name || user.email || 'U').charAt(0).toUpperCase()}
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">{user.name || user.email || 'User'}</h1>
-              <p className="text-xs text-zinc-400">
+              <h1 className="text-xl font-bold text-zinc-900 dark:text-white">{user.name || user.email || 'User'}</h1>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 {user.username ? `@${user.username}` : user.email}
               </p>
             </div>
           </div>
 
           {/* Tab Switcher */}
-          <div className="flex rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">
+          <div className="flex rounded-xl border border-zinc-200 bg-zinc-100 dark:border-white/[0.08] dark:bg-white/[0.03] p-1">
             <button
               type="button"
               onClick={() => setActiveTab('profile')}
               className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
                 activeTab === 'profile'
-                  ? 'bg-white text-black shadow-xs'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-white text-zinc-900 shadow-xs dark:bg-zinc-800 dark:text-white'
+                  : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white'
               }`}
             >
               <User className="h-3.5 w-3.5" />
@@ -285,8 +285,8 @@ export default function SettingsPage() {
               onClick={() => setActiveTab('security')}
               className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
                 activeTab === 'security'
-                  ? 'bg-white text-black shadow-xs'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-white text-zinc-900 shadow-xs dark:bg-zinc-800 dark:text-white'
+                  : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white'
               }`}
             >
               <Lock className="h-3.5 w-3.5" />
@@ -297,88 +297,88 @@ export default function SettingsPage() {
               onClick={() => setActiveTab('referrals')}
               className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
                 activeTab === 'referrals'
-                  ? 'bg-amber-400 text-black shadow-xs'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-amber-400 text-black shadow-xs font-bold'
+                  : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white'
               }`}
             >
               <Gift className="h-3.5 w-3.5" />
               <span>Refer & Earn</span>
-              <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${activeTab === 'referrals' ? 'bg-black/20 text-black' : 'bg-amber-500/10 text-amber-400'}`}>
-                +5
+              <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${activeTab === 'referrals' ? 'bg-black/20 text-black' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
+                +10
               </span>
             </button>
           </div>
         </div>
 
         {/* Section Content */}
-        <div className="mt-4 rounded-3xl border border-white/[0.08] bg-[#0c0c0c] p-6 sm:p-8 shadow-2xl">
+        <div className="mt-4 rounded-3xl border border-zinc-200 bg-white p-6 sm:p-8 shadow-xl dark:border-white/[0.08] dark:bg-[#0c0c0c]">
           {activeTab === 'profile' && (
             <form onSubmit={handleSaveProfile} className="space-y-5">
               <div>
-                <h2 className="text-base font-bold text-white">Profile Information</h2>
-                <p className="text-xs text-zinc-400 mt-1">
+                <h2 className="text-base font-bold text-zinc-900 dark:text-white">Profile Information</h2>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                   Update your public name and handle across CareerBot AI applications.
                 </p>
               </div>
 
               {profileError && (
-                <div className="flex items-start gap-2 rounded-xl border border-rose-900/50 bg-rose-950/40 p-3 text-xs text-rose-300">
+                <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
                   <span>{profileError}</span>
                 </div>
               )}
 
               {profileSuccess && (
-                <div className="flex items-start gap-2 rounded-xl border border-emerald-900/50 bg-emerald-950/40 p-3 text-xs text-emerald-300">
+                <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
                   <span>{profileSuccess}</span>
                 </div>
               )}
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                   Full Name
                 </label>
                 <div className="relative flex items-center">
-                  <User className="absolute left-3.5 h-4 w-4 text-zinc-500" />
+                  <User className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-zinc-500" />
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Your Full Name"
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-zinc-600 focus:border-white focus:outline-none"
+                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-4 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-zinc-600 dark:focus:border-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                   Username
                 </label>
                 <div className="relative flex items-center">
-                  <AtSign className="absolute left-3.5 h-4 w-4 text-zinc-500" />
+                  <AtSign className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-zinc-500" />
                   <input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="e.g. alexsmith"
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-zinc-600 focus:border-white focus:outline-none"
+                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-4 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-zinc-600 dark:focus:border-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                   Email Address
                 </label>
                 <div className="relative flex items-center">
-                  <Mail className="absolute left-3.5 h-4 w-4 text-zinc-500" />
+                  <Mail className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-zinc-500" />
                   <input
                     type="email"
                     disabled
                     value={user.email}
-                    className="w-full rounded-xl border border-white/5 bg-white/[0.02] py-2.5 pl-10 pr-4 text-sm text-zinc-500 cursor-not-allowed"
+                    className="w-full rounded-xl border border-zinc-200 bg-zinc-100 py-2.5 pl-10 pr-4 text-sm text-zinc-500 cursor-not-allowed dark:border-white/5 dark:bg-white/[0.02]"
                   />
                 </div>
               </div>
@@ -387,7 +387,7 @@ export default function SettingsPage() {
                 <button
                   type="submit"
                   disabled={profileLoading}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-2.5 text-xs font-bold text-black hover:bg-zinc-200 transition disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-2.5 text-xs font-bold text-white hover:bg-black transition disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
                 >
                   {profileLoading ? (
                     <>
@@ -408,44 +408,44 @@ export default function SettingsPage() {
           {activeTab === 'security' && (
             <form onSubmit={handleChangePassword} className="space-y-5">
               <div>
-                <h2 className="text-base font-bold text-white">Security & Password</h2>
-                <p className="text-xs text-zinc-400 mt-1">
+                <h2 className="text-base font-bold text-zinc-900 dark:text-white">Security & Password</h2>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                   Ensure your account is using a long, random password to stay secure.
                 </p>
               </div>
 
               {securityError && (
-                <div className="flex items-start gap-2 rounded-xl border border-rose-900/50 bg-rose-950/40 p-3 text-xs text-rose-300">
+                <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
                   <span>{securityError}</span>
                 </div>
               )}
 
               {securitySuccess && (
-                <div className="flex items-start gap-2 rounded-xl border border-emerald-900/50 bg-emerald-950/40 p-3 text-xs text-emerald-300">
+                <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
                   <span>{securitySuccess}</span>
                 </div>
               )}
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                   Current Password
                 </label>
                 <div className="relative flex items-center">
-                  <Lock className="absolute left-3.5 h-4 w-4 text-zinc-500" />
+                  <Lock className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-zinc-500" />
                   <input
                     type={showCurrentPassword ? 'text' : 'password'}
                     required
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="Enter your current password"
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-zinc-600 focus:border-white focus:outline-none"
+                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-10 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-zinc-600 dark:focus:border-white"
                   />
                   <button
                     type="button"
                     onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-3 text-zinc-500 hover:text-white"
+                    className="absolute right-3 text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-white"
                   >
                     {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -453,23 +453,23 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                   New Password
                 </label>
                 <div className="relative flex items-center">
-                  <Lock className="absolute left-3.5 h-4 w-4 text-zinc-500" />
+                  <Lock className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-zinc-500" />
                   <input
                     type={showNewPassword ? 'text' : 'password'}
                     required
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Minimum 6 characters"
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-zinc-600 focus:border-white focus:outline-none"
+                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-10 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-zinc-600 dark:focus:border-white"
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 text-zinc-500 hover:text-white"
+                    className="absolute right-3 text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-white"
                   >
                     {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -477,23 +477,23 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                   Confirm New Password
                 </label>
                 <div className="relative flex items-center">
-                  <Lock className="absolute left-3.5 h-4 w-4 text-zinc-500" />
+                  <Lock className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-zinc-500" />
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Re-enter new password"
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-zinc-600 focus:border-white focus:outline-none"
+                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-10 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-zinc-600 dark:focus:border-white"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 text-zinc-500 hover:text-white"
+                    className="absolute right-3 text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-white"
                   >
                     {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -504,7 +504,7 @@ export default function SettingsPage() {
                 <button
                   type="submit"
                   disabled={securityLoading}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-2.5 text-xs font-bold text-black hover:bg-zinc-200 transition disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-2.5 text-xs font-bold text-white hover:bg-black transition disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
                 >
                   {securityLoading ? (
                     <>
@@ -525,8 +525,8 @@ export default function SettingsPage() {
           {activeTab === 'referrals' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-base font-bold text-white">Refer Friends & Earn Tokens</h2>
-                <p className="text-xs text-zinc-400 mt-1">
+                <h2 className="text-base font-bold text-zinc-900 dark:text-white">Refer Friends & Earn Tokens</h2>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
                   Invite friends, job hunters, and colleagues to CareerBot AI and get 10 free tokens credited to your account for every new registration!
                 </p>
               </div>
@@ -534,14 +534,14 @@ export default function SettingsPage() {
               {/* Promo Card */}
               <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-5">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-400">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-500 dark:text-amber-400">
                     <Gift className="h-6 w-6" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">
+                    <h3 className="text-sm font-bold text-zinc-900 dark:text-white">
                       Earn +10 Free Tokens for Every Referral
                     </h3>
-                    <p className="mt-1 text-xs text-zinc-300 leading-relaxed">
+                    <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
                       Share your custom referral link below. When your friend registers an account, your balance is instantly rewarded with <b>10 free tokens</b>.
                     </p>
                   </div>
@@ -550,7 +550,7 @@ export default function SettingsPage() {
 
               {/* Referral Link & 1-Click Copy */}
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                   Your Personal Referral Link
                 </label>
                 <div className="flex items-center gap-2">
@@ -558,7 +558,7 @@ export default function SettingsPage() {
                     type="text"
                     readOnly
                     value={referralLink}
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 px-4 font-mono text-xs text-white select-all focus:border-white focus:outline-none"
+                    className="w-full rounded-xl border border-zinc-300 bg-zinc-50 py-3 px-4 font-mono text-xs text-zinc-900 select-all focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:focus:border-white"
                   />
                   <button
                     type="button"
@@ -570,11 +570,11 @@ export default function SettingsPage() {
                         setTimeout(() => setCopied(false), 2000);
                       }
                     }}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-5 py-3 text-xs font-bold text-black hover:bg-zinc-200 transition"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-zinc-900 px-5 py-3 text-xs font-bold text-white hover:bg-black transition dark:bg-white dark:text-black dark:hover:bg-zinc-200"
                   >
                     {copied ? (
                       <>
-                        <Check className="h-4 w-4 text-emerald-600" />
+                        <Check className="h-4 w-4 text-emerald-400" />
                         <span>Copied!</span>
                       </>
                     ) : (
@@ -589,7 +589,7 @@ export default function SettingsPage() {
 
               {/* 1-Click Share Socials */}
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">
                   1-Click Share
                 </label>
                 <div className="grid grid-cols-3 gap-3">
@@ -599,7 +599,7 @@ export default function SettingsPage() {
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 py-3 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 transition"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/20 transition dark:border-emerald-500/20 dark:text-emerald-400"
                   >
                     <span>WhatsApp</span>
                   </a>
@@ -609,7 +609,7 @@ export default function SettingsPage() {
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 rounded-xl border border-sky-500/20 bg-sky-500/10 py-3 text-xs font-semibold text-sky-400 hover:bg-sky-500/20 transition"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 py-3 text-xs font-semibold text-sky-700 hover:bg-sky-500/20 transition dark:border-sky-500/20 dark:text-sky-400"
                   >
                     <span>𝕏 (Twitter)</span>
                   </a>
@@ -617,7 +617,7 @@ export default function SettingsPage() {
                     href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(referralLink)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/10 py-3 text-xs font-semibold text-indigo-400 hover:bg-indigo-500/20 transition"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 py-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-500/20 transition dark:border-indigo-500/20 dark:text-indigo-400"
                   >
                     <span>LinkedIn</span>
                   </a>
@@ -626,35 +626,35 @@ export default function SettingsPage() {
 
               {/* Referral Statistics */}
               <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 text-center">
-                  <div className="flex items-center justify-center gap-1.5 text-zinc-400 mb-1">
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4 text-center dark:border-white/[0.08] dark:bg-white/[0.02]">
+                  <div className="flex items-center justify-center gap-1.5 text-zinc-500 dark:text-zinc-400 mb-1">
                     <Users className="h-4 w-4" />
                     <span className="text-xs font-medium">Friends Joined</span>
                   </div>
-                  <p className="text-2xl font-bold text-white">{totalReferred}</p>
+                  <p className="text-2xl font-bold text-zinc-900 dark:text-white">{totalReferred}</p>
                 </div>
-                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-center">
-                  <div className="flex items-center justify-center gap-1.5 text-amber-400 mb-1">
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-center dark:border-amber-500/20 dark:bg-amber-500/5">
+                  <div className="flex items-center justify-center gap-1.5 text-amber-600 dark:text-amber-400 mb-1">
                     <Zap className="h-4 w-4" />
                     <span className="text-xs font-medium">Tokens Earned</span>
                   </div>
-                  <p className="text-2xl font-bold text-amber-400">+{totalEarned}</p>
+                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">+{totalEarned}</p>
                 </div>
               </div>
 
               {/* Friends Joined List */}
               {referredFriends.length > 0 && (
                 <div className="pt-2">
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 mb-3">
                     Recent Friends Joined ({referredFriends.length})
                   </h4>
                   <div className="max-h-36 space-y-2 overflow-y-auto pr-1">
                     {referredFriends.map((friend, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-2.5 text-xs"
+                        className="flex items-center justify-between rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-xs dark:border-white/[0.06] dark:bg-white/[0.02]"
                       >
-                        <span className="font-medium text-white">{friend.name}</span>
+                        <span className="font-medium text-zinc-900 dark:text-white">{friend.name}</span>
                         <span className="text-[11px] text-zinc-500">
                           {new Date(friend.created_at).toLocaleDateString()}
                         </span>

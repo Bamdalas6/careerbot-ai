@@ -39,170 +39,6 @@ body {
   transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-[data-theme="light"] body {
-  background-color: #f8f9fa;
-  color: #0f172a;
-}
-
-[data-theme="light"] .glass-header {
-  background: rgba(248, 249, 250, 0.92) !important;
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
-  color: #0f172a !important;
-}
-
-[data-theme="light"] input,
-[data-theme="light"] textarea,
-[data-theme="light"] select {
-  background-color: #ffffff !important;
-  color: #0f172a !important;
-  border-color: rgba(0, 0, 0, 0.15) !important;
-}
-
-[data-theme="light"] input::placeholder,
-[data-theme="light"] textarea::placeholder {
-  color: #94a3b8 !important;
-}
-
-/* Job cards and structured elements */
-[data-theme="light"] .job-card {
-  background-color: #ffffff;
-  color: #0f172a;
-  border-color: rgba(0, 0, 0, 0.08);
-}
-
-/* Chat area */
-[data-theme="light"] .chat-bubble-ai {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-[data-theme="light"] .chat-bubble-user {
-  background: #0f172a;
-  color: #ffffff;
-}
-
-[data-theme="light"] .glass-chip {
-  background: rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  color: #334155;
-}
-
-[data-theme="light"] .glass-chip:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.16);
-  color: #0f172a;
-}
-
-[data-theme="light"] .panel {
-  background: rgba(255, 255, 255, 0.98);
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.06);
-  color: #0f172a;
-}
-
-[data-theme="light"] .panel:hover {
-  border-color: rgba(0, 0, 0, 0.16);
-  background: #ffffff;
-}
-
-[data-theme="light"] .panel-solid {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.1);
-  box-shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.15);
-  color: #0f172a;
-}
-
-[data-theme="light"] .field {
-  background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.12);
-  color: #0f172a;
-}
-
-[data-theme="light"] .field:focus {
-  border-color: rgba(0, 0, 0, 0.3);
-  background: #ffffff;
-}
-
-[data-theme="light"] .btn-primary {
-  background: #0f172a;
-  color: #ffffff;
-}
-
-[data-theme="light"] .btn-primary:hover:not(:disabled) {
-  background: #000000;
-}
-
-[data-theme="light"] .btn-light {
-  background: #0f172a;
-  color: #ffffff;
-}
-
-[data-theme="light"] .btn-light:hover:not(:disabled) {
-  background: #000000;
-}
-
-[data-theme="light"] .linear-card {
-  background: #ffffff;
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.05);
-  color: #0f172a;
-}
-
-[data-theme="light"] .linear-pill {
-  background: rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  color: #334155;
-}
-
-[data-theme="light"] .linear-pill:hover {
-  background: rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.16);
-  color: #0f172a;
-}
-
-[data-theme="light"] .linear-grid {
-  background-image:
-    linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
-}
-
-[data-theme="light"] input[type="date"] {
-  color-scheme: light;
-  color: #0f172a;
-}
-
-[data-theme="light"] .glass-search {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  box-shadow: 0 12px 36px -16px rgba(0, 0, 0, 0.1);
-  color: #0f172a;
-}
-
-[data-theme="light"] .glass-search.is-focused {
-  border-color: rgba(0, 0, 0, 0.3);
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
-}
-
-[data-theme="light"] .hero-wash {
-  background: radial-gradient(ellipse 70% 45% at 50% 8%, rgba(0, 0, 0, 0.03), transparent 72%);
-}
-
-[data-theme="light"] .eyebrow {
-  color: #64748b;
-}
-
-[data-theme="light"] .rule-t {
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-}
-
-[data-theme="light"] .shadow-2xl {
-  box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.15) !important;
-}
-
-
-
 /* Linear-style Light Ray and Conic Spotlight */
 .linear-spotlight {
   background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(120, 119, 198, 0.28), transparent 70%);
@@ -540,4 +376,235 @@ body {
 
 [data-theme="light"] .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* ==========================================================================
+   Light Mode Overrides & High-Contrast Design Engine
+   ========================================================================== */
+
+[data-theme="light"], .light {
+  --background: #f8f9fa;
+  --surface: #ffffff;
+  --surface-2: #f1f3f5;
+  --foreground: #09090b;
+  --muted: #52525b;
+  --muted-dim: #71717a;
+  --border-hairline: rgba(0, 0, 0, 0.08);
+  --border-hover: rgba(0, 0, 0, 0.16);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --accent: #09090b;
+  color-scheme: light;
+}
+
+[data-theme="light"] body,
+.light body {
+  background-color: #f8f9fa;
+  color: #09090b;
+}
+
+/* Linear & Glass surfaces in Light Mode */
+[data-theme="light"] .linear-glass,
+.light .linear-glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .linear-card,
+.light .linear-card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 16px -4px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .linear-card:hover,
+.light .linear-card:hover {
+  border-color: rgba(0, 0, 0, 0.16);
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .linear-pill,
+.light .linear-pill {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: #09090b;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .linear-pill:hover,
+.light .linear-pill:hover {
+  background: rgba(0, 0, 0, 0.07);
+  border-color: rgba(0, 0, 0, 0.14);
+}
+
+[data-theme="light"] .linear-grid,
+.light .linear-grid {
+  background-size: 40px 40px;
+  background-image:
+    linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+}
+
+[data-theme="light"] .linear-spotlight,
+.light .linear-spotlight {
+  background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.12), transparent 70%);
+}
+
+[data-theme="light"] .linear-spotlight-indigo,
+.light .linear-spotlight-indigo {
+  background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(99, 102, 241, 0.10), transparent 70%);
+}
+
+/* Glass & Panels in Light Mode */
+[data-theme="light"] .glass,
+.light .glass {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 10px 30px -10px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .glass-strong,
+.light .glass-strong {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 20px 40px -15px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .glass-header,
+.light .glass-header {
+  background: rgba(248, 249, 250, 0.88);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .glass-chip,
+.light .glass-chip {
+  background: #ffffff;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  color: #09090b;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .glass-chip:hover:not(:disabled),
+.light .glass-chip:hover:not(:disabled) {
+  background: #f4f4f5;
+  border-color: rgba(0, 0, 0, 0.16);
+  color: #000000;
+}
+
+[data-theme="light"] .panel,
+.light .panel {
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+  color: #09090b;
+}
+
+[data-theme="light"] .panel:hover,
+.light .panel:hover {
+  border-color: rgba(0, 0, 0, 0.16);
+  background: #ffffff;
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .panel-solid,
+.light .panel-solid {
+  background: #ffffff;
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.15);
+  color: #09090b;
+}
+
+/* Fields and Inputs */
+[data-theme="light"] .field,
+.light .field {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #09090b;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .field::placeholder,
+.light .field::placeholder {
+  color: #71717a;
+}
+
+[data-theme="light"] .field:focus,
+.light .field:focus {
+  outline: none;
+  border-color: #09090b;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px #09090b, 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Buttons in Light Mode */
+[data-theme="light"] .btn-primary,
+.light .btn-primary {
+  background: #09090b;
+  color: #ffffff;
+  border: 1px solid transparent;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .btn-primary:hover:not(:disabled),
+.light .btn-primary:hover:not(:disabled) {
+  background: #27272a;
+  color: #ffffff;
+}
+
+[data-theme="light"] .btn-light,
+.light .btn-light {
+  background: #09090b;
+  color: #ffffff;
+  border: 1px solid transparent;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .btn-light:hover:not(:disabled),
+.light .btn-light:hover:not(:disabled) {
+  background: #27272a;
+  color: #ffffff;
+}
+
+/* Search Field */
+[data-theme="light"] .glass-search,
+.light .glass-search {
+  background: #ffffff;
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .glass-search:hover,
+.light .glass-search:hover {
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .glass-search.is-focused,
+.light .glass-search.is-focused {
+  border-color: #09090b;
+  box-shadow: 0 0 0 2px rgba(9, 9, 11, 0.1), 0 4px 20px -4px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .hero-wash,
+.light .hero-wash {
+  background: radial-gradient(ellipse 70% 45% at 50% 8%, rgba(99, 102, 241, 0.05), transparent 72%);
 }

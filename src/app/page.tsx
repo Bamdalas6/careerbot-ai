@@ -323,7 +323,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-black text-[#f7f8f8] selection:bg-white/20 selection:text-white">
+    <div className="flex min-h-screen flex-col bg-[#f8f9fa] dark:bg-black text-zinc-900 dark:text-[#f7f8f8] selection:bg-zinc-900/10 selection:text-zinc-900 dark:selection:bg-white/20 dark:selection:text-white transition-colors duration-200">
       {/* Glassy sticky header */}
       <GlassHeader
         currentView={currentView}
