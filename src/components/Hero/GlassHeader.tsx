@@ -337,9 +337,6 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (typeof window !== 'undefined' && window.history.length > 1) {
-                    window.history.back();
-                  }
                   onViewChange('home');
                 }}
                 className="glass-chip ml-0.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 dark:text-[#f7f8f8] cursor-pointer"

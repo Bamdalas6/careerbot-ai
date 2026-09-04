@@ -19,9 +19,15 @@ export const CreditTopUpModal: React.FC = () => {
   const fetchClaimStatus = useCallback(async () => {
     if (!user) return;
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('careerbot_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token && token !== 'undefined' && token !== 'null' && token.trim()) {
+        headers['Authorization'] = `Bearer ${token.trim()}`;
+      }
+
       const res = await fetch('/api/credits/topup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ action: 'claim_status' }),
       });
       const data = await res.json();
@@ -55,9 +61,15 @@ export const CreditTopUpModal: React.FC = () => {
     setSuccessMsg(null);
 
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('careerbot_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token && token !== 'undefined' && token !== 'null' && token.trim()) {
+        headers['Authorization'] = `Bearer ${token.trim()}`;
+      }
+
       const res = await fetch('/api/credits/topup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ action: 'claim_free' }),
       });
 

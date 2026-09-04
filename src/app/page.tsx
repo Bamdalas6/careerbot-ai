@@ -144,12 +144,16 @@ export default function Home() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
+        if (!user) {
+          requireAuth();
+          return;
+        }
         setCurrentView('chat');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentView]);
+  }, [currentView, user, requireAuth]);
 
   // Sync saved jobs to localStorage
   const updateSavedJobs = (newJobs: SavedJob[]) => {
@@ -206,9 +210,15 @@ export default function Home() {
         const firstUserMessage = updatedMessages.find((m) => m.role === 'user')?.content || 'Job Search';
         const title = firstUserMessage.length > 38 ? `${firstUserMessage.slice(0, 38)}...` : firstUserMessage;
 
+        const token = typeof window !== 'undefined' ? localStorage.getItem('careerbot_token') : null;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token && token !== 'undefined' && token !== 'null' && token.trim()) {
+          headers['Authorization'] = `Bearer ${token.trim()}`;
+        }
+
         const res = await fetch('/api/history/chats', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             id: existingChatId || undefined,
             title,
@@ -230,6 +240,9 @@ export default function Home() {
     if (!text.trim() || isLoading) return;
 
     if (!user) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('careerbot_pending_search', text.trim());
+      }
       requireAuth();
       return;
     }
@@ -249,9 +262,15 @@ export default function Home() {
     setIsLoading(true);
 
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('careerbot_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token && token !== 'undefined' && token !== 'null' && token.trim()) {
+        headers['Authorization'] = `Bearer ${token.trim()}`;
+      }
+
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           message: text,
           history: messages.slice(-6).map((m) => ({ role: m.role, content: m.content })),
@@ -316,6 +335,17 @@ export default function Home() {
     }
   };
 
+  // Resume any search query attempted before user completed login/registration
+  useEffect(() => {
+    if (user && typeof window !== 'undefined') {
+      const pending = localStorage.getItem('careerbot_pending_search');
+      if (pending) {
+        localStorage.removeItem('careerbot_pending_search');
+        handleSendMessage(pending);
+      }
+    }
+  }, [user]);
+
   const handleParsedSkills = (profile: ResumeProfile, autoSearchQuery: string) => {
     handleSendMessage(autoSearchQuery);
   };
@@ -327,6 +357,10 @@ export default function Home() {
   };
 
   const handleNewChat = () => {
+    if (!user) {
+      requireAuth();
+      return;
+    }
     setMessages([]);
     setCurrentChatId(null);
     setCurrentView('chat');
@@ -341,7 +375,13 @@ export default function Home() {
       {/* Glassy sticky header */}
       <GlassHeader
         currentView={currentView}
-        onViewChange={(view) => setCurrentView(view)}
+        onViewChange={(view) => {
+          if (view === 'chat' && !user) {
+            requireAuth();
+            return;
+          }
+          setCurrentView(view);
+        }}
         savedCount={savedJobs.length}
         onOpenSaved={() => setIsSavedOpen(true)}
         onOpenTracker={() => {
@@ -350,7 +390,9 @@ export default function Home() {
         onOpenResume={handleOpenResume}
         onOpenFilters={() => setIsFiltersOpen(true)}
         onClearChat={handleClearChat}
-        onOpenHistory={() => setIsHistoryOpen(true)}
+        onOpenHistory={() => {
+          if (requireAuth()) setIsHistoryOpen(true);
+        }}
         onOpenSettings={() => {
           if (requireAuth()) setIsSettingsOpen(true);
         }}

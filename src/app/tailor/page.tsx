@@ -29,7 +29,18 @@ function TailorContent() {
   const searchParams = useSearchParams();
   const { user, credits, requireAuth, openCreditModal } = useAuth();
 
-  const [activeJob, setActiveJob] = useState<JobListing | null>(null);
+  const [activeJob, setActiveJob] = useState<JobListing>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const storedActive = localStorage.getItem('career_bot_active_tailor_job');
+        if (storedActive) {
+          const parsed = JSON.parse(storedActive);
+          if (parsed && parsed.title && parsed.company) return parsed;
+        }
+      } catch {}
+    }
+    return DEFAULT_SAMPLE_JOB;
+  });
   const [isModalOpen, setIsModalOpen] = useState(true);
 
   // Safely resolve job from URL params, localStorage, or fallback

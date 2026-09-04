@@ -58,6 +58,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [credits, setCredits] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       try {
+        const storedCredits = localStorage.getItem('careerbot_credits');
+        if (storedCredits !== null) {
+          const num = Number(storedCredits);
+          if (Number.isFinite(num) && num >= 0) return num;
+        }
         const stored = localStorage.getItem('careerbot_user');
         if (stored) {
           const parsed = JSON.parse(stored);
@@ -135,12 +140,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Immediate hydration from localStorage on mount
     if (typeof window !== 'undefined') {
       try {
+        const storedCredits = localStorage.getItem('careerbot_credits');
+        const num = storedCredits !== null ? Number(storedCredits) : NaN;
         const stored = localStorage.getItem('careerbot_user');
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed && parsed.id) {
             const initialCredits =
-              typeof parsed.credits === 'number' && Number.isFinite(parsed.credits) && parsed.credits >= 0
+              Number.isFinite(num) && num >= 0
+                ? num
+                : typeof parsed.credits === 'number' && Number.isFinite(parsed.credits) && parsed.credits >= 0
                 ? parsed.credits
                 : 0;
             setUser(parsed);
@@ -413,16 +422,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, error: data.error || 'Failed to create account' };
       }
 
+      const resolvedCredits =
+        typeof data.user?.credits === 'number' && Number.isFinite(data.user.credits) && data.user.credits >= 0
+          ? data.user.credits
+          : 25;
+
       if (typeof window !== 'undefined') {
         localStorage.removeItem('careerbot_ref_code');
         localStorage.setItem('careerbot_user', JSON.stringify(data.user));
+        localStorage.setItem('careerbot_credits', String(resolvedCredits));
+        window.dispatchEvent(new CustomEvent('careerbot_credit_sync', { detail: resolvedCredits }));
         if (data.token) {
           localStorage.setItem('careerbot_token', data.token);
         }
       }
 
       setUser(data.user);
-      setCredits(data.user.credits ?? 25);
+      setCredits(resolvedCredits);
       setIsAuthModalOpen(false);
       return { success: true };
     } catch {

@@ -123,9 +123,6 @@ export const SavedJobsDrawer: React.FC<SavedJobsDrawerProps> = ({
                           localStorage.setItem('career_bot_active_tailor_job', JSON.stringify(job));
                         } catch {}
                         onClose();
-                        if (onOpenTailor) {
-                          onOpenTailor(job);
-                        }
                         router.push(`/tailor?id=${encodeURIComponent(job.id)}`);
                       }}
                       className="flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition cursor-pointer"

@@ -201,9 +201,6 @@ export const JobCard: React.FC<JobCardProps> = ({
             try {
               localStorage.setItem('career_bot_active_tailor_job', JSON.stringify(job));
             } catch {}
-            if (onOpenTailor) {
-              onOpenTailor(job);
-            }
             router.push(`/tailor?id=${encodeURIComponent(job.id)}`);
           }}
           className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-900 transition hover:bg-zinc-50 hover:border-zinc-400 dark:border-white/[0.14] dark:bg-white/[0.05] dark:text-[#f7f8f8] dark:hover:bg-white/[0.09] dark:hover:border-white/25 cursor-pointer relative z-10 active:scale-[0.98] select-none"
