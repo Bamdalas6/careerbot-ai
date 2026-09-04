@@ -21,11 +21,13 @@ import { QuickScrollPill } from '@/components/Navigation/QuickScrollPill';
 import { ChatMessage, JobListing, SavedJob, ResumeProfile } from '@/types/job';
 import { useAuth } from '@/context/AuthContext';
 import confetti from 'canvas-confetti';
+import clsx from 'clsx';
 
 export default function Home() {
   const { user, credits, requireAuth, updateCredits, openCreditModal } = useAuth();
 
   const [currentView, setCurrentView] = useState<'home' | 'chat'>('home');
+  const [isExploreOpen, setIsExploreOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [savedJobs, setSavedJobs] = useState<SavedJob[]>(() => {
@@ -129,14 +131,14 @@ export default function Home() {
     };
   }, [user]);
 
-  // Ensure background body scroll is never locked when all modals are closed
+  // Ensure background body scroll is never locked when all modals and drawers are closed
   useEffect(() => {
-    if (!activeTailorJob && !isResumeOpen && !isSavedOpen && !isFiltersOpen && !isHistoryOpen && !isSettingsOpen && !isTrackerOpen) {
+    if (!activeTailorJob && !isResumeOpen && !isSavedOpen && !isFiltersOpen && !isHistoryOpen && !isSettingsOpen && !isTrackerOpen && !isExploreOpen) {
       if (typeof document !== 'undefined') {
         document.body.style.overflow = '';
       }
     }
-  }, [activeTailorJob, isResumeOpen, isSavedOpen, isFiltersOpen, isHistoryOpen, isSettingsOpen, isTrackerOpen]);
+  }, [activeTailorJob, isResumeOpen, isSavedOpen, isFiltersOpen, isHistoryOpen, isSettingsOpen, isTrackerOpen, isExploreOpen]);
 
   // Global keyboard shortcut: ⌘K / Ctrl+K jumps into the chat search from anywhere
   useEffect(() => {
@@ -396,11 +398,17 @@ export default function Home() {
         onOpenSettings={() => {
           if (requireAuth()) setIsSettingsOpen(true);
         }}
+        onExploreToggle={setIsExploreOpen}
       />
 
       {/* Follow-up reminder alert banner */}
       {dueFollowUps.length > 0 && (
-        <div className="py-3">
+        <div
+          className={clsx(
+            "py-3 transition-all duration-300",
+            isExploreOpen && "filter blur-sm md:filter-none pointer-events-none select-none"
+          )}
+        >
           <FollowUpBanner
             items={dueFollowUps}
             onGenerateEmail={() => {
@@ -419,7 +427,12 @@ export default function Home() {
 
       {/* Main Content Area */}
       {currentView === 'home' ? (
-        <main className="flex flex-1 flex-col">
+        <main
+          className={clsx(
+            "flex flex-1 flex-col transition-all duration-300",
+            isExploreOpen && "filter blur-sm md:filter-none pointer-events-none select-none"
+          )}
+        >
           <OrbHero onSearch={handleSendMessage} isLoading={isLoading} />
           <FactsSection />
           <CapabilitiesSection />
@@ -438,7 +451,12 @@ export default function Home() {
           />
         </main>
       ) : (
-        <main className="flex flex-1 flex-col">
+        <main
+          className={clsx(
+            "flex flex-1 flex-col transition-all duration-300",
+            isExploreOpen && "filter blur-sm md:filter-none pointer-events-none select-none"
+          )}
+        >
           <ChatInterface
             messages={messages}
             isLoading={isLoading}

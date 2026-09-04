@@ -19,6 +19,7 @@ import {
   X,
   Settings,
   Gift,
+  Compass,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -34,6 +35,7 @@ interface GlassHeaderProps {
   onClearChat: () => void;
   onOpenHistory?: () => void;
   onOpenSettings?: () => void;
+  onExploreToggle?: (isOpen: boolean) => void;
 }
 
 const NAV_LINKS = [
@@ -53,6 +55,7 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
   onClearChat,
   onOpenHistory,
   onOpenSettings,
+  onExploreToggle,
 }) => {
   const { user, credits, isAuthenticated, openAuthModal, openCreditModal, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -71,6 +74,18 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Prevent background body scroll when mobile explore drawer is open
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (mobileMenuOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow || '';
+      };
+    }
+  }, [mobileMenuOpen]);
+
   return (
     <header className="glass-header sticky top-0 z-40 w-full transition-colors duration-200">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3.5 sm:px-8">
@@ -81,6 +96,7 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
             onClick={() => {
               onViewChange('home');
               setMobileMenuOpen(false);
+              onExploreToggle?.(false);
             }}
             className="flex items-center gap-2 text-left"
           >
@@ -355,211 +371,244 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
           )}
         </div>
 
-        {/* Mobile Header Quick Actions */}
-        <div className="flex md:hidden items-center gap-1.5">
-          {/* Mobile Credits Counter Badge (always visible & synchronized) */}
+        {/* Mobile Header: ONLY Logo + Explore Button (All other buttons totally removed) */}
+        <div className="flex md:hidden items-center">
           <button
             type="button"
-            onClick={openCreditModal}
-            className="flex h-8 items-center gap-1 rounded-lg border border-black/10 bg-black/[0.03] px-2 text-xs font-semibold text-zinc-900 transition hover:bg-black/[0.06] dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:hover:bg-white/[0.08] cursor-pointer"
-            title="Click to view or top up credits"
+            onClick={() => {
+              const next = !mobileMenuOpen;
+              setMobileMenuOpen(next);
+              onExploreToggle?.(next);
+            }}
+            className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 cursor-pointer select-none active:scale-95 ${
+              mobileMenuOpen
+                ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-xs ring-2 ring-black/10 dark:ring-white/20'
+                : 'border border-black/10 bg-black/[0.04] text-zinc-900 hover:bg-black/[0.08] dark:border-white/10 dark:bg-white/[0.06] dark:text-[#f7f8f8] dark:hover:bg-white/[0.1]'
+            }`}
+            aria-expanded={mobileMenuOpen}
+            aria-label="Explore features & menu"
           >
-            <Zap className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-            <span>{credits}</span>
-          </button>
-
-          {/* Mobile Theme Toggle */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 bg-black/[0.03] text-zinc-600 transition hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.03] dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
-            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-          >
-            {theme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-300" /> : <Moon className="h-3.5 w-3.5 text-indigo-500" />}
-          </button>
-
-          {/* Mobile Tracker quick icon */}
-          {onOpenTracker && (
-            <button
-              type="button"
-              onClick={onOpenTracker}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 bg-black/[0.03] text-zinc-600 transition hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.03] dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
-              title="Job Tracker"
-            >
-              <Briefcase className="h-3.5 w-3.5" />
-            </button>
-          )}
-
-          {/* Mobile Saved quick icon */}
-          <button
-            type="button"
-            onClick={onOpenSaved}
-            className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 bg-black/[0.03] text-zinc-600 transition hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.03] dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
-            title="Saved Jobs"
-          >
-            <Bookmark className="h-3.5 w-3.5" />
+            <Compass
+              className={`h-3.5 w-3.5 transition-transform duration-300 ${
+                mobileMenuOpen ? 'rotate-90 text-amber-400 dark:text-amber-500' : 'text-zinc-700 dark:text-[#c9ccd1]'
+              }`}
+            />
+            <span>Explore</span>
             {savedCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-zinc-900 text-[9px] font-bold text-white px-0.5 dark:bg-white dark:text-black">
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-600 px-1 text-[9px] font-bold text-white ml-0.5">
                 {savedCount}
               </span>
             )}
           </button>
-
-          {/* Mobile Menu Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 bg-black/[0.04] text-zinc-900 transition dark:border-white/10 dark:bg-white/[0.05] dark:text-[#f7f8f8]"
-            aria-label="Toggle navigation menu"
-          >
-            {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-          </button>
         </div>
       </div>
 
-      {/* Mobile Drawer Menu */}
+      {/* Mobile Explore Drawer & Fullscreen Blurred Backdrop Overlay */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b border-black/10 bg-white/98 backdrop-blur-2xl px-4 py-4 space-y-3 animate-in slide-in-from-top-2 duration-200 dark:border-white/[0.08] dark:bg-[#0c0c0d]/98">
-          {/* User Info / Sign In */}
-          {isAuthenticated && user ? (
-            <div className="flex items-center justify-between rounded-xl border border-black/10 bg-zinc-50 p-3 dark:border-white/[0.08] dark:bg-white/[0.03]">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-black">
-                  {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+        <>
+          {/* Fullscreen Blurred Backdrop Overlay: blurs background and blocks all clicks */}
+          <div
+            className="fixed inset-0 top-14 z-40 bg-black/60 backdrop-blur-md md:hidden animate-in fade-in duration-200 pointer-events-auto cursor-pointer"
+            onClick={() => {
+              setMobileMenuOpen(false);
+              onExploreToggle?.(false);
+            }}
+            aria-hidden="true"
+          />
+
+          {/* Mobile Explore Drawer Panel */}
+          <div className="relative z-50 md:hidden border-b border-black/10 bg-white/98 backdrop-blur-2xl px-4 py-4 space-y-3.5 shadow-2xl animate-in slide-in-from-top-2 duration-200 max-h-[calc(100dvh-3.5rem)] overflow-y-auto dark:border-white/[0.08] dark:bg-[#0c0c0d]/98">
+            {/* User Info / Sign In */}
+            {isAuthenticated && user ? (
+              <div className="flex items-center justify-between rounded-2xl border border-black/10 bg-zinc-50 p-3 dark:border-white/[0.08] dark:bg-white/[0.03]">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white dark:bg-white dark:text-black">
+                    {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-zinc-900 dark:text-[#f7f8f8] truncate">
+                      {user.name || user.email || 'User'}
+                    </p>
+                    <p className="text-[10px] text-zinc-500 dark:text-[#8a8f98] truncate">{user.email}</p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-zinc-900 dark:text-[#f7f8f8] truncate">{user.name || user.email || 'User'}</p>
-                  <p className="text-[10px] text-zinc-500 dark:text-[#8a8f98] truncate">{user.email}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onExploreToggle?.(false);
+                    openCreditModal();
+                  }}
+                  className="flex items-center gap-1 rounded-xl border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-600 dark:text-amber-400 cursor-pointer active:scale-95 transition"
+                  title="Click to top up credits"
+                >
+                  <Zap className="h-3.5 w-3.5 fill-amber-500" />
+                  <span>{credits}</span>
+                  <Plus className="h-3 w-3 ml-0.5 opacity-70" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onExploreToggle?.(false);
+                  openAuthModal('login');
+                }}
+                className="w-full btn-light rounded-xl py-2.5 text-xs font-semibold text-center shadow-xs cursor-pointer"
+              >
+                Sign In or Create Account
+              </button>
+            )}
+
+            {/* FEATURED: Saved Jobs (Featured in Explore menu as requested) */}
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onExploreToggle?.(false);
+                onOpenSaved();
+              }}
+              className="flex w-full items-center justify-between rounded-2xl border border-indigo-200/90 bg-indigo-50/80 p-3.5 text-left transition hover:bg-indigo-100/70 active:scale-[0.99] dark:border-indigo-500/25 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/15 cursor-pointer shadow-xs"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
+                  <Bookmark className="h-5 w-5 fill-white/20" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-zinc-900 dark:text-[#f7f8f8]">Saved Jobs</span>
+                    {savedCount > 0 ? (
+                      <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[10px] font-bold text-white">
+                        {savedCount}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-medium text-zinc-500 dark:text-[#8a8f98]">0 saved</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-zinc-600 dark:text-[#8a8f98] mt-0.5">
+                    {savedCount > 0
+                      ? `View your ${savedCount} bookmarked ${savedCount === 1 ? 'role' : 'roles'} & pitches`
+                      : 'Bookmark roles to tailor pitch & track'}
+                  </p>
                 </div>
               </div>
+              <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Open &rarr;</span>
+            </button>
+
+            {/* Navigation Links Grid */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  openCreditModal();
+                  onExploreToggle?.(false);
+                  onViewChange(currentView === 'home' ? 'chat' : 'home');
                 }}
-                className="flex items-center gap-1 rounded-lg border border-black/10 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-900 dark:border-white/10 dark:bg-white/[0.06] dark:text-[#f7f8f8]"
+                className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06] cursor-pointer"
               >
-                <Zap className="h-3 w-3 text-amber-500" />
-                <span>{credits}</span>
+                <span>{currentView === 'home' ? '🔍 Search Jobs' : '🏠 Home Page'}</span>
               </button>
+
+              <Link
+                href="/pricing"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onExploreToggle?.(false);
+                }}
+                className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06] cursor-pointer"
+              >
+                <Zap className="h-3.5 w-3.5 text-amber-500" />
+                <span>Pricing & Plans</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onExploreToggle?.(false);
+                  onOpenResume();
+                }}
+                className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06] cursor-pointer"
+              >
+                <FileText className="h-3.5 w-3.5 text-zinc-500 dark:text-[#8a8f98]" />
+                <span>Resume Parser</span>
+              </button>
+
+              {onOpenTracker && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onExploreToggle?.(false);
+                    onOpenTracker();
+                  }}
+                  className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06] cursor-pointer"
+                >
+                  <Briefcase className="h-3.5 w-3.5 text-zinc-500 dark:text-[#8a8f98]" />
+                  <span>Job Tracker</span>
+                </button>
+              )}
+
+              {onOpenHistory && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onExploreToggle?.(false);
+                    onOpenHistory();
+                  }}
+                  className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06] cursor-pointer"
+                >
+                  <History className="h-3.5 w-3.5 text-zinc-500 dark:text-[#8a8f98]" />
+                  <span>History</span>
+                </button>
+              )}
+
+              {onOpenSettings && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onExploreToggle?.(false);
+                    onOpenSettings();
+                  }}
+                  className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06] cursor-pointer"
+                >
+                  <Settings className="h-3.5 w-3.5 text-zinc-500 dark:text-[#8a8f98]" />
+                  <span>Settings & Perks</span>
+                </button>
+              )}
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                openAuthModal('login');
-              }}
-              className="w-full btn-light rounded-xl py-2.5 text-xs font-semibold text-center shadow-xs"
-            >
-              Sign In or Create Account
-            </button>
-          )}
 
-          {/* Navigation Links Grid */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onViewChange(currentView === 'home' ? 'chat' : 'home');
-              }}
-              className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06]"
-            >
-              <span>{currentView === 'home' ? '🔍 Search Jobs' : '🏠 Home Page'}</span>
-            </button>
-
-            <Link
-              href="/pricing"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06]"
-            >
-              <Zap className="h-3.5 w-3.5 text-amber-500" />
-              <span>Pricing & Plans</span>
-            </Link>
-
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onOpenResume();
-              }}
-              className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06]"
-            >
-              <FileText className="h-3.5 w-3.5 text-zinc-500 dark:text-[#8a8f98]" />
-              <span>Resume Parser</span>
-            </button>
-
-            {onOpenTracker && (
+            {/* Theme Toggle & Sign Out */}
+            <div className="flex items-center justify-between border-t border-black/10 dark:border-white/[0.08] pt-3">
               <button
                 type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenTracker();
-                }}
-                className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06]"
+                onClick={toggleTheme}
+                className="flex items-center gap-2 text-xs font-semibold text-zinc-700 hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8] transition cursor-pointer"
               >
-                <Briefcase className="h-3.5 w-3.5 text-zinc-500 dark:text-[#8a8f98]" />
-                <span>Job Tracker</span>
+                {theme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-300" /> : <Moon className="h-3.5 w-3.5 text-indigo-500" />}
+                <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
               </button>
-            )}
 
-            {onOpenHistory && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenHistory();
-                }}
-                className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06]"
-              >
-                <History className="h-3.5 w-3.5 text-zinc-500 dark:text-[#8a8f98]" />
-                <span>History</span>
-              </button>
-            )}
-
-            {onOpenSettings && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  onOpenSettings();
-                }}
-                className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06]"
-              >
-                <Settings className="h-3.5 w-3.5 text-zinc-500 dark:text-[#8a8f98]" />
-                <span>Settings</span>
-              </button>
-            )}
+              {isAuthenticated && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onExploreToggle?.(false);
+                    logout();
+                  }}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition cursor-pointer"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span>Sign Out</span>
+                </button>
+              )}
+            </div>
           </div>
-
-          {/* Theme & Sign Out Row */}
-          <div className="flex items-center justify-between border-t border-black/10 dark:border-white/[0.08] pt-3">
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="flex items-center gap-2 text-xs font-semibold text-zinc-700 hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8] transition"
-            >
-              {theme === 'dark' ? <Sun className="h-3.5 w-3.5 text-amber-300" /> : <Moon className="h-3.5 w-3.5 text-indigo-500" />}
-              <span>{theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}</span>
-            </button>
-
-            {isAuthenticated && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  logout();
-                }}
-                className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                <span>Sign Out</span>
-              </button>
-            )}
-          </div>
-        </div>
+        </>
       )}
     </header>
   );
