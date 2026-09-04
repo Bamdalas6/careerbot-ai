@@ -23,7 +23,7 @@ import {
 import { JobListing } from '@/types/job';
 import { useAuth } from '@/context/AuthContext';
 import { CoverLetterTone, generateCoverLetter } from '@/lib/cover-letter-generator';
-import { generateColdDM, STORY_VIBES, StoryVibeId } from '@/lib/follow-up-generator';
+import { generateColdDM, STORY_VIBES, StoryVibeId, generateTailoredPitch } from '@/lib/follow-up-generator';
 
 /**
  * Cross-environment clipboard copy helper with legacy execCommand fallback
@@ -102,15 +102,12 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
   const [error, setError] = useState<string | null>(null);
   const [isShuffling, setIsShuffling] = useState(false);
 
-  // Pitch Data
+  // Pitch Data - immediately initialized with instant client-side generation
   const [pitchData, setPitchData] = useState<{
     pitch_bullets: string[];
     cover_note: string;
     interview_tips: string[];
   } | null>(null);
-
-  const lastFetchedIdRef = React.useRef<string | null>(null);
-  const currentJobKey = job ? `${job.id || ''}_${job.title}_${job.company}` : null;
 
   // Cover Letter Data & State
   const [selectedTone, setSelectedTone] = useState<CoverLetterTone>('story');
@@ -154,64 +151,59 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
     [job, user, selectedVibe]
   );
 
+  // Synchronize pitch data and cover letter immediately when job changes
   useEffect(() => {
-    if (!job || !currentJobKey) return;
-    if (lastFetchedIdRef.current === currentJobKey) return;
+    if (!job) {
+      setPitchData(null);
+      return;
+    }
 
+    // Instantly generate pitch data so user NEVER sees a blank screen or spinner
+    try {
+      const immediatePitch = generateTailoredPitch(job);
+      setPitchData(immediatePitch);
+    } catch {
+      // Fallback
+    }
+
+    // Initialize Cover Letter immediately
+    updateCoverLetter('story', candidateName || user?.name || '', hiringManager);
+
+    // Optional background sync with server for authenticated credit tracking
     let isMounted = true;
-    lastFetchedIdRef.current = currentJobKey;
-
-    async function fetchPitch() {
-      if (isMounted) {
-        setLoading(true);
-        setError(null);
-      }
-
+    async function syncServerPitch() {
       try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('careerbot_token') : null;
         const res = await fetch('/api/tailor', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({ job }),
         });
 
-        const data = await res.json();
         if (!isMounted) return;
-
-        if (res.status === 401) {
-          requireAuth();
-          onClose();
-          return;
-        }
-
-        if (res.status === 402 || data.error === 'INSUFFICIENT_CREDITS') {
-          setError(data.message || 'You need at least 2 credits to generate a tailored pitch.');
-          openCreditModal();
-          return;
-        }
-
-        if (data.success && data.data) {
-          setPitchData(data.data);
-          if (data.remainingCredits != null) {
-            updateCredits(data.remainingCredits);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.data) {
+            setPitchData(data.data);
+            if (data.remainingCredits != null) {
+              updateCredits(data.remainingCredits);
+            }
           }
-          // Initialize Cover Letter
-          updateCoverLetter('story', candidateName || user?.name || '', hiringManager);
-        } else {
-          setError(data.error || 'Failed to generate pitch details.');
         }
       } catch {
-        if (isMounted) setError('Network error while generating pitch.');
-      } finally {
-        if (isMounted) setLoading(false);
+        // Immediate local pitch works seamlessly
       }
     }
 
-    fetchPitch();
+    syncServerPitch();
 
     return () => {
       isMounted = false;
     };
-  }, [currentJobKey, job, requireAuth, openCreditModal, updateCredits, updateCoverLetter, onClose, candidateName, user?.name, hiringManager]);
+  }, [job?.id, job?.title, job?.company]);
 
   // Escape key handler to close modal
   useEffect(() => {
@@ -224,14 +216,22 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // Lock background body scroll while modal is open
+  // Lock background body scroll ONLY while modal is actually open (job is non-null)
   useEffect(() => {
+    if (!job) {
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = '';
+      }
+      return;
+    }
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = originalOverflow;
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = originalOverflow || '';
+      }
     };
-  }, []);
+  }, [job]);
 
   if (!job) return null;
 
@@ -418,12 +418,7 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
         </div>
 
         {/* Modal Header */}
-        <div
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          className="flex items-center justify-between border-b border-black/10 dark:border-white/[0.08] px-4 sm:px-6 py-3.5 bg-zinc-50/90 dark:bg-white/[0.02] shrink-0 select-none touch-none cursor-grab active:cursor-grabbing sm:cursor-default"
-        >
+        <div className="flex items-center justify-between border-b border-black/10 dark:border-white/[0.08] px-4 sm:px-6 py-3.5 bg-zinc-50/90 dark:bg-white/[0.02] shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-500/20 shadow-xs">
               <Sparkles className="h-5 w-5" />

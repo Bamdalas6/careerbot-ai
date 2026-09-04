@@ -129,6 +129,15 @@ export default function Home() {
     };
   }, [user]);
 
+  // Ensure background body scroll is never locked when all modals are closed
+  useEffect(() => {
+    if (!activeTailorJob && !isResumeOpen && !isSavedOpen && !isFiltersOpen && !isHistoryOpen && !isSettingsOpen && !isTrackerOpen) {
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = '';
+      }
+    }
+  }, [activeTailorJob, isResumeOpen, isSavedOpen, isFiltersOpen, isHistoryOpen, isSettingsOpen, isTrackerOpen]);
+
   // Global keyboard shortcut: ⌘K / Ctrl+K jumps into the chat search from anywhere
   useEffect(() => {
     if (currentView === 'home') return;
@@ -390,7 +399,7 @@ export default function Home() {
             savedJobs={savedJobs}
             onToggleSave={handleToggleSave}
             onOpenTailor={(job) => {
-              if (requireAuth()) setActiveTailorJob(job);
+              setActiveTailorJob(job);
             }}
           />
         </main>

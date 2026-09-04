@@ -1,3 +1,5 @@
+import { JobListing } from '@/types/job';
+
 export interface FollowUpEmailParams {
   userName: string;
   jobTitle: string;
@@ -758,5 +760,31 @@ Please let me know if you need any follow-up information or work samples from my
 Warm regards,
 
 ${params.userName}`,
+  };
+}
+
+/**
+ * Generates tailored cover notes & key talking points for a specific job across any profession,
+ * with an authentic, story-driven, mission-aligned tone.
+ */
+export function generateTailoredPitch(
+  job: JobListing,
+  userSkills: string[] = ['Problem Solving', 'Execution']
+) {
+  const topSkills = job.tags.slice(0, 3).join(', ') || userSkills.slice(0, 3).join(', ');
+  const arc = getDomainStoryArc(job.title, job.company);
+
+  return {
+    pitch_bullets: [
+      `Formative connection to the problem space: ${arc.origin.slice(0, 140)}...`,
+      `Deep practical craftsmanship in ${topSkills || 'relevant methodologies'}, built on ownership and measurable outcomes.`,
+      `Genuine mission alignment with ${job.company}: eager to tackle high-stakes challenges as your next ${job.title}.`,
+    ],
+    cover_note: `Hi ${job.company} Team,\n\n${arc.origin}\n\nOver the past several years, I have specialized in ${topSkills}, taking full ownership of complex projects and building systems engineered for real-world impact. ${arc.philosophy}\n\n${arc.click(job.company, job.title)}\n\nIf you're still looking for someone who can step in and take full ownership, I'd love to explore how I could contribute.\n\nWarm Regards,`,
+    interview_tips: [
+      `Anchor your answers in a real origin story: share the specific moment or problem that made you passionate about ${job.tags[0] || job.title}.`,
+      `Prepare 2 concrete examples demonstrating deep ownership, resilience under pressure, and how you delivered measurable business results.`,
+      `Research ${job.company}'s core mission and be ready to articulate why their specific product and challenges matter deeply to you.`,
+    ],
   };
 }
