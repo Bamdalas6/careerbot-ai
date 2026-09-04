@@ -4,6 +4,10 @@ import crypto from 'crypto';
 import type { SavedJob, ApplicationEvent, JobListing } from '@/types/job';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { isCompanyExcluded, isJobicyExcluded } from './ats-boards';
+import { signSessionToken, verifySessionToken, type SessionTokenPayload } from './auth';
+
+export { signSessionToken, verifySessionToken };
+export type { SessionTokenPayload };
 
 export interface ApplicationRecord {
   id: string;
@@ -830,10 +834,33 @@ export async function updateUserCredits(
 
 // ================= SESSION OPERATIONS ================= //
 
-export async function createSession(userId: string, durationDays = 30): Promise<SessionRecord> {
+export async function createSession(userId: string, durationDays = 30, email?: string): Promise<SessionRecord> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
-  const token = crypto.randomBytes(32).toString('hex');
+  const exp = Math.floor(expiresAt.getTime() / 1000);
+
+  let userEmail = email;
+  let userName = '';
+  let userCredits = 25;
+  let userRefCode: string | undefined;
+
+  const user = await getUserById(userId);
+  if (user) {
+    userEmail = user.email || userEmail;
+    userName = user.name;
+    userCredits = user.credits;
+    userRefCode = user.referral_code;
+  }
+
+  // Generate HMAC-signed stateless session token
+  const token = signSessionToken({
+    userId,
+    email: userEmail || '',
+    exp,
+    name: userName,
+    credits: userCredits,
+    referral_code: userRefCode,
+  });
 
   const session: SessionRecord = {
     id: `sess_${crypto.randomUUID()}`,
@@ -859,6 +886,72 @@ export async function createSession(userId: string, durationDays = 30): Promise<
 }
 
 export async function getSessionByToken(token: string): Promise<{ session: SessionRecord; user: UserRecord } | null> {
+  if (!token) return null;
+
+  // 1. Stateless HMAC token verification (resilient against Vercel serverless cold starts)
+  const payload = verifySessionToken(token);
+  if (payload) {
+    const expMs = payload.exp > 1e11 ? payload.exp : payload.exp * 1000;
+    let expiresAtIso: string;
+    try {
+      expiresAtIso = new Date(expMs).toISOString();
+    } catch {
+      expiresAtIso = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    // Look up fresh user from Supabase or local db
+    let user = await getUserById(payload.userId);
+    if (!user && payload.email) {
+      const byEmail = await getUserByEmail(payload.email);
+      if (byEmail && byEmail.id === payload.userId) {
+        user = byEmail;
+      }
+    }
+
+    // Resilient serverless fallback: If local .data/db.json was wiped or this is a fresh lambda instance
+    if (!user) {
+      const fallbackCredits =
+        typeof payload.credits === 'number' && Number.isFinite(payload.credits) ? payload.credits : 25;
+
+      user = {
+        id: payload.userId,
+        name: payload.name || (payload.email ? payload.email.split('@')[0] : 'User'),
+        email: payload.email || '',
+        password_hash: '',
+        salt: '',
+        credits: fallbackCredits,
+        referral_code: payload.referral_code,
+        referral_count: 0,
+        referral_earnings: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      // Populate local database memory so subsequent queries in this invocation succeed
+      try {
+        const db = ensureLocalDb();
+        const existingIdx = db.users.findIndex((u) => u.id === user!.id);
+        if (existingIdx === -1) {
+          db.users.push(user);
+          writeLocalDb(db);
+        }
+      } catch {
+        /* ignore file system errors in read-only lambda */
+      }
+    }
+
+    const session: SessionRecord = {
+      id: `sess_${payload.userId}`,
+      user_id: payload.userId,
+      token,
+      expires_at: expiresAtIso,
+      created_at: new Date().toISOString(),
+    };
+
+    return { session, user };
+  }
+
+  // 2. Fallback: Database lookup for legacy random-hex tokens
   if (isSupabaseConfigured && supabase) {
     try {
       const { data: sessionData, error: sessionErr } = await supabase

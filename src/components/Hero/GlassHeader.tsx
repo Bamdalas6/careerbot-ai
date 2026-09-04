@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import {
   Bookmark,
   FileText,
@@ -101,13 +102,13 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
 
           <nav className="hidden items-center gap-1 md:flex">
             {NAV_LINKS.map((link) => (
-              <a
+              <Link
                 key={link.href}
                 href={link.href}
                 className="rounded-md px-2.5 py-1.5 text-[13px] text-zinc-600 transition hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
           </nav>
         </div>
@@ -209,10 +210,10 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
                 className="flex items-center gap-1.5 rounded-full border border-black/10 bg-black/[0.03] p-1 pr-2 transition hover:bg-black/[0.06] dark:border-white/10 dark:bg-white/[0.05] dark:hover:bg-white/[0.1]"
               >
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-900 text-[11px] font-bold text-white dark:bg-white dark:text-black">
-                  {user.name.charAt(0).toUpperCase()}
+                  {(user.name || user.email || 'U').charAt(0).toUpperCase()}
                 </div>
                 <span className="max-w-[100px] truncate text-xs font-semibold text-zinc-900 dark:text-[#f7f8f8]">
-                  {user.name.split(' ')[0]}
+                  {(user.name || user.email || 'User').split(' ')[0]}
                 </span>
                 <ChevronDown className="h-3 w-3 text-zinc-500 dark:text-[#8a8f98]" />
               </button>
@@ -220,7 +221,9 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
               {profileOpen && (
                 <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-zinc-200 bg-white p-2 shadow-2xl backdrop-blur-xl animate-in fade-in duration-150 dark:border-white/[0.1] dark:bg-[#0c0c0c]">
                   <div className="border-b border-zinc-100 px-3 py-2.5 dark:border-white/[0.08]">
-                    <p className="truncate text-xs font-semibold text-zinc-900 dark:text-[#f7f8f8]">{user.name}</p>
+                    <p className="truncate text-xs font-semibold text-zinc-900 dark:text-[#f7f8f8]">
+                      {user.name || user.email || 'User'}
+                    </p>
                     <p className="truncate text-[11px] text-zinc-500 dark:text-[#8a8f98]">{user.email}</p>
                     <div className="mt-2 flex items-center justify-between rounded-lg bg-zinc-50 p-1.5 px-2 dark:bg-white/[0.04]">
                       <span className="text-[11px] font-medium text-zinc-500 dark:text-[#8a8f98]">Balance</span>
@@ -454,14 +457,14 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
               <span>{currentView === 'home' ? '🔍 Search Jobs' : '🏠 Home Page'}</span>
             </button>
 
-            <a
+            <Link
               href="/pricing"
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center gap-2 rounded-xl border border-black/10 bg-zinc-50 p-2.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 transition dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:hover:bg-white/[0.06]"
             >
               <Zap className="h-3.5 w-3.5 text-amber-500" />
               <span>Pricing & Plans</span>
-            </a>
+            </Link>
 
             <button
               type="button"

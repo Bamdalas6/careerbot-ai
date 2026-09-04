@@ -62,7 +62,7 @@ export default function PrivacyPage() {
           <section className="rounded-2xl border border-black/10 bg-white p-6 dark:border-white/10 dark:bg-zinc-900/50 shadow-xs">
             <h2 className="text-base font-bold text-zinc-900 dark:text-white mb-2">4. Data Retention & Deletion</h2>
             <p>
-              You maintain full ownership of your data. You may edit your profile information or request complete deletion of your account and stored resume data at any time by emailing <a href="mailto:hello@bamdalas.com" className="underline text-zinc-900 dark:text-white font-medium">hello@bamdalas.com</a>.
+              You maintain full ownership of your data. You may edit your profile information or request complete deletion of your account and stored resume data at any time by emailing <a href="mailto:support@bamdalas.com" className="underline text-zinc-900 dark:text-white font-medium">support@bamdalas.com</a>.
             </p>
           </section>
 
@@ -71,9 +71,9 @@ export default function PrivacyPage() {
             <p>
               For privacy-related questions or data subject requests, please contact:
               <br />
-              <strong>Babalola Ayodele Mathew / Bamdalas</strong>
+              <strong>CareerBot AI (Bamdalas)</strong>
               <br />
-              Email: <a href="mailto:hello@bamdalas.com" className="underline font-medium">hello@bamdalas.com</a>
+              Email: <a href="mailto:support@bamdalas.com" className="underline font-medium">support@bamdalas.com</a>
               <br />
               Lagos, Nigeria
             </p>

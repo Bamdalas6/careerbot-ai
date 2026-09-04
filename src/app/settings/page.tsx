@@ -362,7 +362,7 @@ export default function SettingsPage() {
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="e.g. babalola"
+                    placeholder="e.g. alexsmith"
                     className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-zinc-600 focus:border-white focus:outline-none"
                   />
                 </div>

@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     const user = await getUserByEmail(email);
     let sessionToken = '';
     if (user) {
-      const session = await createSession(user.id);
+      const session = await createSession(user.id, 30, user.email);
       sessionToken = session.token;
     }
 

@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const session = await createSession(user.id);
+    const session = await createSession(user.id, 30, user.email);
     const safeUser = sanitizeUser(user);
 
     const response = NextResponse.json({

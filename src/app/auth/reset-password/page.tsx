@@ -107,6 +107,12 @@ function ResetPasswordForm() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || 'Failed to reset password.');
+      if (data.user && typeof window !== 'undefined') {
+        localStorage.setItem('careerbot_user', JSON.stringify(data.user));
+        if (data.token) {
+          localStorage.setItem('careerbot_token', data.token);
+        }
+      }
       setSuccess(true);
       // Auto-redirect directly to dashboard/home after 2 seconds
       setTimeout(() => {

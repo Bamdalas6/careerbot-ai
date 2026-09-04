@@ -5,6 +5,91 @@ import { getSessionByToken, UserRecord, SessionRecord } from './db';
 const SESSION_COOKIE_NAME = 'career_bot_session';
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
+export interface SessionTokenPayload {
+  userId: string;
+  email: string;
+  exp: number;
+  name?: string;
+  credits?: number;
+  referral_code?: string;
+}
+
+const SESSION_SECRET =
+  process.env.JWT_SECRET ||
+  process.env.SESSION_SECRET ||
+  'careerbot_ai_stateless_session_hmac_secret_key_2026';
+
+/**
+ * Creates an HMAC-signed stateless session token (payload = { userId, email, exp }).
+ */
+export function signSessionToken(payload: SessionTokenPayload): string {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const data = `${encodedHeader}.${encodedPayload}`;
+  const signature = crypto
+    .createHmac('sha256', SESSION_SECRET)
+    .update(data)
+    .digest('base64url');
+  return `${data}.${signature}`;
+}
+
+export const generateSessionToken = signSessionToken;
+
+/**
+ * Verifies an HMAC-signed session token.
+ * Returns decoded SessionTokenPayload if signature is valid and unexpired; otherwise null.
+ */
+export function verifySessionToken(token: string): SessionTokenPayload | null {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+
+  const [encodedHeader, encodedPayload, signature] = parts;
+  const data = `${encodedHeader}.${encodedPayload}`;
+
+  const expectedSignature = crypto
+    .createHmac('sha256', SESSION_SECRET)
+    .update(data)
+    .digest('base64url');
+
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expectedSignature);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    return null;
+  }
+
+  try {
+    const header = JSON.parse(Buffer.from(encodedHeader, 'base64url').toString('utf-8'));
+    if (!header || header.alg !== 'HS256') {
+      return null;
+    }
+
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf-8')) as SessionTokenPayload;
+    if (
+      !payload ||
+      typeof payload !== 'object' ||
+      typeof payload.userId !== 'string' ||
+      !payload.userId.trim() ||
+      typeof payload.exp !== 'number' ||
+      !Number.isFinite(payload.exp) ||
+      payload.exp <= 0
+    ) {
+      return null;
+    }
+
+    const now = Date.now();
+    const expMs = payload.exp > 1e11 ? payload.exp : payload.exp * 1000;
+    if (!Number.isFinite(expMs) || expMs < now) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Hashes a plaintext password using crypto.pbkdf2Sync.
  */
@@ -32,18 +117,22 @@ export function verifyPassword(password: string, hash: string, salt: string): bo
 
 /**
  * Extracts session token from Cookie or Authorization header.
+ * Supports case-insensitive Bearer scheme (RFC 6750 / RFC 7235) and guards against null/undefined strings.
  */
 export function extractTokenFromRequest(req: NextRequest): string | null {
-  // 1. Check Authorization Bearer header
+  // 1. Check Authorization Bearer header (case-insensitive per RFC 6750 / RFC 7235)
   const authHeader = req.headers.get('authorization');
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.substring(7).trim();
+  if (authHeader) {
+    const match = authHeader.match(/^Bearer\s+(\S+)/i);
+    if (match && match[1] && match[1] !== 'undefined' && match[1] !== 'null') {
+      return match[1].trim();
+    }
   }
 
   // 2. Check HTTP cookie
   const cookie = req.cookies.get(SESSION_COOKIE_NAME);
-  if (cookie?.value) {
-    return cookie.value;
+  if (cookie?.value && cookie.value !== 'undefined' && cookie.value !== 'null') {
+    return cookie.value.trim();
   }
 
   return null;

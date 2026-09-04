@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 
 interface SiteFooterProps {
   onStartSearch: () => void;
@@ -39,7 +40,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
         { label: 'Terms of Service', href: '/terms' },
         { label: 'Privacy Policy', href: '/privacy' },
         { label: 'Merchant Agreement Info', href: '/pricing#policy' },
-        { label: 'Contact & Support', href: 'mailto:hello@bamdalas.com' },
+        { label: 'Contact & Support', href: 'mailto:support@bamdalas.com' },
       ],
     },
     {
@@ -86,16 +87,23 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
                       >
                         {link.label}
                       </button>
-                    ) : (
+                    ) : link.href && (link.href.startsWith('http') || link.href.startsWith('mailto:')) ? (
                       <a
                         href={link.href}
-                        {...(link.href?.startsWith('http')
+                        {...(link.href.startsWith('http')
                           ? { target: '_blank', rel: 'noreferrer noopener' }
                           : {})}
                         className="text-[13px] text-zinc-600 transition hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
                       >
                         {link.label}
                       </a>
+                    ) : (
+                      <Link
+                        href={link.href || '#'}
+                        className="text-[13px] text-zinc-600 transition hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
+                      >
+                        {link.label}
+                      </Link>
                     )}
                   </li>
                 ))}

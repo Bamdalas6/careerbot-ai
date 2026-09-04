@@ -16,13 +16,14 @@ import {
   Mail, 
   Globe, 
   ChevronRight,
-  Gift
+  Gift,
+  Plus
 } from 'lucide-react';
 import { CREDIT_PACKAGES, CREDIT_RATES } from '@/types/credits';
 import { useAuth } from '@/context/AuthContext';
 
 export default function PricingPage() {
-  const { user, openCreditModal, openAuthModal } = useAuth();
+  const { user, credits, openCreditModal, openAuthModal } = useAuth();
   const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
 
   const handlePurchase = (packageId: string) => {
@@ -78,12 +79,29 @@ export default function PricingPage() {
             </div>
 
             {user ? (
-              <Link
-                href="/settings"
-                className="rounded-xl border border-black/10 bg-white px-3.5 py-1.5 text-xs font-semibold hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-              >
-                Account
-              </Link>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={openCreditModal}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-900 transition hover:bg-zinc-200 dark:border-white/10 dark:bg-zinc-900 dark:text-white dark:hover:bg-zinc-800"
+                  title="Your active credits balance. Click to top up."
+                >
+                  <Zap className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                  <span>{credits}</span>
+                  <span className="text-[10px] text-zinc-500 dark:text-zinc-400">credits</span>
+                  <Plus className="h-3 w-3 text-zinc-400 dark:text-zinc-500 ml-0.5" />
+                </button>
+                <Link
+                  href="/settings"
+                  className="flex items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                  title="Account Settings"
+                >
+                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-900 text-[10px] font-bold text-white dark:bg-white dark:text-black">
+                    {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <span className="max-w-[90px] truncate">{(user.name || user.email || 'User').split(' ')[0]}</span>
+                </Link>
+              </div>
             ) : (
               <button
                 type="button"
@@ -104,6 +122,22 @@ export default function PricingPage() {
             <Sparkles className="h-3.5 w-3.5 text-amber-500" />
             <span>Transparent, Pay-As-You-Go Career Credits</span>
           </div>
+          {user && (
+            <div className="mb-6 flex items-center justify-center">
+              <div className="inline-flex items-center gap-2.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-800 dark:text-emerald-300">
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Active Session: <strong>{user.name || user.email || 'User'}</strong> ({user.email || 'authenticated'})</span>
+                <span className="text-emerald-500/60">•</span>
+                <button
+                  type="button"
+                  onClick={openCreditModal}
+                  className="font-bold underline hover:opacity-80"
+                >
+                  {credits} Credits Available
+                </button>
+              </div>
+            </div>
+          )}
           <h1 className="text-3xl sm:text-5xl font-black tracking-tight mb-4">
             Simple, Accessible Pricing.
             <br />
@@ -300,7 +334,7 @@ export default function PricingPage() {
                 1. Product & Service Description
               </h3>
               <p>
-                CareerBot AI (operated by Babalola Ayodele Mathew / Bamdalas) is an artificial intelligence-driven career discovery and application enablement software. Our services include live job crawling and indexing, algorithmic ATS resume scoring, AI-powered CV rebuilds, and personalized recruiter outreach generators.
+                CareerBot AI (operated by Bamdalas) is an artificial intelligence-driven career discovery and application enablement software. Our services include live job crawling and indexing, algorithmic ATS resume scoring, AI-powered CV rebuilds, and personalized recruiter outreach generators.
               </p>
             </div>
 
@@ -336,7 +370,7 @@ export default function PricingPage() {
                 5. Refund & Dispute Policy
               </h3>
               <p>
-                We stand by the quality of CareerBot AI. If you are not satisfied with your purchase, you are eligible for a <strong>100% money-back refund on any unused credit balance within 7 days of purchase</strong>. To request a refund, email our support team at <a href="mailto:hello@bamdalas.com" className="text-zinc-900 underline dark:text-white font-medium">hello@bamdalas.com</a> with your registered email and transaction reference. Approved refunds are processed back to your original payment method via Paystack within 3 to 5 business days.
+                We stand by the quality of CareerBot AI. If you are not satisfied with your purchase, you are eligible for a <strong>100% money-back refund on any unused credit balance within 7 days of purchase</strong>. To request a refund, email our support team at <a href="mailto:support@bamdalas.com" className="text-zinc-900 underline dark:text-white font-medium">support@bamdalas.com</a> with your registered email and transaction reference. Approved refunds are processed back to your original payment method via Paystack within 3 to 5 business days.
               </p>
             </div>
 
@@ -345,8 +379,8 @@ export default function PricingPage() {
                 6. Customer Support & Merchant Information
               </h3>
               <div className="rounded-2xl border border-black/5 bg-zinc-50 p-4 dark:border-white/5 dark:bg-zinc-800/40 mt-2 space-y-1">
-                <p className="font-semibold text-zinc-900 dark:text-white">Babalola Ayodele Mathew (Bamdalas)</p>
-                <p>Official Merchant Contact: <a href="mailto:hello@bamdalas.com" className="underline font-medium">hello@bamdalas.com</a></p>
+                <p className="font-semibold text-zinc-900 dark:text-white">CareerBot AI (Bamdalas)</p>
+                <p>Official Merchant Contact: <a href="mailto:support@bamdalas.com" className="underline font-medium">support@bamdalas.com</a></p>
                 <p>Website: <a href="https://careerbot-ai-seven.vercel.app" className="underline font-medium">https://careerbot-ai-seven.vercel.app</a></p>
                 <p>Location: Lagos, Nigeria</p>
                 <p>Customer Support Hours: Monday – Saturday, 8:00 AM – 8:00 PM (WAT)</p>
@@ -401,7 +435,7 @@ export default function PricingPage() {
             <Link href="/pricing" className="hover:text-zinc-900 dark:hover:text-white">Pricing Policy</Link>
             <Link href="/terms" className="hover:text-zinc-900 dark:hover:text-white">Terms of Service</Link>
             <Link href="/privacy" className="hover:text-zinc-900 dark:hover:text-white">Privacy Policy</Link>
-            <a href="mailto:hello@bamdalas.com" className="hover:text-zinc-900 dark:hover:text-white">Contact Support</a>
+            <a href="mailto:support@bamdalas.com" className="hover:text-zinc-900 dark:hover:text-white">Contact Support</a>
           </div>
         </div>
       </footer>

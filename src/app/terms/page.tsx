@@ -41,7 +41,7 @@ export default function TermsPage() {
           <section className="rounded-2xl border border-black/10 bg-white p-6 dark:border-white/10 dark:bg-zinc-900/50 shadow-xs">
             <h2 className="text-base font-bold text-zinc-900 dark:text-white mb-2">1. Agreement to Terms</h2>
             <p>
-              By accessing or using CareerBot AI (&quot;the Service&quot;), operated by Babalola Ayodele Mathew (&quot;Bamdalas&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our services.
+              By accessing or using CareerBot AI (&quot;the Service&quot;), operated by Bamdalas (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our services.
             </p>
           </section>
 
@@ -69,7 +69,7 @@ export default function TermsPage() {
           <section className="rounded-2xl border border-black/10 bg-white p-6 dark:border-white/10 dark:bg-zinc-900/50 shadow-xs">
             <h2 className="text-base font-bold text-zinc-900 dark:text-white mb-2">5. Refund & Cancellation Policy</h2>
             <p>
-              We provide a <strong>7-day money-back guarantee</strong> on any unused purchased credits. If you are dissatisfied with the service or encounter technical issues, contact <a href="mailto:hello@bamdalas.com" className="underline text-zinc-900 dark:text-white font-medium">hello@bamdalas.com</a> within 7 calendar days of your transaction. Approved refunds will be credited back via Paystack to your original payment card or bank account within 3 to 5 business days.
+              We provide a <strong>7-day money-back guarantee</strong> on any unused purchased credits. If you are dissatisfied with the service or encounter technical issues, contact <a href="mailto:support@bamdalas.com" className="underline text-zinc-900 dark:text-white font-medium">support@bamdalas.com</a> within 7 calendar days of your transaction. Approved refunds will be credited back via Paystack to your original payment card or bank account within 3 to 5 business days.
             </p>
           </section>
 
@@ -92,9 +92,9 @@ export default function TermsPage() {
             <p>
               If you have any questions regarding these Terms or need assistance, contact:
               <br />
-              <strong>Babalola Ayodele Mathew / Bamdalas</strong>
+              <strong>CareerBot AI (Bamdalas)</strong>
               <br />
-              Email: <a href="mailto:hello@bamdalas.com" className="underline font-medium">hello@bamdalas.com</a>
+              Email: <a href="mailto:support@bamdalas.com" className="underline font-medium">support@bamdalas.com</a>
               <br />
               Lagos, Nigeria
             </p>
