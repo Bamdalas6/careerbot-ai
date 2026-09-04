@@ -4,6 +4,13 @@ import { JobListing } from '@/types/job';
 import { authenticateRequest } from '@/lib/auth';
 import { deductUserCredits } from '@/lib/credits';
 
+export async function GET() {
+  return NextResponse.json({
+    success: true,
+    message: 'CareerBot Tailor Pitch API endpoint is operational.',
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const auth = await authenticateRequest(req);

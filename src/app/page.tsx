@@ -229,6 +229,11 @@ export default function Home() {
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
+    if (!user) {
+      requireAuth();
+      return;
+    }
+
     // Switch to chat view if not already there
     setCurrentView('chat');
 

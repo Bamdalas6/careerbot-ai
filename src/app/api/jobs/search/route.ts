@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchJobs } from '@/lib/job-providers';
+import { authenticateRequest } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await authenticateRequest(req);
+    if (!auth) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required. Please log in or create an account.' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q') || '';
     const isRemote = searchParams.get('remote') === 'true' ? true : searchParams.get('remote') === 'false' ? false : undefined;

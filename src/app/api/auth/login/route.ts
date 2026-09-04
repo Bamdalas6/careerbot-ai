@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserByEmail, createSession, createUser, updateUserPasswordByEmail } from '@/lib/db';
+import { getUserByEmail, createSession, createUser, updateUserPasswordByEmail, getActualUserCredits } from '@/lib/db';
 import { verifyPassword, setSessionCookie, sanitizeUser, hashPassword } from '@/lib/auth';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
@@ -35,12 +35,13 @@ export async function POST(req: NextRequest) {
 
           if (!user) {
             const meta = sbAuth.user.user_metadata || {};
+            const initialCredits = await getActualUserCredits(sbAuth.user.id, normalizedEmail);
             user = await createUser({
               name: meta.name || 'User',
               email: normalizedEmail,
               password_hash: hash,
               salt,
-              initialCredits: meta.credits ?? 25,
+              initialCredits,
             });
           } else {
             // Update local password hash so future logins are verified directly
@@ -57,6 +58,10 @@ export async function POST(req: NextRequest) {
     if (!user || !isValid) {
       return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
     }
+
+    // Maintain and display the user's actual saved credit balance from database/ledger upon login
+    const actualCredits = await getActualUserCredits(user.id, user.email);
+    user.credits = actualCredits;
 
     const session = await createSession(user.id, 30, user.email);
     const safeUser = sanitizeUser(user);

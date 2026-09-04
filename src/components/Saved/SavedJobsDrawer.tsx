@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { X, Bookmark, ExternalLink, Trash2, MapPin, DollarSign, ArrowRight, Briefcase, Sparkles } from 'lucide-react';
 import { SavedJob, JobListing } from '@/types/job';
 
@@ -23,6 +24,7 @@ export const SavedJobsDrawer: React.FC<SavedJobsDrawerProps> = ({
   onOpenTracker,
   onOpenTailor,
 }) => {
+  const router = useRouter();
   if (!isOpen) return null;
 
   return (
@@ -114,20 +116,24 @@ export const SavedJobsDrawer: React.FC<SavedJobsDrawerProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2.5">
-                    {onOpenTailor && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          localStorage.setItem('career_bot_active_tailor_job', JSON.stringify(job));
+                        } catch {}
+                        onClose();
+                        if (onOpenTailor) {
                           onOpenTailor(job);
-                        }}
-                        className="flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition cursor-pointer"
-                        title="Tailor pitch for this role"
-                      >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        <span>Tailor Pitch</span>
-                      </button>
-                    )}
+                        }
+                        router.push(`/tailor?id=${encodeURIComponent(job.id)}`);
+                      }}
+                      className="flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition cursor-pointer"
+                      title="Tailor pitch for this role"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>Tailor Pitch</span>
+                    </button>
                     <a
                       href={job.apply_url}
                       target="_blank"

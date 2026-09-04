@@ -217,14 +217,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setCredits(0);
         }
+      } else if (e.key === 'careerbot_credits' && e.newValue) {
+        const num = Number(e.newValue);
+        if (Number.isFinite(num) && num >= 0) {
+          setCredits(num);
+          setUser((prev) => (prev ? { ...prev, credits: num } : null));
+        }
       } else if (e.key === 'careerbot_token' && !e.newValue) {
         // Session token was cleared in another tab (logout)
         setUser(null);
         setCredits(0);
       }
     };
+
+    // Same-window cross-component synchronization
+    const handleCreditSync = (e: Event) => {
+      const custom = e as CustomEvent<number>;
+      if (typeof custom.detail === 'number' && Number.isFinite(custom.detail) && custom.detail >= 0) {
+        setCredits(custom.detail);
+        setUser((prev) => (prev ? { ...prev, credits: custom.detail } : null));
+      }
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', handleStorageChange);
+      window.addEventListener('careerbot_credit_sync', handleCreditSync);
     }
 
     // Listen for Supabase password recovery events from email links
@@ -244,6 +261,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isMounted = false;
           if (typeof window !== 'undefined') {
             window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('careerbot_credit_sync', handleCreditSync);
           }
           authListener?.subscription?.unsubscribe();
         };
@@ -282,6 +300,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isMounted = false;
       if (typeof window !== 'undefined') {
         window.removeEventListener('storage', handleStorageChange);
+        window.removeEventListener('careerbot_credit_sync', handleCreditSync);
       }
     };
   }, []);
@@ -315,9 +334,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const updated = { ...prev, credits: safeAmount };
       if (typeof window !== 'undefined') {
         localStorage.setItem('careerbot_user', JSON.stringify(updated));
+        localStorage.setItem('careerbot_credits', String(safeAmount));
       }
       return updated;
     });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('careerbot_credit_sync', { detail: safeAmount }));
+    }
   }, []);
 
   const updateProfile = useCallback((updatedData: { name?: string; username?: string }) => {
@@ -348,10 +371,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, error: data.error || 'Failed to sign in' };
       }
 
+      const resolvedCredits =
+        typeof data.user?.credits === 'number' && Number.isFinite(data.user.credits) && data.user.credits >= 0
+          ? data.user.credits
+          : 0;
+
       setUser(data.user);
-      setCredits(data.user.credits ?? 0);
+      setCredits(resolvedCredits);
       if (typeof window !== 'undefined') {
         localStorage.setItem('careerbot_user', JSON.stringify(data.user));
+        localStorage.setItem('careerbot_credits', String(resolvedCredits));
+        window.dispatchEvent(new CustomEvent('careerbot_credit_sync', { detail: resolvedCredits }));
         if (data.token) {
           localStorage.setItem('careerbot_token', data.token);
         }

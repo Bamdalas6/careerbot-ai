@@ -336,8 +336,13 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => onViewChange('home')}
-                className="glass-chip ml-0.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 dark:text-[#f7f8f8]"
+                onClick={() => {
+                  if (typeof window !== 'undefined' && window.history.length > 1) {
+                    window.history.back();
+                  }
+                  onViewChange('home');
+                }}
+                className="glass-chip ml-0.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 dark:text-[#f7f8f8] cursor-pointer"
               >
                 Back
               </button>
@@ -355,6 +360,17 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
 
         {/* Mobile Header Quick Actions */}
         <div className="flex md:hidden items-center gap-1.5">
+          {/* Mobile Credits Counter Badge (always visible & synchronized) */}
+          <button
+            type="button"
+            onClick={openCreditModal}
+            className="flex h-8 items-center gap-1 rounded-lg border border-black/10 bg-black/[0.03] px-2 text-xs font-semibold text-zinc-900 transition hover:bg-black/[0.06] dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:hover:bg-white/[0.08] cursor-pointer"
+            title="Click to view or top up credits"
+          >
+            <Zap className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+            <span>{credits}</span>
+          </button>
+
           {/* Mobile Theme Toggle */}
           <button
             type="button"

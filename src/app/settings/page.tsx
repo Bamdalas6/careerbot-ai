@@ -32,6 +32,14 @@ export default function SettingsPage() {
   const router = useRouter();
   const { user, credits, isLoading, isAuthenticated, updateProfile } = useAuth();
 
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'referrals'>('profile');
 
   // Profile section states
@@ -115,13 +123,14 @@ export default function SettingsPage() {
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 max-w-sm">
           Please log in to your account to view and update your profile settings.
         </p>
-        <Link
-          href="/"
-          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-zinc-900 dark:bg-white px-5 py-2.5 text-xs font-bold text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 transition"
+        <button
+          type="button"
+          onClick={handleBack}
+          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-zinc-900 dark:bg-white px-5 py-2.5 text-xs font-bold text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 transition cursor-pointer"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span>Return Home</span>
-        </Link>
+          <span>Back</span>
+        </button>
       </div>
     );
   }
@@ -239,13 +248,14 @@ export default function SettingsPage() {
       <div className="max-w-3xl mx-auto">
         {/* Navigation Bar */}
         <div className="flex items-center justify-between border-b border-zinc-200 dark:border-white/[0.08] pb-6">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition"
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span>Back to Dashboard</span>
-          </Link>
+            <span>Back</span>
+          </button>
           <div className="flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
             <Zap className="h-3.5 w-3.5" />
             <span>{credits} Credits</span>

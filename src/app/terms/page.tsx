@@ -2,23 +2,35 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, ShieldCheck, FileText, Scale, AlertCircle } from 'lucide-react';
 
 export default function TermsPage() {
+  const router = useRouter();
+
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#fafafa] text-zinc-900 selection:bg-zinc-900 selection:text-white dark:bg-black dark:text-[#f7f8f8]">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-black/5 bg-white/80 backdrop-blur-xl dark:border-white/10 dark:bg-black/80">
         <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4 sm:px-8">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-sm font-semibold transition hover:opacity-80"
+          <button
+            type="button"
+            onClick={handleBack}
+            className="flex items-center gap-2 text-sm font-semibold transition hover:opacity-80 cursor-pointer"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-black">
               <ArrowLeft className="h-4 w-4" />
             </div>
             <span>Back to CareerBot</span>
-          </Link>
+          </button>
           <div className="flex items-center gap-4 text-xs font-semibold">
             <Link href="/pricing" className="hover:underline">Pricing Policy</Link>
             <Link href="/privacy" className="hover:underline">Privacy Policy</Link>

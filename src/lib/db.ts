@@ -165,6 +165,87 @@ function writeLocalDb(data: DatabaseSchema): void {
 
 // ================= USER OPERATIONS ================= //
 
+export async function getActualUserCredits(userId: string, email?: string): Promise<number> {
+  const normalizedEmail = email ? email.trim().toLowerCase() : undefined;
+
+  // 1. Check Supabase transactions table for most recent balance_after
+  if (isSupabaseConfigured && supabase) {
+    try {
+      if (userId) {
+        const { data: txData, error: txErr } = await supabase
+          .from('transactions')
+          .select('balance_after, created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (!txErr && txData && txData.length > 0 && typeof txData[0].balance_after === 'number') {
+          return txData[0].balance_after;
+        }
+      }
+    } catch {
+      /* fallback */
+    }
+
+    // 2. Check Supabase users table
+    try {
+      if (userId) {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('credits')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (userRow && typeof userRow.credits === 'number' && Number.isFinite(userRow.credits) && userRow.credits >= 0) {
+          return userRow.credits;
+        }
+      }
+      if (normalizedEmail) {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('credits')
+          .ilike('email', normalizedEmail)
+          .maybeSingle();
+
+        if (userRow && typeof userRow.credits === 'number' && Number.isFinite(userRow.credits) && userRow.credits >= 0) {
+          return userRow.credits;
+        }
+      }
+    } catch {
+      /* fallback */
+    }
+  }
+
+  // 3. Check local database
+  const db = ensureLocalDb();
+
+  // 3a. Check local transactions (sorted newest first)
+  const matchingTxs = (db.transactions || [])
+    .filter((t) => {
+      if (userId && t.user_id === userId) return true;
+      if (normalizedEmail) {
+        const u = db.users.find((user) => user.id === t.user_id);
+        if (u && u.email.toLowerCase() === normalizedEmail) return true;
+      }
+      return false;
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  if (matchingTxs.length > 0 && typeof matchingTxs[0].balance_after === 'number' && Number.isFinite(matchingTxs[0].balance_after)) {
+    return matchingTxs[0].balance_after;
+  }
+
+  // 3b. Check local user record
+  const localUser = db.users.find(
+    (u) => (userId && u.id === userId) || (normalizedEmail && u.email.toLowerCase() === normalizedEmail)
+  );
+  if (localUser && typeof localUser.credits === 'number' && Number.isFinite(localUser.credits) && localUser.credits >= 0) {
+    return localUser.credits;
+  }
+
+  return 25;
+}
+
 export async function getUserByEmail(email: string): Promise<UserRecord | null> {
   if (!email || typeof email !== 'string') return null;
   const normalized = email.trim().toLowerCase();
@@ -178,10 +259,20 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
         .maybeSingle();
 
       if (!error && data) {
-        return data as UserRecord;
+        const user = data as UserRecord;
+        user.credits = await getActualUserCredits(user.id, user.email);
+        return user;
       }
     } catch (err) {
       console.warn('Supabase getUserByEmail error, falling back:', err);
+    }
+
+    // Check local db first before falling back to empty-hash Supabase Auth admin
+    const db = ensureLocalDb();
+    const local = db.users.find((u) => u.email.toLowerCase() === normalized);
+    if (local) {
+      local.credits = await getActualUserCredits(local.id, local.email);
+      return local;
     }
 
     // Fallback: check Supabase Auth users
@@ -189,13 +280,14 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
       const { data: authData } = await supabase.auth.admin.listUsers();
       const found = authData?.users?.find((u) => u.email?.toLowerCase() === normalized);
       if (found) {
+        const actualCredits = await getActualUserCredits(found.id, found.email || normalized);
         return {
           id: found.id,
           name: found.user_metadata?.name || 'User',
           email: found.email || normalized,
           password_hash: '',
           salt: '',
-          credits: found.user_metadata?.credits ?? 25,
+          credits: actualCredits,
           referral_code: found.user_metadata?.referral_code,
           referral_count: found.user_metadata?.referral_count || 0,
           referral_earnings: found.user_metadata?.referral_earnings || 0,
@@ -210,7 +302,11 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
   }
 
   const db = ensureLocalDb();
-  return db.users.find((u) => u.email.toLowerCase() === normalized) || null;
+  const user = db.users.find((u) => u.email.toLowerCase() === normalized) || null;
+  if (user) {
+    user.credits = await getActualUserCredits(user.id, user.email);
+  }
+  return user;
 }
 
 export async function getUserById(id: string): Promise<UserRecord | null> {
@@ -224,10 +320,20 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
         .maybeSingle();
 
       if (!error && data) {
-        return data as UserRecord;
+        const user = data as UserRecord;
+        user.credits = await getActualUserCredits(user.id, user.email);
+        return user;
       }
     } catch (err) {
       console.warn('Supabase getUserById error, falling back:', err);
+    }
+
+    // Check local db first before falling back to Supabase Auth admin
+    const db = ensureLocalDb();
+    const local = db.users.find((u) => u.id === id);
+    if (local) {
+      local.credits = await getActualUserCredits(local.id, local.email);
+      return local;
     }
 
     // Fallback: check Supabase Auth admin
@@ -235,13 +341,14 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
       const { data: authUser } = await supabase.auth.admin.getUserById(id);
       if (authUser?.user) {
         const u = authUser.user;
+        const actualCredits = await getActualUserCredits(u.id, u.email || '');
         return {
           id: u.id,
           name: u.user_metadata?.name || 'User',
           email: u.email || '',
           password_hash: '',
           salt: '',
-          credits: u.user_metadata?.credits ?? 25,
+          credits: actualCredits,
           referral_code: u.user_metadata?.referral_code,
           referral_count: u.user_metadata?.referral_count || 0,
           referral_earnings: u.user_metadata?.referral_earnings || 0,
@@ -256,7 +363,11 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
   }
 
   const db = ensureLocalDb();
-  return db.users.find((u) => u.id === id) || null;
+  const user = db.users.find((u) => u.id === id) || null;
+  if (user) {
+    user.credits = await getActualUserCredits(user.id, user.email);
+  }
+  return user;
 }
 
 export async function createUser(userData: {
@@ -816,14 +927,25 @@ export async function updateUserCredits(
   if (isSupabaseConfigured && supabase) {
     try {
       await supabase.from('users').update({ credits: newCredits, updated_at: now }).eq('id', userId);
+      if (user.email) {
+        await supabase.from('users').update({ credits: newCredits, updated_at: now }).ilike('email', user.email.toLowerCase());
+      }
       await supabase.from('transactions').insert([tx]);
+      // Also sync user_metadata in Supabase Auth admin
+      try {
+        await supabase.auth.admin.updateUserById(userId, { user_metadata: { credits: newCredits } });
+      } catch {
+        /* ignore */
+      }
     } catch (err) {
       console.error('Supabase updateUserCredits error:', err);
     }
   }
 
   const db = ensureLocalDb();
-  const localUser = db.users.find((u) => u.id === userId);
+  const localUser = db.users.find(
+    (u) => u.id === userId || (user.email && u.email.toLowerCase() === user.email.toLowerCase())
+  );
   if (localUser) {
     localUser.credits = newCredits;
     localUser.updated_at = now;
@@ -843,17 +965,16 @@ export async function createSession(userId: string, durationDays = 30, email?: s
 
   let userEmail = email;
   let userName = '';
-  let userCredits = 25;
   let userRefCode: string | undefined;
 
   const user = await getUserById(userId);
   if (user) {
     userEmail = user.email || userEmail;
     userName = user.name;
-    userCredits =
-      typeof user.credits === 'number' && Number.isFinite(user.credits) && user.credits >= 0 ? user.credits : 25;
     userRefCode = user.referral_code;
   }
+
+  const userCredits = await getActualUserCredits(userId, userEmail);
 
   // Generate HMAC-signed stateless session token
   const token = signSessionToken({
