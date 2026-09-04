@@ -338,7 +338,7 @@ export async function processChatQuery(
       `⚡ **The Sweep:**\n${sourceStat}${filterStat}. ${resultStat}`,
       topPickHighlight,
       wingmanNotes.length > 0 ? wingmanNotes.join('\n') : '',
-      `🔗 **Verified Pipeline:** ${atsLinksNote} Tap **"Tailor Application"** on any card to whip up a bespoke pitch, cover letter, or recruiter DM!`,
+      `🔗 **Verified Pipeline:** ${atsLinksNote} Tap **"Tailor Pitch"** on any card to whip up a bespoke pitch, cover letter, or recruiter DM!`,
       displayCountNote,
     ]
       .filter(Boolean)

@@ -107,7 +107,16 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
     pitch_bullets: string[];
     cover_note: string;
     interview_tips: string[];
-  } | null>(null);
+  } | null>(() => {
+    if (job) {
+      try {
+        return generateTailoredPitch(job);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
 
   // Cover Letter Data & State
   const [selectedTone, setSelectedTone] = useState<CoverLetterTone>('story');
@@ -117,6 +126,13 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
   const [customStory, setCustomStory] = useState('');
   const [coverSubject, setCoverSubject] = useState('');
   const [coverBody, setCoverBody] = useState('');
+
+  // Sync candidate name when user profile loads
+  useEffect(() => {
+    if (user?.name && !candidateName) {
+      setCandidateName(user.name);
+    }
+  }, [user?.name, candidateName]);
 
   // Outreach Platform State
   const [outreachPlatform, setOutreachPlatform] = useState<'email' | 'linkedin' | 'twitter'>('email');
@@ -135,11 +151,11 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
       const res = generateCoverLetter({
         candidateName: name || user?.name || 'Candidate Name',
         candidateEmail: user?.email,
-        jobTitle: job.title,
-        company: job.company,
+        jobTitle: job.title || 'Role',
+        company: job.company || 'Company',
         hiringManager: manager,
         tone,
-        keySkills: job.tags || [],
+        keySkills: Array.isArray(job.tags) ? job.tags : [],
         experienceYears: 5,
         location: job.location,
         vibeId: vibe || selectedVibe,
@@ -162,8 +178,8 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
     try {
       const immediatePitch = generateTailoredPitch(job);
       setPitchData(immediatePitch);
-    } catch {
-      // Fallback
+    } catch (e) {
+      console.error('Failed to generate instant pitch:', e);
     }
 
     // Initialize Cover Letter immediately
@@ -174,11 +190,12 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
     async function syncServerPitch() {
       try {
         const token = typeof window !== 'undefined' ? localStorage.getItem('careerbot_token') : null;
+        if (!token) return;
         const res = await fetch('/api/tailor', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ job }),
         });
@@ -224,11 +241,12 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
       }
       return;
     }
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'hidden';
+    }
     return () => {
       if (typeof document !== 'undefined') {
-        document.body.style.overflow = originalOverflow || '';
+        document.body.style.overflow = '';
       }
     };
   }, [job]);
@@ -321,18 +339,21 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Cover_Letter_${job.company.replace(/[^a-zA-Z0-9]/g, '_')}_${job.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+    const safeCompany = (job.company || 'Company').replace(/[^a-zA-Z0-9]/g, '_');
+    const safeTitle = (job.title || 'Role').replace(/[^a-zA-Z0-9]/g, '_');
+    a.download = `Cover_Letter_${safeCompany}_${safeTitle}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
+  const safeTags = Array.isArray(job.tags) ? job.tags : [];
   const outreachText = generateColdDM({
     userName: candidateName || user?.name || 'Candidate Name',
-    jobTitle: job.title,
-    company: job.company,
+    jobTitle: job.title || 'Role',
+    company: job.company || 'Company',
     contactName: hiringManager,
     platform: outreachPlatform,
-    keySkills: job.tags || [],
+    keySkills: safeTags,
     experienceYears: 5,
     vibeId: selectedVibe,
     customStory: customStory || undefined,
@@ -351,7 +372,8 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Cold_Outreach_${job.company.replace(/[^a-zA-Z0-9]/g, '_')}_${outreachPlatform}.txt`;
+    const safeCompany = (job.company || 'Company').replace(/[^a-zA-Z0-9]/g, '_');
+    a.download = `Cold_Outreach_${safeCompany}_${outreachPlatform}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -361,7 +383,7 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
-          title: `Cover Letter: ${job.title} at ${job.company}`,
+          title: `Cover Letter: ${job.title || 'Role'} at ${job.company || 'Company'}`,
           text: fullText,
         });
         return;
@@ -376,7 +398,7 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
         await navigator.share({
-          title: `Outreach: ${job.title} at ${job.company}`,
+          title: `Outreach: ${job.title || 'Role'} at ${job.company || 'Company'}`,
           text: outreachText,
         });
         return;
@@ -525,85 +547,97 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
           ) : (
             <>
               {/* TAB 1: PITCH & PREP */}
-              {activeTab === 'pitch' && pitchData && (
-                <div className="space-y-5">
-                  {/* High-Impact Pitch Bullets */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4 text-indigo-500" />
+              {activeTab === 'pitch' && (
+                pitchData ? (
+                  <div className="space-y-5">
+                    {/* High-Impact Pitch Bullets */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="h-4 w-4 text-indigo-500" />
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-[#c9ccd1]">
+                            High-Impact Pitch Bullets
+                          </h4>
+                        </div>
+                        <button
+                          onClick={handleCopyBullets}
+                          className={`min-h-[36px] flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition active:scale-95 ${
+                            copiedPitch
+                              ? 'border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                              : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]'
+                          }`}
+                        >
+                          {copiedPitch ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                          <span>{copiedPitch ? 'Copied to clipboard! ✨' : 'Copy Bullets'}</span>
+                        </button>
+                      </div>
+                      <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 space-y-3 dark:border-white/[0.08] dark:bg-white/[0.02]">
+                        {pitchData.pitch_bullets.map((bullet, idx) => (
+                          <div key={idx} className="flex items-start gap-3 text-xs sm:text-sm text-zinc-800 leading-relaxed dark:text-[#c9ccd1]">
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-900 dark:bg-indigo-500/20 dark:text-indigo-300 text-[11px] font-bold mt-0.5">
+                              {idx + 1}
+                            </span>
+                            <p className="flex-1">{bullet}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Short Outreach Note */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-amber-500" />
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-[#c9ccd1]">
+                            Short Application Note
+                          </h4>
+                        </div>
+                        <button
+                          onClick={handleCopyCoverNote}
+                          className={`min-h-[36px] flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition active:scale-95 ${
+                            copiedNote
+                              ? 'border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                              : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]'
+                          }`}
+                        >
+                          {copiedNote ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                          <span>{copiedNote ? 'Copied to clipboard! ✨' : 'Copy Note'}</span>
+                        </button>
+                      </div>
+                      <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 text-xs sm:text-sm text-zinc-800 whitespace-pre-line leading-relaxed dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#c9ccd1]">
+                        {pitchData.cover_note}
+                      </div>
+                    </div>
+
+                    {/* Interview Tips */}
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Lightbulb className="h-4 w-4 text-amber-500" />
                         <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-[#c9ccd1]">
-                          High-Impact Pitch Bullets
+                          Interview Readiness Tips
                         </h4>
                       </div>
-                      <button
-                        onClick={handleCopyBullets}
-                        className={`min-h-[36px] flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition active:scale-95 ${
-                          copiedPitch
-                            ? 'border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]'
-                        }`}
-                      >
-                        {copiedPitch ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                        <span>{copiedPitch ? 'Copied to clipboard! ✨' : 'Copy Bullets'}</span>
-                      </button>
-                    </div>
-                    <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 space-y-3 dark:border-white/[0.08] dark:bg-white/[0.02]">
-                      {pitchData.pitch_bullets.map((bullet, idx) => (
-                        <div key={idx} className="flex items-start gap-3 text-xs sm:text-sm text-zinc-800 leading-relaxed dark:text-[#c9ccd1]">
-                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-900 dark:bg-indigo-500/20 dark:text-indigo-300 text-[11px] font-bold mt-0.5">
-                            {idx + 1}
-                          </span>
-                          <p className="flex-1">{bullet}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Short Outreach Note */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-amber-500" />
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-[#c9ccd1]">
-                          Short Application Note
-                        </h4>
+                      <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 space-y-2.5 dark:border-white/[0.08] dark:bg-white/[0.02]">
+                        {pitchData.interview_tips.map((tip, idx) => (
+                          <div key={idx} className="flex items-start gap-2.5 text-xs text-zinc-700 leading-relaxed dark:text-[#8a8f98]">
+                            <span className="text-indigo-600 dark:text-indigo-400 font-bold">•</span>
+                            <p>{tip}</p>
+                          </div>
+                        ))}
                       </div>
-                      <button
-                        onClick={handleCopyCoverNote}
-                        className={`min-h-[36px] flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition active:scale-95 ${
-                          copiedNote
-                            ? 'border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                            : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]'
-                        }`}
-                      >
-                        {copiedNote ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                        <span>{copiedNote ? 'Copied to clipboard! ✨' : 'Copy Note'}</span>
-                      </button>
-                    </div>
-                    <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 text-xs sm:text-sm text-zinc-800 whitespace-pre-line leading-relaxed dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#c9ccd1]">
-                      {pitchData.cover_note}
                     </div>
                   </div>
-
-                  {/* Interview Tips */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Lightbulb className="h-4 w-4 text-amber-500" />
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-[#c9ccd1]">
-                        Interview Readiness Tips
-                      </h4>
-                    </div>
-                    <div className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-4 space-y-2.5 dark:border-white/[0.08] dark:bg-white/[0.02]">
-                      {pitchData.interview_tips.map((tip, idx) => (
-                        <div key={idx} className="flex items-start gap-2.5 text-xs text-zinc-700 leading-relaxed dark:text-[#8a8f98]">
-                          <span className="text-indigo-600 dark:text-indigo-400 font-bold">•</span>
-                          <p>{tip}</p>
-                        </div>
-                      ))}
-                    </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 space-y-3 text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-zinc-900 dark:text-[#f7f8f8]" />
+                    <p className="text-sm font-bold text-zinc-900 dark:text-[#f7f8f8]">
+                      Crafting tailored application pitch...
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-[#8a8f98]">
+                      Analyzing role requirements and generating interview readiness talking points.
+                    </p>
                   </div>
-                </div>
+                )
               )}
 
               {/* TAB 2: ROLE-SPECIFIC COVER LETTER */}

@@ -193,21 +193,26 @@ export const JobCard: React.FC<JobCardProps> = ({
       <div className="mt-5 flex items-center gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-800/80">
         <button
           type="button"
-          onClick={() => onOpenTailor(job)}
-          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-900 transition hover:bg-zinc-50 hover:border-zinc-400 dark:border-white/[0.14] dark:bg-white/[0.05] dark:text-[#f7f8f8] dark:hover:bg-white/[0.09] dark:hover:border-white/25"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onOpenTailor(job);
+          }}
+          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-900 transition hover:bg-zinc-50 hover:border-zinc-400 dark:border-white/[0.14] dark:bg-white/[0.05] dark:text-[#f7f8f8] dark:hover:bg-white/[0.09] dark:hover:border-white/25 cursor-pointer relative z-10 active:scale-[0.98] select-none"
         >
-          <Sparkles className="h-3.5 w-3.5 text-indigo-600 dark:text-[#8a8f98]" />
-          <span>Tailor Pitch</span>
+          <Sparkles className="h-3.5 w-3.5 text-indigo-600 dark:text-[#8a8f98] pointer-events-none" />
+          <span className="pointer-events-none">Tailor Pitch</span>
         </button>
 
         <a
           href={job.apply_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-black dark:bg-white dark:text-black dark:hover:bg-zinc-100 shadow-xs"
+          onClick={(e) => e.stopPropagation()}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-black dark:bg-white dark:text-black dark:hover:bg-zinc-100 shadow-xs cursor-pointer relative z-10 active:scale-[0.98] select-none"
         >
-          <span>Direct Apply</span>
-          <ExternalLink className="h-3.5 w-3.5" />
+          <span className="pointer-events-none">Direct Apply</span>
+          <ExternalLink className="h-3.5 w-3.5 pointer-events-none" />
         </a>
       </div>
     </div>

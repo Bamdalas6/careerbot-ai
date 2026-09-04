@@ -428,6 +428,9 @@ export default function Home() {
         onOpenTracker={() => {
           if (requireAuth()) setIsTrackerOpen(true);
         }}
+        onOpenTailor={(job) => {
+          setActiveTailorJob(job);
+        }}
       />
 
       {/* Full Application Tracker & Pipeline Kanban */}

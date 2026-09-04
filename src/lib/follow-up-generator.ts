@@ -701,15 +701,19 @@ ${params.userName}`,
  */
 export function generateColdDM(params: ColdDMParams): string {
   const contact = params.contactName && params.contactName.trim() ? params.contactName.trim() : 'there';
-  const skills = params.keySkills && params.keySkills.length > 0 ? params.keySkills.slice(0, 4).join(', ') : 'modern engineering methodologies';
+  const safeSkills = Array.isArray(params.keySkills) ? params.keySkills.filter(Boolean) : [];
+  const skills = safeSkills.length > 0 ? safeSkills.slice(0, 4).join(', ') : 'modern engineering methodologies';
   const exp = params.experienceYears || 5;
+  const safeTitle = params.jobTitle || 'Role';
+  const safeCompany = params.company || 'Company';
+  const safeUserName = params.userName || 'Candidate';
 
-  const arc = getDomainStoryArc(params.jobTitle, params.company, params.domain, params.vibeId);
+  const arc = getDomainStoryArc(safeTitle, safeCompany, params.domain, params.vibeId);
   const originText = params.customStory && params.customStory.trim().length > 20 ? params.customStory.trim() : arc.origin;
 
   // 1. Twitter / X (crisp, personal, under 280 chars)
   if (params.platform === 'twitter') {
-    return `Hi ${contact}! ${arc.philosophy} I've spent ${exp}+ yrs working with ${skills}. Seeing what you're building at ${params.company} felt like an instant click. Would love to explore how I could contribute to the ${params.jobTitle} role! - ${params.userName}`;
+    return `Hi ${contact}! ${arc.philosophy} I've spent ${exp}+ yrs working with ${skills}. Seeing what you're building at ${safeCompany} felt like an instant click. Would love to explore how I could contribute to the ${safeTitle} role! - ${safeUserName}`;
   }
 
   // 2. LinkedIn DM (punchy 3-paragraph narrative under 150 words)
@@ -718,12 +722,12 @@ export function generateColdDM(params: ColdDMParams): string {
 
 ${originText.slice(0, 180)}... That formative experience shaped my entire career. Over the past ${exp}+ years, I have specialized in ${skills}, building resilient, high-impact systems.
 
-When I saw what you're building at ${params.company}, it felt like something clicked. The mission, the standard of craft, and the chance to tackle high-stakes challenges as your next ${params.jobTitle}.
+When I saw what you're building at ${safeCompany}, it felt like something clicked. The mission, the standard of craft, and the chance to tackle high-stakes challenges as your next ${safeTitle}.
 
 If you're still looking for someone who can step in and take full ownership, I'd love to connect and explore how I could contribute.
 
 Warm regards,
-${params.userName}`;
+${safeUserName}`;
   }
 
   // 3. Email / Long-form Cold Outreach (The exact four-paragraph authentic story structure from the reference image!)
@@ -733,13 +737,13 @@ ${originText}
 
 ${arc.journey(skills, exp)} ${arc.philosophy}
 
-${arc.click(params.company, params.jobTitle)}
+${arc.click(safeCompany, safeTitle)}
 
 If you're still looking for someone to hit the ground running and take full ownership of this role, I'd love to explore how I could contribute.
 
 Warm Regards,
 
-${params.userName}`;
+${safeUserName}`;
 }
 
 export function generateThankYouEmail(params: ThankYouParams): { subject: string; body: string } {
@@ -771,20 +775,24 @@ export function generateTailoredPitch(
   job: JobListing,
   userSkills: string[] = ['Problem Solving', 'Execution']
 ) {
-  const topSkills = job.tags.slice(0, 3).join(', ') || userSkills.slice(0, 3).join(', ');
-  const arc = getDomainStoryArc(job.title, job.company);
+  const safeTags = Array.isArray(job?.tags) ? job.tags.filter(Boolean) : [];
+  const safeUserSkills = Array.isArray(userSkills) ? userSkills.filter(Boolean) : ['Problem Solving', 'Execution'];
+  const topSkills = safeTags.slice(0, 3).join(', ') || safeUserSkills.slice(0, 3).join(', ');
+  const safeTitle = job?.title || 'Role';
+  const safeCompany = job?.company || 'Company';
+  const arc = getDomainStoryArc(safeTitle, safeCompany);
 
   return {
     pitch_bullets: [
       `Formative connection to the problem space: ${arc.origin.slice(0, 140)}...`,
       `Deep practical craftsmanship in ${topSkills || 'relevant methodologies'}, built on ownership and measurable outcomes.`,
-      `Genuine mission alignment with ${job.company}: eager to tackle high-stakes challenges as your next ${job.title}.`,
+      `Genuine mission alignment with ${safeCompany}: eager to tackle high-stakes challenges as your next ${safeTitle}.`,
     ],
-    cover_note: `Hi ${job.company} Team,\n\n${arc.origin}\n\nOver the past several years, I have specialized in ${topSkills}, taking full ownership of complex projects and building systems engineered for real-world impact. ${arc.philosophy}\n\n${arc.click(job.company, job.title)}\n\nIf you're still looking for someone who can step in and take full ownership, I'd love to explore how I could contribute.\n\nWarm Regards,`,
+    cover_note: `Hi ${safeCompany} Team,\n\n${arc.origin}\n\nOver the past several years, I have specialized in ${topSkills}, taking full ownership of complex projects and building systems engineered for real-world impact. ${arc.philosophy}\n\n${arc.click(safeCompany, safeTitle)}\n\nIf you're still looking for someone who can step in and take full ownership, I'd love to explore how I could contribute.\n\nWarm Regards,`,
     interview_tips: [
-      `Anchor your answers in a real origin story: share the specific moment or problem that made you passionate about ${job.tags[0] || job.title}.`,
+      `Anchor your answers in a real origin story: share the specific moment or problem that made you passionate about ${safeTags[0] || safeTitle}.`,
       `Prepare 2 concrete examples demonstrating deep ownership, resilience under pressure, and how you delivered measurable business results.`,
-      `Research ${job.company}'s core mission and be ready to articulate why their specific product and challenges matter deeply to you.`,
+      `Research ${safeCompany}'s core mission and be ready to articulate why their specific product and challenges matter deeply to you.`,
     ],
   };
 }

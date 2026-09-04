@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { X, Bookmark, ExternalLink, Trash2, MapPin, DollarSign, ArrowRight, Briefcase } from 'lucide-react';
-import { SavedJob } from '@/types/job';
+import { X, Bookmark, ExternalLink, Trash2, MapPin, DollarSign, ArrowRight, Briefcase, Sparkles } from 'lucide-react';
+import { SavedJob, JobListing } from '@/types/job';
 
 interface SavedJobsDrawerProps {
   isOpen: boolean;
@@ -11,6 +11,7 @@ interface SavedJobsDrawerProps {
   onRemoveSaved: (id: string) => void;
   onUpdateStatus: (id: string, status: SavedJob['status']) => void;
   onOpenTracker?: () => void;
+  onOpenTailor?: (job: JobListing) => void;
 }
 
 export const SavedJobsDrawer: React.FC<SavedJobsDrawerProps> = ({
@@ -20,6 +21,7 @@ export const SavedJobsDrawer: React.FC<SavedJobsDrawerProps> = ({
   onRemoveSaved,
   onUpdateStatus,
   onOpenTracker,
+  onOpenTailor,
 }) => {
   if (!isOpen) return null;
 
@@ -111,15 +113,31 @@ export const SavedJobsDrawer: React.FC<SavedJobsDrawerProps> = ({
                     </select>
                   </div>
 
-                  <a
-                    href={job.apply_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-xs font-semibold text-zinc-700 dark:text-[#8a8f98] hover:text-zinc-900 dark:hover:text-[#f7f8f8] transition"
-                  >
-                    <span>Apply</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
+                  <div className="flex items-center gap-2.5">
+                    {onOpenTailor && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          onOpenTailor(job);
+                        }}
+                        className="flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition cursor-pointer"
+                        title="Tailor pitch for this role"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        <span>Tailor Pitch</span>
+                      </button>
+                    )}
+                    <a
+                      href={job.apply_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs font-semibold text-zinc-700 dark:text-[#8a8f98] hover:text-zinc-900 dark:hover:text-[#f7f8f8] transition"
+                    >
+                      <span>Apply</span>
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
                 </div>
               </div>
             ))

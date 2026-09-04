@@ -35,8 +35,9 @@ export function generateCoverLetter(params: CoverLetterParams): {
   } = params;
 
   const recipient = hiringManager && hiringManager.trim() ? hiringManager.trim() : 'Hiring Team';
-  const topSkillsList = keySkills.length > 0 ? keySkills.slice(0, 4).join(', ') : 'modern industry methodologies';
-  const skillsSentence = keySkills.length > 0 ? keySkills.slice(0, 3).join(', ') : 'scalable problem solving';
+  const safeKeySkills = Array.isArray(keySkills) ? keySkills.filter(Boolean) : [];
+  const topSkillsList = safeKeySkills.length > 0 ? safeKeySkills.slice(0, 4).join(', ') : 'modern industry methodologies';
+  const skillsSentence = safeKeySkills.length > 0 ? safeKeySkills.slice(0, 3).join(', ') : 'scalable problem solving';
 
   let subject = '';
   let body = '';

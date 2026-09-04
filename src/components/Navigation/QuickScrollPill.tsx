@@ -43,7 +43,7 @@ export const QuickScrollPill: React.FC = () => {
   return (
     <div
       aria-label="Quick Scroll Navigation"
-      className="fixed bottom-6 right-4 z-40 flex flex-col gap-1.5 sm:bottom-8 sm:right-6 animate-in fade-in duration-300"
+      className="fixed bottom-6 right-4 z-40 flex flex-col gap-1.5 sm:bottom-8 sm:right-6 pointer-events-none animate-in fade-in duration-300"
     >
       {/* Scroll to Top */}
       <button
