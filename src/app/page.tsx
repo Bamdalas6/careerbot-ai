@@ -373,12 +373,7 @@ export default function Home() {
   };
 
   return (
-    <div
-      className={clsx(
-        "flex flex-col bg-[#f8f9fa] dark:bg-black text-zinc-900 dark:text-[#f7f8f8] selection:bg-zinc-900/10 selection:text-zinc-900 dark:selection:bg-white/20 dark:selection:text-white transition-colors duration-200",
-        currentView === 'chat' ? "h-[100dvh] overflow-hidden" : "min-h-screen"
-      )}
-    >
+    <div className="flex min-h-screen flex-col bg-[#f8f9fa] dark:bg-black text-zinc-900 dark:text-[#f7f8f8] selection:bg-zinc-900/10 selection:text-zinc-900 dark:selection:bg-white/20 dark:selection:text-white transition-colors duration-200">
       {/* Glassy sticky header */}
       <GlassHeader
         currentView={currentView}
@@ -458,7 +453,7 @@ export default function Home() {
       ) : (
         <main
           className={clsx(
-            "flex flex-1 flex-col transition-all duration-300 min-h-0 overflow-hidden",
+            "flex flex-1 flex-col transition-all duration-300",
             isExploreOpen && "filter blur-sm md:filter-none pointer-events-none select-none"
           )}
         >
