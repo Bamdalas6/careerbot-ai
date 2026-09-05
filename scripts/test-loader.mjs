@@ -3,6 +3,9 @@ import path from 'path';
 import fs from 'fs';
 
 export async function resolve(specifier, context, defaultResolve) {
+  if (specifier === 'next/server') {
+    return defaultResolve('next/server.js', context);
+  }
   let target = specifier;
   if (target.startsWith('@/')) {
     target = path.resolve(process.cwd(), 'src', target.slice(2));
@@ -24,3 +27,4 @@ export async function resolve(specifier, context, defaultResolve) {
 
   return defaultResolve(specifier, context);
 }
+

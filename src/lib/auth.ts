@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionByToken, UserRecord, SessionRecord } from './db';
+import { getSessionByToken, type UserRecord, type SessionRecord } from './db';
 
 const SESSION_COOKIE_NAME = 'career_bot_session';
 const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
@@ -92,6 +92,9 @@ export function verifySessionToken(token: string): SessionTokenPayload | null {
       return null;
     }
     if (payload.last_free_credit_claim_at !== undefined && typeof payload.last_free_credit_claim_at !== 'string') {
+      return null;
+    }
+    if (payload.referral_code !== undefined && typeof payload.referral_code !== 'string') {
       return null;
     }
 

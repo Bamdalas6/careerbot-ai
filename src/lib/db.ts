@@ -164,6 +164,11 @@ function writeLocalDb(data: DatabaseSchema): void {
   }
 }
 
+function isUuid(str?: string | null): boolean {
+  if (!str || typeof str !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(str.trim());
+}
+
 // ================= USER OPERATIONS ================= //
 
 export async function getActualUserCredits(userId: string, email?: string): Promise<number> {
@@ -262,7 +267,7 @@ export async function getUserByEmail(email: string): Promise<UserRecord | null> 
       if (!error && data) {
         const user = data as UserRecord;
         user.credits = await getActualUserCredits(user.id, user.email);
-        if (!user.last_free_credit_claim_at) {
+        if (!user.last_free_credit_claim_at && isUuid(user.id)) {
           try {
             const { data: authUser } = await supabase.auth.admin.getUserById(user.id);
             if (authUser?.user?.user_metadata?.last_free_credit_claim_at) {
@@ -334,7 +339,7 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
       if (!error && data) {
         const user = data as UserRecord;
         user.credits = await getActualUserCredits(user.id, user.email);
-        if (!user.last_free_credit_claim_at) {
+        if (!user.last_free_credit_claim_at && isUuid(id)) {
           try {
             const { data: authUser } = await supabase.auth.admin.getUserById(id);
             if (authUser?.user?.user_metadata?.last_free_credit_claim_at) {
@@ -359,29 +364,31 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
     }
 
     // Fallback: check Supabase Auth admin
-    try {
-      const { data: authUser } = await supabase.auth.admin.getUserById(id);
-      if (authUser?.user) {
-        const u = authUser.user;
-        const actualCredits = await getActualUserCredits(u.id, u.email || '');
-        return {
-          id: u.id,
-          name: u.user_metadata?.name || 'User',
-          email: u.email || '',
-          password_hash: '',
-          salt: '',
-          credits: actualCredits,
-          last_free_credit_claim_at: u.user_metadata?.last_free_credit_claim_at,
-          referral_code: u.user_metadata?.referral_code,
-          referral_count: u.user_metadata?.referral_count || 0,
-          referral_earnings: u.user_metadata?.referral_earnings || 0,
-          signup_ip: u.user_metadata?.signup_ip,
-          created_at: u.created_at,
-          updated_at: u.updated_at || u.created_at,
-        };
+    if (isUuid(id)) {
+      try {
+        const { data: authUser } = await supabase.auth.admin.getUserById(id);
+        if (authUser?.user) {
+          const u = authUser.user;
+          const actualCredits = await getActualUserCredits(u.id, u.email || '');
+          return {
+            id: u.id,
+            name: u.user_metadata?.name || 'User',
+            email: u.email || '',
+            password_hash: '',
+            salt: '',
+            credits: actualCredits,
+            last_free_credit_claim_at: u.user_metadata?.last_free_credit_claim_at,
+            referral_code: u.user_metadata?.referral_code,
+            referral_count: u.user_metadata?.referral_count || 0,
+            referral_earnings: u.user_metadata?.referral_earnings || 0,
+            signup_ip: u.user_metadata?.signup_ip,
+            created_at: u.created_at,
+            updated_at: u.updated_at || u.created_at,
+          };
+        }
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore */
     }
   }
 
@@ -393,7 +400,272 @@ export async function getUserById(id: string): Promise<UserRecord | null> {
   return user;
 }
 
+/**
+ * Safely inserts a user into Supabase `users` table with tiered column compatibility.
+ * Adapts to remote schemas that may be missing referral or tracking columns.
+ */
+export async function insertUserToSupabase(
+  user: UserRecord
+): Promise<{ success: boolean; error?: string; remoteId?: string }> {
+  if (!isSupabaseConfigured || !supabase) {
+    return { success: false, error: 'Supabase is not configured' };
+  }
+  const sb = supabase;
+
+  if (!user || typeof user !== 'object') {
+    return { success: false, error: 'Invalid user record' };
+  }
+
+  const safeEmail = (user.email || '').trim().toLowerCase();
+  const safeId = (user.id || '').trim();
+  if (!safeEmail || !safeId) {
+    return { success: false, error: 'User id and email are required' };
+  }
+
+  const safeName = (user.name || (safeEmail ? safeEmail.split('@')[0] : 'User')).trim() || 'User';
+  const safeCredits = typeof user.credits === 'number' && Number.isFinite(user.credits) ? user.credits : 25;
+  const nowIso = new Date().toISOString();
+
+  const isColumnError = (err: any) => {
+    if (!err) return false;
+    const msg = (err.message || '').toLowerCase();
+    const details = (err.details || '').toLowerCase();
+    const hint = (err.hint || '').toLowerCase();
+    const code = err.code || '';
+    // Postgres 42703 is undefined_column; PGRST204 is PostgREST column missing from schema cache
+    return (
+      code === '42703' ||
+      code === 'PGRST204' ||
+      code === 'PGRST200' ||
+      msg.includes('column') ||
+      msg.includes('does not exist') ||
+      msg.includes('schema cache') ||
+      msg.includes('not found') ||
+      details.includes('column') ||
+      details.includes('does not exist') ||
+      hint.includes('column')
+    );
+  };
+
+  const isDuplicateError = (err: any) => {
+    return (
+      err?.code === '23505' ||
+      (err?.message && (err.message.toLowerCase().includes('duplicate key') || err.message.toLowerCase().includes('already exists')))
+    );
+  };
+
+  const resolveDuplicate = async (err: any): Promise<{ success: boolean; error?: string; remoteId?: string }> => {
+    const errText = `${err?.message || ''} ${err?.details || ''}`.toLowerCase();
+
+    // 1a. If duplicate was on referral_code, retry insert without referral_code
+    if (errText.includes('referral_code')) {
+      console.warn('[Supabase insertUser] Referral code collision detected. Retrying without referral code...');
+      const noRefRecord = {
+        id: safeId,
+        name: safeName,
+        email: safeEmail,
+        username: user.username || null,
+        password_hash: user.password_hash,
+        salt: user.salt,
+        credits: safeCredits,
+        last_free_credit_claim_at: user.last_free_credit_claim_at || null,
+        referral_code: null,
+        referred_by: user.referred_by || null,
+        referral_count: user.referral_count || 0,
+        referral_earnings: user.referral_earnings || 0,
+        signup_ip: user.signup_ip || null,
+        created_at: user.created_at || nowIso,
+        updated_at: user.updated_at || nowIso,
+      };
+      const { error: retryErr } = await sb.from('users').insert([noRefRecord]);
+      if (!retryErr) {
+        return { success: true, remoteId: safeId };
+      }
+      if (isColumnError(retryErr)) {
+        return await insertTier2();
+      }
+      err = retryErr;
+    }
+
+    // 1b. If duplicate was on username, retry insert without username
+    if (errText.includes('username')) {
+      console.warn('[Supabase insertUser] Username collision detected. Retrying without username...');
+      const noUserRecord = {
+        id: safeId,
+        name: safeName,
+        email: safeEmail,
+        username: null,
+        password_hash: user.password_hash,
+        salt: user.salt,
+        credits: safeCredits,
+        last_free_credit_claim_at: user.last_free_credit_claim_at || null,
+        referral_code: user.referral_code || null,
+        referred_by: user.referred_by || null,
+        referral_count: user.referral_count || 0,
+        referral_earnings: user.referral_earnings || 0,
+        signup_ip: user.signup_ip || null,
+        created_at: user.created_at || nowIso,
+        updated_at: user.updated_at || nowIso,
+      };
+      const { error: retryUserErr } = await sb.from('users').insert([noUserRecord]);
+      if (!retryUserErr) {
+        return { success: true, remoteId: safeId };
+      }
+      if (isColumnError(retryUserErr)) {
+        return await insertTier2();
+      }
+      err = retryUserErr;
+    }
+
+    // 2. Check if user already exists in remote database by ID
+    try {
+      const { data: byId } = await sb.from('users').select('id').eq('id', safeId).maybeSingle();
+      if (byId?.id) {
+        return { success: true, remoteId: byId.id };
+      }
+    } catch {
+      /* ignore */
+    }
+
+    // 3. Check if user already exists in remote database by Email
+    try {
+      const { data: byEmail } = await sb.from('users').select('id').ilike('email', safeEmail).maybeSingle();
+      if (byEmail?.id) {
+        return { success: true, remoteId: byEmail.id };
+      }
+    } catch {
+      /* ignore */
+    }
+
+    console.warn('[Supabase insertUser] Duplicate constraint could not be resolved:', err?.message || err);
+    return { success: false, error: err?.message || 'Duplicate key constraint violation' };
+  };
+
+  const insertTier2 = async (): Promise<{ success: boolean; error?: string; remoteId?: string }> => {
+    console.warn('[Supabase insertUser] Retrying with Tier 2 schema (base + claim):');
+    const tier2Record = {
+      id: safeId,
+      name: safeName,
+      email: safeEmail,
+      password_hash: user.password_hash,
+      salt: user.salt,
+      credits: safeCredits,
+      last_free_credit_claim_at: user.last_free_credit_claim_at || null,
+      created_at: user.created_at || nowIso,
+      updated_at: user.updated_at || nowIso,
+    };
+
+    const { error: err2 } = await sb.from('users').insert([tier2Record]);
+    if (!err2) return { success: true, remoteId: safeId };
+    if (isDuplicateError(err2)) return await resolveDuplicate(err2);
+    if (isColumnError(err2)) return await insertTier3();
+
+    console.error('[Supabase insertUser] Tier 2 schema insert failed:', err2.message);
+    return { success: false, error: err2.message };
+  };
+
+  const insertTier3 = async (): Promise<{ success: boolean; error?: string; remoteId?: string }> => {
+    console.warn('[Supabase insertUser] Retrying with Tier 3 schema (minimal base):');
+    const tier3Record = {
+      id: safeId,
+      name: safeName,
+      email: safeEmail,
+      password_hash: user.password_hash,
+      salt: user.salt,
+      credits: safeCredits,
+      created_at: user.created_at || nowIso,
+      updated_at: user.updated_at || nowIso,
+    };
+
+    const { error: err3 } = await sb.from('users').insert([tier3Record]);
+    if (!err3) return { success: true, remoteId: safeId };
+    if (isDuplicateError(err3)) return await resolveDuplicate(err3);
+    if (isColumnError(err3)) return await insertTier4();
+
+    console.error('[Supabase insertUser] Tier 3 schema insert failed:', err3.message);
+    return { success: false, error: err3.message };
+  };
+
+  const insertTier4 = async (): Promise<{ success: boolean; error?: string; remoteId?: string }> => {
+    console.warn('[Supabase insertUser] Retrying with Tier 4 schema (base with credentials, no timestamps):');
+    const tier4Record: Record<string, unknown> = {
+      id: safeId,
+      name: safeName,
+      email: safeEmail,
+      credits: safeCredits,
+    };
+    if (user.password_hash) tier4Record.password_hash = user.password_hash;
+    if (user.salt) tier4Record.salt = user.salt;
+
+    const { error: err4 } = await sb.from('users').insert([tier4Record]);
+    if (!err4) return { success: true, remoteId: safeId };
+    if (isDuplicateError(err4)) return await resolveDuplicate(err4);
+    if (isColumnError(err4)) return await insertTier5();
+
+    console.error('[Supabase insertUser] Tier 4 schema insert failed:', err4.message);
+    return { success: false, error: err4.message };
+  };
+
+  const insertTier5 = async (): Promise<{ success: boolean; error?: string; remoteId?: string }> => {
+    console.warn('[Supabase insertUser] Retrying with Tier 5 schema (minimal core essential):');
+    const tier5Record = {
+      id: safeId,
+      name: safeName,
+      email: safeEmail,
+      credits: safeCredits,
+    };
+
+    const { error: err5 } = await sb.from('users').insert([tier5Record]);
+    if (!err5) return { success: true, remoteId: safeId };
+    if (isDuplicateError(err5)) return await resolveDuplicate(err5);
+
+    console.error('[Supabase insertUser] Minimal base schema insert failed:', err5.message);
+    return { success: false, error: err5.message };
+  };
+
+  try {
+    // Tier 1: Full record with all referral, credit, and tracking fields
+    const fullRecord = {
+      id: safeId,
+      name: safeName,
+      email: safeEmail,
+      username: user.username || null,
+      password_hash: user.password_hash,
+      salt: user.salt,
+      credits: safeCredits,
+      last_free_credit_claim_at: user.last_free_credit_claim_at || null,
+      referral_code: user.referral_code || null,
+      referred_by: user.referred_by || null,
+      referral_count: user.referral_count || 0,
+      referral_earnings: user.referral_earnings || 0,
+      signup_ip: user.signup_ip || null,
+      created_at: user.created_at || nowIso,
+      updated_at: user.updated_at || nowIso,
+    };
+
+    const { error: err1 } = await sb.from('users').insert([fullRecord]);
+    if (!err1) {
+      return { success: true, remoteId: safeId };
+    }
+
+    if (isDuplicateError(err1)) {
+      return await resolveDuplicate(err1);
+    }
+
+    if (isColumnError(err1)) {
+      return await insertTier2();
+    }
+
+    console.error('[Supabase insertUser] Supabase user insert error:', err1.message);
+    return { success: false, error: err1.message };
+  } catch (err: any) {
+    console.error('[Supabase insertUser] Unexpected exception during user insert:', err?.message || err);
+    return { success: false, error: err?.message || String(err) };
+  }
+}
+
 export async function createUser(userData: {
+  id?: string;
   name: string;
   email: string;
   password_hash: string;
@@ -404,16 +676,18 @@ export async function createUser(userData: {
 }): Promise<UserRecord> {
   const now = new Date().toISOString();
   const initialCredits = userData.initialCredits ?? 25;
-  const baseCode = userData.name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 7) || 'user';
+  const safeName = (typeof userData.name === 'string' ? userData.name.trim() : '') || 'User';
+  const safeEmail = (typeof userData.email === 'string' ? userData.email.trim().toLowerCase() : '');
+  const baseCode = safeName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 7) || 'user';
   const randSuffix = Math.floor(100 + Math.random() * 900);
   const referralCode = `${baseCode}${randSuffix}`;
 
   const newUser: UserRecord = {
-    id: `user_${crypto.randomUUID()}`,
-    name: userData.name.trim(),
-    email: userData.email.trim().toLowerCase(),
-    password_hash: userData.password_hash,
-    salt: userData.salt,
+    id: userData.id || `user_${crypto.randomUUID()}`,
+    name: safeName,
+    email: safeEmail,
+    password_hash: userData.password_hash || '',
+    salt: userData.salt || '',
     credits: initialCredits,
     referral_code: referralCode,
     referred_by: userData.referred_by || undefined,
@@ -436,15 +710,34 @@ export async function createUser(userData: {
 
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('users').insert([newUser]);
-      await supabase.from('transactions').insert([initialTx]);
-    } catch (err) {
-      console.error('Supabase createUser error:', err);
+      const userRes = await insertUserToSupabase(newUser);
+      if (userRes.success) {
+        if (userRes.remoteId && userRes.remoteId !== newUser.id) {
+          newUser.id = userRes.remoteId;
+          initialTx.user_id = userRes.remoteId;
+        }
+        const txUserId = userRes.remoteId || initialTx.user_id;
+        const { error: txErr } = await supabase.from('transactions').insert([{ ...initialTx, user_id: txUserId }]);
+        if (txErr) {
+          console.warn('Supabase initial transaction insert notice:', txErr.message || txErr);
+        }
+      } else {
+        console.warn('Supabase createUser: User could not be saved to Supabase, continuing with local storage:', userRes.error);
+      }
+    } catch (err: any) {
+      console.error('Supabase createUser error:', err?.message || err);
     }
   }
 
   const db = ensureLocalDb();
-  db.users.push(newUser);
+  const existingIdx = db.users.findIndex(
+    (u) => u.id === newUser.id || u.email.toLowerCase() === newUser.email.toLowerCase()
+  );
+  if (existingIdx >= 0) {
+    db.users[existingIdx] = newUser;
+  } else {
+    db.users.push(newUser);
+  }
   db.transactions.push(initialTx);
   writeLocalDb(db);
 
@@ -454,17 +747,41 @@ export async function createUser(userData: {
 export async function getUserByReferralCode(code: string): Promise<UserRecord | null> {
   if (!code) return null;
   const clean = code.trim().toLowerCase().replace(/^@/, '');
+  const safeClean = clean.replace(/[^a-z0-9_-]/gi, '');
+  if (!safeClean) return null;
 
   if (isSupabaseConfigured && supabase) {
     try {
+      // 1. Direct query on standard referral_code column
+      const { data: refData, error: refErr } = await supabase
+        .from('users')
+        .select('*')
+        .ilike('referral_code', safeClean)
+        .limit(1)
+        .maybeSingle();
+
+      if (!refErr && refData) return refData as UserRecord;
+
+      // 2. Query fallback with sanitized identifiers
       const { data, error } = await supabase
         .from('users')
         .select('*')
-        .or(`referral_code.ilike.${clean},username.ilike.${clean},id.ilike.${clean}%`)
+        .or(`referral_code.ilike.${safeClean},username.ilike.${safeClean},id.ilike.${safeClean}%`)
         .limit(1)
         .maybeSingle();
 
       if (!error && data) return data as UserRecord;
+
+      if (error) {
+        // Fallback for older schemas without username column: direct query by ID prefix
+        const { data: idData, error: idErr } = await supabase
+          .from('users')
+          .select('*')
+          .ilike('id', `${safeClean}%`)
+          .limit(1)
+          .maybeSingle();
+        if (!idErr && idData) return idData as UserRecord;
+      }
     } catch (err) {
       console.warn('Supabase getUserByReferralCode notice:', err);
     }
@@ -575,16 +892,18 @@ export async function processReferralReward(
           })
           .eq('id', referrer.id);
 
-        const { data: authData } = await supabase.auth.admin.getUserById(referrer.id);
-        if (authData?.user) {
-          await supabase.auth.admin.updateUserById(referrer.id, {
-            user_metadata: {
-              ...(authData.user.user_metadata || {}),
-              referral_count: newCount,
-              referral_earnings: newEarnings,
-              credits: (referrer.credits || 0) + REFERRAL_TOKENS,
-            },
-          });
+        if (isUuid(referrer.id)) {
+          const { data: authData } = await supabase.auth.admin.getUserById(referrer.id);
+          if (authData?.user) {
+            await supabase.auth.admin.updateUserById(referrer.id, {
+              user_metadata: {
+                ...(authData.user.user_metadata || {}),
+                referral_count: newCount,
+                referral_earnings: newEarnings,
+                credits: (referrer.credits || 0) + REFERRAL_TOKENS,
+              },
+            });
+          }
         }
       } catch {
         /* ignore */
@@ -798,9 +1117,20 @@ export async function createPasswordResetOtp(email: string): Promise<string> {
 
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('password_resets').insert([record]);
-    } catch {
-      /* ignore */
+      const { error: upErr } = await supabase
+        .from('password_resets')
+        .update({ used: true })
+        .eq('email', normalized)
+        .eq('used', false);
+      if (upErr) {
+        console.warn('Supabase createPasswordResetOtp invalidate notice:', upErr.message || upErr);
+      }
+      const { error: prErr } = await supabase.from('password_resets').insert([record]);
+      if (prErr) {
+        console.warn('Supabase createPasswordResetOtp insert notice:', prErr.message || prErr);
+      }
+    } catch (err: any) {
+      console.warn('Supabase createPasswordResetOtp exception:', err?.message || err);
     }
   }
 
@@ -826,7 +1156,7 @@ export async function verifyPasswordResetOtp(email: string, otp: string): Promis
 
   if (isSupabaseConfigured && supabase) {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('password_resets')
         .select('*')
         .eq('email', normalized)
@@ -835,8 +1165,9 @@ export async function verifyPasswordResetOtp(email: string, otp: string): Promis
         .gt('expires_at', now)
         .maybeSingle();
 
-      if (data) {
-        await supabase.from('password_resets').update({ used: true }).eq('id', data.id);
+      if (!error && data) {
+        const { error: upErr } = await supabase.from('password_resets').update({ used: true }).eq('id', data.id);
+        if (upErr) console.warn('Supabase verifyPasswordResetOtp update notice:', upErr.message || upErr);
         return true;
       }
     } catch {
@@ -854,10 +1185,11 @@ export async function createPasswordResetToken(email: string): Promise<string> {
   const now = new Date().toISOString();
   const expiresAt = Date.now() + 15 * 60 * 1000;
 
-  const record: PasswordResetRecord = {
+  const record: Record<string, unknown> = {
     id: `pr_${crypto.randomUUID()}`,
     email: normalized,
     otp: '',
+    token: rawToken,
     token_hash: tokenHash,
     expires_at: expiresAt,
     used: false,
@@ -869,14 +1201,35 @@ export async function createPasswordResetToken(email: string): Promise<string> {
   db.password_resets = db.password_resets.map((r) =>
     r.email === normalized ? { ...r, used: true } : r
   );
-  db.password_resets.push(record);
+  db.password_resets.push(record as unknown as PasswordResetRecord);
   writeLocalDb(db);
 
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('password_resets').update({ used: true }).eq('email', normalized).eq('used', false);
-      await supabase.from('password_resets').insert([record]);
-    } catch { /* ignore */ }
+      const { error: upErr } = await supabase.from('password_resets').update({ used: true }).eq('email', normalized).eq('used', false);
+      if (upErr) {
+        console.warn('Supabase createPasswordResetToken update notice:', upErr.message || upErr);
+      }
+      const { error: inErr } = await supabase.from('password_resets').insert([record]);
+      if (inErr) {
+        const isColErr =
+          inErr.code === '42703' ||
+          (inErr.message && inErr.message.toLowerCase().includes('column'));
+        if (isColErr) {
+          // Fallback for legacy table schema without token_hash column
+          const legacyRecord = { ...record };
+          delete legacyRecord.token_hash;
+          const { error: legacyErr } = await supabase.from('password_resets').insert([legacyRecord]);
+          if (legacyErr) {
+            console.warn('Supabase createPasswordResetToken legacy retry notice:', legacyErr.message || legacyErr);
+          }
+        } else {
+          console.warn('Supabase createPasswordResetToken insert notice:', inErr.message || inErr);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Supabase createPasswordResetToken exception:', err?.message || err);
+    }
   }
 
   return rawToken;
@@ -899,16 +1252,30 @@ export async function verifyPasswordResetToken(rawToken: string): Promise<string
 
   if (isSupabaseConfigured && supabase) {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('password_resets')
         .select('*')
         .eq('token_hash', tokenHash)
         .eq('used', false)
         .gt('expires_at', now)
         .maybeSingle();
-      if (data) {
-        await supabase.from('password_resets').update({ used: true }).eq('id', data.id);
+      if (!error && data) {
+        const { error: upErr } = await supabase.from('password_resets').update({ used: true }).eq('id', data.id);
+        if (upErr) console.warn('Supabase verifyPasswordResetToken update notice:', upErr.message || upErr);
         return (data as PasswordResetRecord).email;
+      }
+
+      // Fallback for legacy schemas that stored raw token instead of token_hash
+      const { data: legacyData, error: legErr } = await supabase
+        .from('password_resets')
+        .select('*')
+        .eq('token', rawToken.trim())
+        .eq('used', false)
+        .gt('expires_at', now)
+        .maybeSingle();
+      if (!legErr && legacyData) {
+        await supabase.from('password_resets').update({ used: true }).eq('id', legacyData.id);
+        return (legacyData as PasswordResetRecord).email;
       }
     } catch { /* ignore */ }
   }
@@ -964,20 +1331,48 @@ export async function updateUserCredits(
           await supabase.from('users').update({ credits: newCredits, updated_at: now }).ilike('email', user.email.toLowerCase());
         }
       }
-      await supabase.from('transactions').insert([tx]);
-      // Also sync user_metadata in Supabase Auth admin
-      try {
-        const metaUpdate: Record<string, unknown> = { credits: newCredits };
-        if (type === 'free_claim') {
-          metaUpdate.last_free_credit_claim_at = now;
+      const { error: txErr } = await supabase.from('transactions').insert([tx]);
+      if (txErr) {
+        if (txErr.code === '23503' || (txErr.message && txErr.message.toLowerCase().includes('foreign key'))) {
+          const userToSync = {
+            ...user,
+            credits: newCredits,
+            last_free_credit_claim_at: type === 'free_claim' ? now : user.last_free_credit_claim_at,
+            updated_at: now,
+          };
+          const syncRes = await insertUserToSupabase(userToSync);
+          if (syncRes.success) {
+            const retryUserId = syncRes.remoteId || tx.user_id;
+            if (syncRes.remoteId && syncRes.remoteId !== tx.user_id) {
+              await remapUserId(tx.user_id, syncRes.remoteId, user.email);
+            }
+            // Ensure remote credits and timestamps are updated on the synchronized remote user
+            await supabase.from('users').update(updateData).eq('id', retryUserId);
+            const retryTx = retryUserId !== tx.user_id ? { ...tx, user_id: retryUserId } : tx;
+            const { error: retryErr } = await supabase.from('transactions').insert([retryTx]);
+            if (retryErr) {
+              console.warn('Supabase updateUserCredits transaction retry notice:', retryErr.message || retryErr);
+            }
+          }
+        } else {
+          console.warn('Supabase updateUserCredits transaction insert notice:', txErr.message || txErr);
         }
-        const { data: authUser } = await supabase.auth.admin.getUserById(userId);
-        const existingMeta = authUser?.user?.user_metadata || {};
-        await supabase.auth.admin.updateUserById(userId, {
-          user_metadata: { ...existingMeta, ...metaUpdate },
-        });
-      } catch {
-        /* ignore */
+      }
+      // Also sync user_metadata in Supabase Auth admin
+      if (isUuid(userId)) {
+        try {
+          const metaUpdate: Record<string, unknown> = { credits: newCredits };
+          if (type === 'free_claim') {
+            metaUpdate.last_free_credit_claim_at = now;
+          }
+          const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+          const existingMeta = authUser?.user?.user_metadata || {};
+          await supabase.auth.admin.updateUserById(userId, {
+            user_metadata: { ...existingMeta, ...metaUpdate },
+          });
+        } catch {
+          /* ignore */
+        }
       }
     } catch (err) {
       console.error('Supabase updateUserCredits error:', err);
@@ -1001,6 +1396,69 @@ export async function updateUserCredits(
   return { success: true, credits: newCredits };
 }
 
+/**
+ * Remaps an old user ID to a new canonical user ID across local database tables and remote sessions.
+ * Ensures data integrity across transactions, chats, resumes, and applications.
+ */
+export async function remapUserId(oldUserId: string, newUserId: string, email?: string): Promise<void> {
+  if (!oldUserId || !newUserId || oldUserId === newUserId) return;
+  const normalizedEmail = email ? email.trim().toLowerCase() : undefined;
+
+  try {
+    const db = ensureLocalDb();
+    const uIdx = db.users.findIndex(
+      (u) => u.id === oldUserId || (normalizedEmail && u.email.toLowerCase() === normalizedEmail)
+    );
+    const existingNewIdx = db.users.findIndex((u) => u.id === newUserId);
+    if (existingNewIdx >= 0 && uIdx >= 0 && existingNewIdx !== uIdx) {
+      // Merge records and remove duplicate old ID record
+      const oldUser = db.users[uIdx];
+      const newUserRecord = db.users[existingNewIdx];
+      newUserRecord.password_hash = newUserRecord.password_hash || oldUser.password_hash;
+      newUserRecord.salt = newUserRecord.salt || oldUser.salt;
+      newUserRecord.referral_code = newUserRecord.referral_code || oldUser.referral_code;
+      newUserRecord.credits = Math.max(newUserRecord.credits ?? 0, oldUser.credits ?? 0);
+      db.users.splice(uIdx, 1);
+    } else if (uIdx >= 0) {
+      db.users[uIdx].id = newUserId;
+    }
+    for (const u of db.users || []) {
+      if (u.referred_by === oldUserId) u.referred_by = newUserId;
+    }
+    for (const tx of db.transactions || []) {
+      if (tx.user_id === oldUserId) tx.user_id = newUserId;
+    }
+    for (const c of db.chats || []) {
+      if (c.user_id === oldUserId) c.user_id = newUserId;
+    }
+    for (const r of db.resumes || []) {
+      if (r.user_id === oldUserId) r.user_id = newUserId;
+    }
+    for (const a of db.applications || []) {
+      if (a.user_id === oldUserId) a.user_id = newUserId;
+    }
+    for (const s of db.sessions || []) {
+      if (s.user_id === oldUserId) s.user_id = newUserId;
+    }
+    writeLocalDb(db);
+  } catch {
+    /* ignore */
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('users').update({ referred_by: newUserId }).eq('referred_by', oldUserId);
+      await supabase.from('sessions').update({ user_id: newUserId }).eq('user_id', oldUserId);
+      await supabase.from('chats').update({ user_id: newUserId }).eq('user_id', oldUserId);
+      await supabase.from('resumes').update({ user_id: newUserId }).eq('user_id', oldUserId);
+      await supabase.from('transactions').update({ user_id: newUserId }).eq('user_id', oldUserId);
+      await supabase.from('applications').update({ user_id: newUserId }).eq('user_id', oldUserId);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 // ================= SESSION OPERATIONS ================= //
 
 export async function createSession(userId: string, durationDays = 30, email?: string): Promise<SessionRecord> {
@@ -1012,10 +1470,13 @@ export async function createSession(userId: string, durationDays = 30, email?: s
   let userName = '';
   let userRefCode: string | undefined;
 
-  const user = await getUserById(userId);
+  let user = await getUserById(userId);
+  if (!user && email) {
+    user = await getUserByEmail(email);
+  }
   if (user) {
     userEmail = user.email || userEmail;
-    userName = user.name;
+    userName = user.name || userName;
     userRefCode = user.referral_code;
   }
 
@@ -1042,9 +1503,48 @@ export async function createSession(userId: string, durationDays = 30, email?: s
 
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('sessions').insert([session]);
-    } catch (err) {
-      console.error('Supabase createSession error:', err);
+      const { error: sessionErr } = await supabase.from('sessions').insert([session]);
+      if (sessionErr) {
+        const isFkViolation =
+          sessionErr.code === '23503' ||
+          (sessionErr.message && sessionErr.message.toLowerCase().includes('foreign key')) ||
+          (sessionErr.message && sessionErr.message.toLowerCase().includes('sessions_user_id_fkey'));
+
+        if (isFkViolation) {
+          console.warn(`[Supabase createSession] Foreign key constraint rejected user_id ${userId}. Synchronizing user record...`);
+          const userToSync = user || (await getUserById(userId)) || (email ? await getUserByEmail(email) : null);
+          if (userToSync) {
+            const syncRes = await insertUserToSupabase(userToSync);
+            if (syncRes.success) {
+              const targetUserId = syncRes.remoteId || userToSync.id;
+              if (targetUserId !== session.user_id) {
+                const oldUserId = session.user_id;
+                session.user_id = targetUserId;
+                session.token = signSessionToken({
+                  userId: targetUserId,
+                  email: userEmail || '',
+                  exp,
+                  name: userName,
+                  credits: userCredits,
+                  last_free_credit_claim_at: userToSync.last_free_credit_claim_at || user?.last_free_credit_claim_at,
+                  referral_code: userToSync.referral_code || userRefCode,
+                });
+                await remapUserId(oldUserId, targetUserId, userEmail);
+              }
+              const { error: retryErr } = await supabase.from('sessions').insert([session]);
+              if (retryErr) {
+                console.warn('[Supabase createSession] Session insert retry notice after syncing user:', retryErr.message || retryErr);
+              }
+            } else {
+              console.warn('[Supabase createSession] Failed to sync user for foreign key constraint:', syncRes.error);
+            }
+          }
+        } else {
+          console.warn('Supabase createSession insert notice:', sessionErr.message || sessionErr);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Supabase createSession unexpected exception:', err?.message || err);
     }
   }
 
@@ -1181,9 +1681,12 @@ export async function getSessionByToken(token: string): Promise<{ session: Sessi
 export async function deleteSession(token: string): Promise<void> {
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('sessions').delete().eq('token', token);
-    } catch (err) {
-      console.error('Supabase deleteSession error:', err);
+      const { error } = await supabase.from('sessions').delete().eq('token', token);
+      if (error) {
+        console.warn('Supabase deleteSession notice:', error.message || error);
+      }
+    } catch (err: any) {
+      console.error('Supabase deleteSession error:', err?.message || err);
     }
   }
 
@@ -1263,9 +1766,30 @@ export async function saveChatSession(
 
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('chats').upsert([record]);
-    } catch (err) {
-      console.error('Supabase saveChatSession error:', err);
+      const { error } = await supabase.from('chats').upsert([record]);
+      if (error) {
+        if (error.code === '23503' || (error.message && error.message.toLowerCase().includes('foreign key'))) {
+          const user = await getUserById(userId);
+          if (user) {
+            const syncRes = await insertUserToSupabase(user);
+            if (syncRes.success) {
+              const retryUserId = syncRes.remoteId || record.user_id;
+              if (syncRes.remoteId && syncRes.remoteId !== record.user_id) {
+                await remapUserId(record.user_id, syncRes.remoteId, user.email);
+              }
+              const retryRecord = retryUserId !== record.user_id ? { ...record, user_id: retryUserId } : record;
+              const { error: retryErr } = await supabase.from('chats').upsert([retryRecord]);
+              if (retryErr) {
+                console.warn('Supabase saveChatSession retry notice:', retryErr.message || retryErr);
+              }
+            }
+          }
+        } else {
+          console.warn('Supabase saveChatSession notice:', error.message || error);
+        }
+      }
+    } catch (err: any) {
+      console.error('Supabase saveChatSession error:', err?.message || err);
     }
   }
 
@@ -1345,9 +1869,30 @@ export async function saveUserResume(
 
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('resumes').insert([record]);
-    } catch (err) {
-      console.error('Supabase saveUserResume error:', err);
+      const { error } = await supabase.from('resumes').insert([record]);
+      if (error) {
+        if (error.code === '23503' || (error.message && error.message.toLowerCase().includes('foreign key'))) {
+          const user = await getUserById(userId);
+          if (user) {
+            const syncRes = await insertUserToSupabase(user);
+            if (syncRes.success) {
+              const retryUserId = syncRes.remoteId || record.user_id;
+              if (syncRes.remoteId && syncRes.remoteId !== record.user_id) {
+                await remapUserId(record.user_id, syncRes.remoteId, user.email);
+              }
+              const retryRecord = retryUserId !== record.user_id ? { ...record, user_id: retryUserId } : record;
+              const { error: retryErr } = await supabase.from('resumes').insert([retryRecord]);
+              if (retryErr) {
+                console.warn('Supabase saveUserResume retry notice:', retryErr.message || retryErr);
+              }
+            }
+          }
+        } else {
+          console.warn('Supabase saveUserResume notice:', error.message || error);
+        }
+      }
+    } catch (err: any) {
+      console.error('Supabase saveUserResume error:', err?.message || err);
     }
   }
 
@@ -1468,9 +2013,30 @@ export async function saveUserApplication(
 
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('applications').insert([record]);
-    } catch (err) {
-      console.error('Supabase saveUserApplication error:', err);
+      const { error } = await supabase.from('applications').insert([record]);
+      if (error) {
+        if (error.code === '23503' || (error.message && error.message.toLowerCase().includes('foreign key'))) {
+          const user = await getUserById(userId);
+          if (user) {
+            const syncRes = await insertUserToSupabase(user);
+            if (syncRes.success) {
+              const retryUserId = syncRes.remoteId || record.user_id;
+              if (syncRes.remoteId && syncRes.remoteId !== record.user_id) {
+                await remapUserId(record.user_id, syncRes.remoteId, user.email);
+              }
+              const retryRecord = retryUserId !== record.user_id ? { ...record, user_id: retryUserId } : record;
+              const { error: retryErr } = await supabase.from('applications').insert([retryRecord]);
+              if (retryErr) {
+                console.warn('Supabase saveUserApplication retry notice:', retryErr.message || retryErr);
+              }
+            }
+          }
+        } else {
+          console.warn('Supabase saveUserApplication notice:', error.message || error);
+        }
+      }
+    } catch (err: any) {
+      console.error('Supabase saveUserApplication error:', err?.message || err);
     }
   }
 
@@ -1660,14 +2226,46 @@ export async function recordFreeCreditClaim(
         description: 'Free weekly credit refill',
         created_at: claimTimeIso,
       };
-      await supabase.from('transactions').insert([tx]);
-    } catch (err) {
-      console.warn('Supabase recordFreeCreditClaim transaction insert error:', err);
+      const { error: txErr } = await supabase.from('transactions').insert([tx]);
+      if (txErr) {
+        if (txErr.code === '23503' || (txErr.message && txErr.message.toLowerCase().includes('foreign key'))) {
+          const u = await getUserById(userId);
+          if (u) {
+            const userToSync = {
+              ...u,
+              credits: newCredits,
+              last_free_credit_claim_at: claimTimeIso,
+              updated_at: claimTimeIso,
+            };
+            const syncRes = await insertUserToSupabase(userToSync);
+            if (syncRes.success) {
+              const retryUserId = syncRes.remoteId || tx.user_id;
+              if (syncRes.remoteId && syncRes.remoteId !== tx.user_id) {
+                await remapUserId(tx.user_id, syncRes.remoteId, email);
+              }
+              // Ensure remote credits and claim time are updated on the synchronized remote user
+              await supabase
+                .from('users')
+                .update({ credits: newCredits, last_free_credit_claim_at: claimTimeIso, updated_at: claimTimeIso })
+                .eq('id', retryUserId);
+              const retryTx = retryUserId !== tx.user_id ? { ...tx, user_id: retryUserId } : tx;
+              const { error: retryErr } = await supabase.from('transactions').insert([retryTx]);
+              if (retryErr) {
+                console.warn('Supabase recordFreeCreditClaim transaction retry notice:', retryErr.message || retryErr);
+              }
+            }
+          }
+        } else {
+          console.warn('Supabase recordFreeCreditClaim transaction insert notice:', txErr.message || txErr);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Supabase recordFreeCreditClaim transaction insert error:', err?.message || err);
     }
 
     // 3. Update Supabase Auth admin user_metadata
     try {
-      if (supabase.auth?.admin) {
+      if (supabase.auth?.admin && isUuid(userId)) {
         const { data: authUser } = await supabase.auth.admin.getUserById(userId);
         const existingMeta = authUser?.user?.user_metadata || {};
         await supabase.auth.admin.updateUserById(userId, {

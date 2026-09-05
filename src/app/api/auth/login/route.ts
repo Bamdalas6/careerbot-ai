@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserByEmail, createSession, createUser, updateUserPasswordByEmail, getActualUserCredits } from '@/lib/db';
+import { getUserByEmail, createSession, createUser, updateUserPasswordByEmail, getActualUserCredits, remapUserId } from '@/lib/db';
 import { verifyPassword, setSessionCookie, sanitizeUser, hashPassword } from '@/lib/auth';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
             const meta = sbAuth.user.user_metadata || {};
             const initialCredits = await getActualUserCredits(sbAuth.user.id, normalizedEmail);
             user = await createUser({
+              id: sbAuth.user.id,
               name: meta.name || 'User',
               email: normalizedEmail,
               password_hash: hash,
@@ -44,6 +45,12 @@ export async function POST(req: NextRequest) {
               initialCredits,
             });
           } else {
+            // Align user ID with canonical Supabase Auth UUID if they differ
+            if (sbAuth.user.id && user.id !== sbAuth.user.id) {
+              const oldId = user.id;
+              user.id = sbAuth.user.id;
+              await remapUserId(oldId, sbAuth.user.id, normalizedEmail);
+            }
             // Update local password hash so future logins are verified directly
             await updateUserPasswordByEmail(normalizedEmail, hash, salt);
             user.password_hash = hash;

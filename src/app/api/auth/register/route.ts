@@ -49,8 +49,51 @@ export async function POST(req: NextRequest) {
       req.headers.get('x-real-ip') ||
       '127.0.0.1';
 
+    // Pre-create user in Supabase Auth if configured so local, public.users, and auth.users IDs are unified
+    let authUserId: string | undefined = undefined;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
+          email: email.trim().toLowerCase(),
+          password,
+          email_confirm: true,
+          user_metadata: {
+            name: name.trim(),
+            referred_by: referrerUser ? referrerUser.id : null,
+            credits: 25,
+            referral_count: 0,
+            referral_earnings: 0,
+            signup_ip: clientIp,
+          },
+        });
+
+        if (!authErr && authData?.user?.id) {
+          authUserId = authData.user.id;
+        } else if (authErr) {
+          const authErrMsg = String(authErr.message || '').toLowerCase();
+          const authErrCode = String(((authErr as any)?.code) || '').toLowerCase();
+          if (
+            authErrMsg.includes('already registered') ||
+            authErrMsg.includes('already exists') ||
+            authErrMsg.includes('already taken') ||
+            authErrCode === 'email_exists' ||
+            authErr.status === 422
+          ) {
+            return NextResponse.json(
+              { success: false, error: 'An account with this email already exists. Please sign in instead.' },
+              { status: 409 }
+            );
+          }
+          console.warn('Supabase auth.admin.createUser notice:', authErr.message || authErr);
+        }
+      } catch (authErr: any) {
+        console.warn('Supabase auth.admin.createUser exception:', authErr?.message || authErr);
+      }
+    }
+
     const { hash, salt } = hashPassword(password);
     const user = await createUser({
+      id: authUserId,
       name: name.trim(),
       email: email.trim().toLowerCase(),
       password_hash: hash,
@@ -69,25 +112,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Also sync to Supabase Auth so native password resets and OTPs work out-of-the-box
-    if (isSupabaseConfigured && supabase) {
+    // Sync generated referral_code back to Supabase Auth metadata if auth user was created
+    if (authUserId && isSupabaseConfigured && supabase && user.referral_code) {
       try {
-        await supabase.auth.admin.createUser({
-          email: email.trim().toLowerCase(),
-          password,
-          email_confirm: true,
+        await supabase.auth.admin.updateUserById(authUserId, {
           user_metadata: {
             name: name.trim(),
             referral_code: user.referral_code,
             referred_by: referrerUser ? referrerUser.id : null,
-            credits: 25,
+            credits: user.credits,
             referral_count: 0,
             referral_earnings: 0,
             signup_ip: clientIp,
           },
         });
-      } catch (authErr) {
-        console.warn('Supabase auth.admin.createUser notice:', authErr);
+      } catch {
+        /* non-critical metadata sync */
       }
     }
 

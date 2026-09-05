@@ -141,7 +141,7 @@ async function runTests() {
   assert(!headerContent.includes('<a href="/pricing"'), 'GlassHeader must not contain <a href="/pricing"');
   assert(!headerContent.includes('<a\n                key={link.href}\n                href={link.href}'), 'GlassHeader must not use <a> for nav links');
   assert(headerContent.includes('<Link\n                key={link.href}\n                href={link.href}'), 'GlassHeader must use <Link> for nav links');
-  assert(headerContent.includes('<Link\n              href="/pricing"'), 'GlassHeader must use <Link href="/pricing"> for mobile nav');
+  assert(/<Link[\s\S]*?href="\/pricing"/.test(headerContent), 'GlassHeader must use <Link href="/pricing"> for mobile nav');
   console.log('  PASSED: GlassHeader uses Next.js <Link> for client-side navigation\n');
 
   // Test 9: Verify SiteFooter.tsx uses <Link> for internal links
