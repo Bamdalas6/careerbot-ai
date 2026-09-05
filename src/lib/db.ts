@@ -417,7 +417,7 @@ export async function insertUserToSupabase(
   }
 
   const safeEmail = (user.email || '').trim().toLowerCase();
-  const safeId = (user.id || '').trim();
+  let safeId = (user.id || '').trim();
   if (!safeEmail || !safeId) {
     return { success: false, error: 'User id and email are required' };
   }
@@ -425,6 +425,38 @@ export async function insertUserToSupabase(
   const safeName = (user.name || (safeEmail ? safeEmail.split('@')[0] : 'User')).trim() || 'User';
   const safeCredits = typeof user.credits === 'number' && Number.isFinite(user.credits) ? user.credits : 25;
   const nowIso = new Date().toISOString();
+
+  const isInvalidUuidError = (err: any) => {
+    if (!err) return false;
+    const code = String(err.code || '').toUpperCase();
+    const msg = String(err.message || '').toLowerCase();
+    const details = String(err.details || '').toLowerCase();
+    return (
+      code === '22P02' ||
+      msg.includes('22p02') ||
+      msg.includes('invalid input syntax for type uuid') ||
+      details.includes('invalid input syntax for type uuid')
+    );
+  };
+
+  const checkRlsViolation = (err: any) => {
+    if (!err) return;
+    const code = String(err.code || '').toUpperCase();
+    const msg = String(err.message || '').toLowerCase();
+    const details = String(err.details || '').toLowerCase();
+    if (
+      code === '42501' ||
+      msg.includes('42501') ||
+      msg.includes('row-level security') ||
+      msg.includes('violates row-level security') ||
+      msg.includes('permission denied') ||
+      details.includes('row-level security')
+    ) {
+      console.warn(
+        `[Supabase insertUser] Diagnostic Warning (RLS Violation 42501): Row-Level Security policy prevented user insertion into 'users' table. Check RLS policies or use service role key.`
+      );
+    }
+  };
 
   const isColumnError = (err: any) => {
     if (!err) return false;
@@ -537,6 +569,7 @@ export async function insertUserToSupabase(
       /* ignore */
     }
 
+    checkRlsViolation(err);
     console.warn('[Supabase insertUser] Duplicate constraint could not be resolved:', err?.message || err);
     return { success: false, error: err?.message || 'Duplicate key constraint violation' };
   };
@@ -555,8 +588,20 @@ export async function insertUserToSupabase(
       updated_at: user.updated_at || nowIso,
     };
 
-    const { error: err2 } = await sb.from('users').insert([tier2Record]);
+    let { error: err2 } = await sb.from('users').insert([tier2Record]);
     if (!err2) return { success: true, remoteId: safeId };
+
+    if (isInvalidUuidError(err2) && safeId.startsWith('user_')) {
+      const strippedId = safeId.replace(/^user_/, '');
+      console.warn(`[Supabase insertUser] UUID syntax error 22P02 encountered for id '${safeId}'. Retrying Tier 2 with stripped UUID prefix '${strippedId}'...`);
+      safeId = strippedId;
+      tier2Record.id = safeId;
+      const { error: retryUuidErr } = await sb.from('users').insert([tier2Record]);
+      if (!retryUuidErr) return { success: true, remoteId: safeId };
+      err2 = retryUuidErr;
+    }
+
+    checkRlsViolation(err2);
     if (isDuplicateError(err2)) return await resolveDuplicate(err2);
     if (isColumnError(err2)) return await insertTier3();
 
@@ -577,8 +622,20 @@ export async function insertUserToSupabase(
       updated_at: user.updated_at || nowIso,
     };
 
-    const { error: err3 } = await sb.from('users').insert([tier3Record]);
+    let { error: err3 } = await sb.from('users').insert([tier3Record]);
     if (!err3) return { success: true, remoteId: safeId };
+
+    if (isInvalidUuidError(err3) && safeId.startsWith('user_')) {
+      const strippedId = safeId.replace(/^user_/, '');
+      console.warn(`[Supabase insertUser] UUID syntax error 22P02 encountered for id '${safeId}'. Retrying Tier 3 with stripped UUID prefix '${strippedId}'...`);
+      safeId = strippedId;
+      tier3Record.id = safeId;
+      const { error: retryUuidErr } = await sb.from('users').insert([tier3Record]);
+      if (!retryUuidErr) return { success: true, remoteId: safeId };
+      err3 = retryUuidErr;
+    }
+
+    checkRlsViolation(err3);
     if (isDuplicateError(err3)) return await resolveDuplicate(err3);
     if (isColumnError(err3)) return await insertTier4();
 
@@ -597,8 +654,20 @@ export async function insertUserToSupabase(
     if (user.password_hash) tier4Record.password_hash = user.password_hash;
     if (user.salt) tier4Record.salt = user.salt;
 
-    const { error: err4 } = await sb.from('users').insert([tier4Record]);
+    let { error: err4 } = await sb.from('users').insert([tier4Record]);
     if (!err4) return { success: true, remoteId: safeId };
+
+    if (isInvalidUuidError(err4) && safeId.startsWith('user_')) {
+      const strippedId = safeId.replace(/^user_/, '');
+      console.warn(`[Supabase insertUser] UUID syntax error 22P02 encountered for id '${safeId}'. Retrying Tier 4 with stripped UUID prefix '${strippedId}'...`);
+      safeId = strippedId;
+      tier4Record.id = safeId;
+      const { error: retryUuidErr } = await sb.from('users').insert([tier4Record]);
+      if (!retryUuidErr) return { success: true, remoteId: safeId };
+      err4 = retryUuidErr;
+    }
+
+    checkRlsViolation(err4);
     if (isDuplicateError(err4)) return await resolveDuplicate(err4);
     if (isColumnError(err4)) return await insertTier5();
 
@@ -615,8 +684,20 @@ export async function insertUserToSupabase(
       credits: safeCredits,
     };
 
-    const { error: err5 } = await sb.from('users').insert([tier5Record]);
+    let { error: err5 } = await sb.from('users').insert([tier5Record]);
     if (!err5) return { success: true, remoteId: safeId };
+
+    if (isInvalidUuidError(err5) && safeId.startsWith('user_')) {
+      const strippedId = safeId.replace(/^user_/, '');
+      console.warn(`[Supabase insertUser] UUID syntax error 22P02 encountered for id '${safeId}'. Retrying Tier 5 with stripped UUID prefix '${strippedId}'...`);
+      safeId = strippedId;
+      tier5Record.id = safeId;
+      const { error: retryUuidErr } = await sb.from('users').insert([tier5Record]);
+      if (!retryUuidErr) return { success: true, remoteId: safeId };
+      err5 = retryUuidErr;
+    }
+
+    checkRlsViolation(err5);
     if (isDuplicateError(err5)) return await resolveDuplicate(err5);
 
     console.error('[Supabase insertUser] Minimal base schema insert failed:', err5.message);
@@ -648,17 +729,33 @@ export async function insertUserToSupabase(
       return { success: true, remoteId: safeId };
     }
 
-    if (isDuplicateError(err1)) {
-      return await resolveDuplicate(err1);
+    let currentErr1 = err1;
+    if (isInvalidUuidError(currentErr1) && safeId.startsWith('user_')) {
+      const strippedId = safeId.replace(/^user_/, '');
+      console.warn(`[Supabase insertUser] UUID syntax error 22P02 encountered for id '${safeId}'. Retrying with stripped UUID prefix '${strippedId}'...`);
+      safeId = strippedId;
+      fullRecord.id = safeId;
+      const { error: retryUuidErr } = await sb.from('users').insert([fullRecord]);
+      if (!retryUuidErr) {
+        return { success: true, remoteId: safeId };
+      }
+      currentErr1 = retryUuidErr;
     }
 
-    if (isColumnError(err1)) {
+    checkRlsViolation(currentErr1);
+
+    if (isDuplicateError(currentErr1)) {
+      return await resolveDuplicate(currentErr1);
+    }
+
+    if (isColumnError(currentErr1)) {
       return await insertTier2();
     }
 
-    console.error('[Supabase insertUser] Supabase user insert error:', err1.message);
-    return { success: false, error: err1.message };
+    console.error('[Supabase insertUser] Supabase user insert error:', currentErr1.message);
+    return { success: false, error: currentErr1.message };
   } catch (err: any) {
+    checkRlsViolation(err);
     console.error('[Supabase insertUser] Unexpected exception during user insert:', err?.message || err);
     return { success: false, error: err?.message || String(err) };
   }

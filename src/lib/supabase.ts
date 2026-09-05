@@ -55,33 +55,70 @@ export function isPlaceholderOrInvalidKey(key?: string | null): boolean {
   return false;
 }
 
-const rawSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const rawSupabaseKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.SUPABASE_SECRET_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  '';
+export function resolveSupabaseKey(): string {
+  const candidateKeys = [
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPABASE_SECRET_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+  ];
 
-function initSupabaseServerClient(): { isConfigured: boolean; client: SupabaseClient | null } {
-  const urlTrimmed = rawSupabaseUrl.trim();
-  const keyTrimmed = rawSupabaseKey.trim();
-
-  if (!urlTrimmed || !keyTrimmed) {
-    return { isConfigured: false, client: null };
+  for (const candidate of candidateKeys) {
+    if (candidate && typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed && !isPlaceholderOrInvalidKey(trimmed)) {
+        return trimmed;
+      }
+    }
   }
 
-  if (isPlaceholderOrInvalidUrl(urlTrimmed)) {
+  return '';
+}
+
+export function resolveSupabaseUrl(): string {
+  const candidateUrls = [
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_URL,
+  ];
+
+  for (const candidate of candidateUrls) {
+    if (candidate && typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed && !isPlaceholderOrInvalidUrl(trimmed)) {
+        return trimmed;
+      }
+    }
+  }
+
+  return '';
+}
+
+function initSupabaseServerClient(): { isConfigured: boolean; client: SupabaseClient | null } {
+  const urlTrimmed = resolveSupabaseUrl();
+  const keyTrimmed = resolveSupabaseKey();
+
+  const rawUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '').trim();
+  const rawKey = (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    ''
+  ).trim();
+
+  if (rawUrl && isPlaceholderOrInvalidUrl(rawUrl)) {
     console.warn(
       '[Supabase Config] Diagnostic: NEXT_PUBLIC_SUPABASE_URL appears to be a placeholder or invalid format. Supabase is disabled; falling back to local database and stateless sessions.'
     );
-    return { isConfigured: false, client: null };
   }
 
-  if (isPlaceholderOrInvalidKey(keyTrimmed)) {
+  if (rawKey && !keyTrimmed && isPlaceholderOrInvalidKey(rawKey)) {
     console.warn(
       '[Supabase Config] Diagnostic: Supabase API key appears to be a placeholder or invalid format. Supabase is disabled; falling back to local database and stateless sessions.'
     );
+  }
+
+  if (!urlTrimmed || !keyTrimmed) {
     return { isConfigured: false, client: null };
   }
 
@@ -113,14 +150,20 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
     return supabase;
   }
   if (!browserClientInstance) {
-    const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
-    const anonKey = (
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-      ''
-    ).trim();
+    const url = resolveSupabaseUrl();
+    const candidateBrowserKeys = [
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    ];
+    let anonKey = '';
+    for (const cand of candidateBrowserKeys) {
+      if (cand && typeof cand === 'string' && cand.trim() && !isPlaceholderOrInvalidKey(cand.trim())) {
+        anonKey = cand.trim();
+        break;
+      }
+    }
 
-    if (url && anonKey && !isPlaceholderOrInvalidUrl(url) && !isPlaceholderOrInvalidKey(anonKey)) {
+    if (url && anonKey) {
       try {
         browserClientInstance = createClient(url, anonKey, {
           auth: {

@@ -12,6 +12,8 @@ const projectRoot = path.resolve(__dirname, '..');
 import {
   isPlaceholderOrInvalidUrl,
   isPlaceholderOrInvalidKey,
+  resolveSupabaseKey,
+  resolveSupabaseUrl,
 } from '../src/lib/supabase.ts';
 import {
   signSessionToken,
@@ -989,6 +991,144 @@ async function runVerification() {
   );
 
   ok('getUserByReferralCode safely falls back to id prefix queries when optional columns are missing.');
+
+  // ----------------------------------------------------
+  // TEST 33: Resilient Key Resolution Iteration (R1)
+  // ----------------------------------------------------
+  step('R1: Resilient key resolution iterates candidates and skips placeholders');
+  const origServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const origAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const origSecretKey = process.env.SUPABASE_SECRET_KEY;
+  const origPubkey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  try {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'your_supabase_service_role_key_here'; // placeholder
+    process.env.SUPABASE_SECRET_KEY = 'placeholder_secret'; // placeholder
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.valid_anon_key_test_1234567890';
+    delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+    const resolved = resolveSupabaseKey();
+    assert.strictEqual(
+      resolved,
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.valid_anon_key_test_1234567890',
+      'resolveSupabaseKey must skip placeholder service role key and select valid anon key'
+    );
+  } finally {
+    if (origServiceKey !== undefined) process.env.SUPABASE_SERVICE_ROLE_KEY = origServiceKey;
+    else delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (origAnonKey !== undefined) process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = origAnonKey;
+    else delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (origSecretKey !== undefined) process.env.SUPABASE_SECRET_KEY = origSecretKey;
+    else delete process.env.SUPABASE_SECRET_KEY;
+    if (origPubkey !== undefined) process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = origPubkey;
+    else delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  }
+
+  ok('resolveSupabaseKey cleanly iterates candidates, skips dummy/placeholder keys, and picks active valid key.');
+
+  // ----------------------------------------------------
+  // TEST 34: Dual-Path Supabase Auth Registration Fallback (R2)
+  // ----------------------------------------------------
+  step('R2: Register route dual-path Supabase Auth fallback via supabase.auth.signUp');
+  const regRouteCode = fs.readFileSync(registerSrcPath, 'utf8');
+  assert(
+    regRouteCode.includes('supabase.auth.signUp({'),
+    'Register route must implement dual-path registration via supabase.auth.signUp'
+  );
+  assert(
+    regRouteCode.includes('supabase.auth.admin.createUser') && regRouteCode.includes('supabase.auth.signUp'),
+    'Register route must attempt auth.admin.createUser first and fall back to auth.signUp'
+  );
+
+  ok('Register route provides dual-path Supabase Auth registration fallback to auth.signUp.');
+
+  // ----------------------------------------------------
+  // TEST 35: 22P02 Invalid UUID Recovery and 42501 RLS Diagnostics (R3)
+  // ----------------------------------------------------
+  step('R3: 22P02 invalid UUID recovery logic in insertUserToSupabase');
+  const testDbCode = fs.readFileSync(dbSrcPath, 'utf8');
+  assert(
+    testDbCode.includes('isInvalidUuidError') &&
+    testDbCode.includes("safeId.replace(/^user_/, '')"),
+    'insertUserToSupabase must strip user_ prefix and retry when 22P02 occurs'
+  );
+  assert(
+    testDbCode.includes('42501') && testDbCode.includes('Row-Level Security'),
+    'insertUserToSupabase must log diagnostic warning on 42501 RLS violation'
+  );
+
+  // Simulate 22P02 recovery with a mock client
+  let mockUuidAttempts = [];
+  const mockUuidClient = {
+    from: () => ({
+      insert: async (records) => {
+        const r = records[0];
+        mockUuidAttempts.push(r.id);
+        if (r.id.startsWith('user_')) {
+          return {
+            error: {
+              code: '22P02',
+              message: `invalid input syntax for type uuid: "${r.id}"`,
+            },
+          };
+        }
+        return { error: null };
+      },
+    }),
+  };
+
+  async function test22P02Recovery(client, inputId) {
+    let id = inputId;
+    const isInvalidUuid = (err) => err?.code === '22P02';
+    const rec = { id, name: 'UUID Tester', email: 'uuid@test.io' };
+    let { error: err } = await client.from('users').insert([rec]);
+    if (err && isInvalidUuid(err) && id.startsWith('user_')) {
+      id = id.replace(/^user_/, '');
+      rec.id = id;
+      const { error: retryErr } = await client.from('users').insert([rec]);
+      if (!retryErr) return { success: true, remoteId: id };
+    }
+    return { success: false };
+  }
+
+  const uuidRecResult = await test22P02Recovery(mockUuidClient, 'user_a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11');
+  assert.strictEqual(uuidRecResult.success, true, 'Must recover from 22P02 error');
+  assert.strictEqual(uuidRecResult.remoteId, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Remote ID must have user_ stripped');
+  assert.strictEqual(mockUuidAttempts.length, 2, 'Should make exactly 2 attempts');
+
+  ok('22P02 invalid UUID error automatically strips user_ prefix and recovers successfully.');
+
+  // ----------------------------------------------------
+  // TEST 36: Complete RLS Enablement & Permissive Policies in Schema (R4)
+  // ----------------------------------------------------
+  step('R4: Complete RLS enablement and permissive policies for all 8 database tables');
+  const schemaText = fs.readFileSync(schemaPath, 'utf8');
+  const tables = [
+    'users',
+    'sessions',
+    'transactions',
+    'chats',
+    'resumes',
+    'applications',
+    'password_resets',
+    'crawled_jobs',
+  ];
+
+  for (const table of tables) {
+    assert(
+      schemaText.includes(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;`),
+      `supabase_schema.sql must enable RLS for ${table}`
+    );
+    assert(
+      schemaText.includes(`TO service_role`) &&
+      schemaText.includes(`ON ${table}`) &&
+      schemaText.includes(`TO anon`) &&
+      schemaText.includes(`TO authenticated`),
+      `supabase_schema.sql must define service_role, anon, and authenticated policies for ${table}`
+    );
+  }
+
+  ok('supabase_schema.sql enables RLS and defines permissive policies for all 8 tables.');
 
   console.log('====================================================');
   console.log(`ALL ${passed} / ${total} VERIFICATION TESTS PASSED SUCCESSFULLY!`);

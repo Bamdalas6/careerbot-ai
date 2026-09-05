@@ -52,19 +52,21 @@ export async function POST(req: NextRequest) {
     // Pre-create user in Supabase Auth if configured so local, public.users, and auth.users IDs are unified
     let authUserId: string | undefined = undefined;
     if (isSupabaseConfigured && supabase) {
+      const userMeta = {
+        name: name.trim(),
+        referred_by: referrerUser ? referrerUser.id : null,
+        credits: 25,
+        referral_count: 0,
+        referral_earnings: 0,
+        signup_ip: clientIp,
+      };
+
       try {
         const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
           email: email.trim().toLowerCase(),
           password,
           email_confirm: true,
-          user_metadata: {
-            name: name.trim(),
-            referred_by: referrerUser ? referrerUser.id : null,
-            credits: 25,
-            referral_count: 0,
-            referral_earnings: 0,
-            signup_ip: clientIp,
-          },
+          user_metadata: userMeta,
         });
 
         if (!authErr && authData?.user?.id) {
@@ -85,9 +87,89 @@ export async function POST(req: NextRequest) {
             );
           }
           console.warn('Supabase auth.admin.createUser notice:', authErr.message || authErr);
+
+          // Fallback: Dual-path Supabase Auth registration via supabase.auth.signUp
+          // If auth.admin.createUser fails (e.g. 403 / service role missing when only anon key is deployed),
+          // fall back to supabase.auth.signUp so accounts always appear in Supabase Auth (auth.users)
+          try {
+            const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+              email: email.trim().toLowerCase(),
+              password,
+              options: {
+                data: userMeta,
+              },
+            });
+
+            if (!signUpErr && signUpData?.user?.id) {
+              if (signUpData.user.identities && signUpData.user.identities.length === 0) {
+                return NextResponse.json(
+                  { success: false, error: 'An account with this email already exists. Please sign in instead.' },
+                  { status: 409 }
+                );
+              }
+              authUserId = signUpData.user.id;
+            } else if (signUpErr) {
+              const signUpMsg = String(signUpErr.message || '').toLowerCase();
+              const signUpCode = String(((signUpErr as any)?.code) || '').toLowerCase();
+              if (
+                signUpMsg.includes('already registered') ||
+                signUpMsg.includes('already exists') ||
+                signUpMsg.includes('already taken') ||
+                signUpCode === 'email_exists' ||
+                signUpErr.status === 422
+              ) {
+                return NextResponse.json(
+                  { success: false, error: 'An account with this email already exists. Please sign in instead.' },
+                  { status: 409 }
+                );
+              }
+              console.warn('Supabase auth.signUp fallback notice:', signUpErr.message || signUpErr);
+            }
+          } catch (signUpEx: any) {
+            console.warn('Supabase auth.signUp fallback exception:', signUpEx?.message || signUpEx);
+          }
         }
       } catch (authErr: any) {
         console.warn('Supabase auth.admin.createUser exception:', authErr?.message || authErr);
+
+        // Fallback: Dual-path Supabase Auth registration via supabase.auth.signUp on exception
+        try {
+          const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+            email: email.trim().toLowerCase(),
+            password,
+            options: {
+              data: userMeta,
+            },
+          });
+
+          if (!signUpErr && signUpData?.user?.id) {
+            if (signUpData.user.identities && signUpData.user.identities.length === 0) {
+              return NextResponse.json(
+                { success: false, error: 'An account with this email already exists. Please sign in instead.' },
+                { status: 409 }
+              );
+            }
+            authUserId = signUpData.user.id;
+          } else if (signUpErr) {
+            const signUpMsg = String(signUpErr.message || '').toLowerCase();
+            const signUpCode = String(((signUpErr as any)?.code) || '').toLowerCase();
+            if (
+              signUpMsg.includes('already registered') ||
+              signUpMsg.includes('already exists') ||
+              signUpMsg.includes('already taken') ||
+              signUpCode === 'email_exists' ||
+              signUpErr.status === 422
+            ) {
+              return NextResponse.json(
+                { success: false, error: 'An account with this email already exists. Please sign in instead.' },
+                { status: 409 }
+              );
+            }
+            console.warn('Supabase auth.signUp fallback notice:', signUpErr.message || signUpErr);
+          }
+        } catch (signUpEx: any) {
+          console.warn('Supabase auth.signUp fallback exception:', signUpEx?.message || signUpEx);
+        }
       }
     }
 

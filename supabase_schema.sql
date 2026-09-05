@@ -173,3 +173,81 @@ ALTER TABLE crawled_jobs ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb
 ALTER TABLE crawled_jobs ADD COLUMN IF NOT EXISTS posted_at TEXT;
 ALTER TABLE crawled_jobs ADD COLUMN IF NOT EXISTS age_days INTEGER;
 
+-- ==========================================================
+-- Row Level Security (RLS) Enablement & Permissive Policies
+-- Ensures remote Supabase tables with RLS enabled do not block registrations, sessions, or job data
+-- ==========================================================
+
+-- 1. users
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all operations for service_role on users" ON users;
+CREATE POLICY "Allow all operations for service_role on users" ON users FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for anon on users" ON users;
+CREATE POLICY "Allow all operations for anon on users" ON users FOR ALL TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for authenticated on users" ON users;
+CREATE POLICY "Allow all operations for authenticated on users" ON users FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- 2. sessions
+ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all operations for service_role on sessions" ON sessions;
+CREATE POLICY "Allow all operations for service_role on sessions" ON sessions FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for anon on sessions" ON sessions;
+CREATE POLICY "Allow all operations for anon on sessions" ON sessions FOR ALL TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for authenticated on sessions" ON sessions;
+CREATE POLICY "Allow all operations for authenticated on sessions" ON sessions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- 3. transactions
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all operations for service_role on transactions" ON transactions;
+CREATE POLICY "Allow all operations for service_role on transactions" ON transactions FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for anon on transactions" ON transactions;
+CREATE POLICY "Allow all operations for anon on transactions" ON transactions FOR ALL TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for authenticated on transactions" ON transactions;
+CREATE POLICY "Allow all operations for authenticated on transactions" ON transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- 4. chats
+ALTER TABLE chats ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all operations for service_role on chats" ON chats;
+CREATE POLICY "Allow all operations for service_role on chats" ON chats FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for anon on chats" ON chats;
+CREATE POLICY "Allow all operations for anon on chats" ON chats FOR ALL TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for authenticated on chats" ON chats;
+CREATE POLICY "Allow all operations for authenticated on chats" ON chats FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- 5. resumes
+ALTER TABLE resumes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all operations for service_role on resumes" ON resumes;
+CREATE POLICY "Allow all operations for service_role on resumes" ON resumes FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for anon on resumes" ON resumes;
+CREATE POLICY "Allow all operations for anon on resumes" ON resumes FOR ALL TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for authenticated on resumes" ON resumes;
+CREATE POLICY "Allow all operations for authenticated on resumes" ON resumes FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- 6. applications
+ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all operations for service_role on applications" ON applications;
+CREATE POLICY "Allow all operations for service_role on applications" ON applications FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for anon on applications" ON applications;
+CREATE POLICY "Allow all operations for anon on applications" ON applications FOR ALL TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for authenticated on applications" ON applications;
+CREATE POLICY "Allow all operations for authenticated on applications" ON applications FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- 7. password_resets
+ALTER TABLE password_resets ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all operations for service_role on password_resets" ON password_resets;
+CREATE POLICY "Allow all operations for service_role on password_resets" ON password_resets FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for anon on password_resets" ON password_resets;
+CREATE POLICY "Allow all operations for anon on password_resets" ON password_resets FOR ALL TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for authenticated on password_resets" ON password_resets;
+CREATE POLICY "Allow all operations for authenticated on password_resets" ON password_resets FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- 8. crawled_jobs
+ALTER TABLE crawled_jobs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all operations for service_role on crawled_jobs" ON crawled_jobs;
+CREATE POLICY "Allow all operations for service_role on crawled_jobs" ON crawled_jobs FOR ALL TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for anon on crawled_jobs" ON crawled_jobs;
+CREATE POLICY "Allow all operations for anon on crawled_jobs" ON crawled_jobs FOR ALL TO anon USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow all operations for authenticated on crawled_jobs" ON crawled_jobs;
+CREATE POLICY "Allow all operations for authenticated on crawled_jobs" ON crawled_jobs FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+
