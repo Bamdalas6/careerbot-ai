@@ -579,6 +579,10 @@ function isJobStart(line: string, nextLine?: string): boolean {
   if (/^[•▪◦·\-–—]\s*/.test(trimmed) || /^\*(?!\*)\s*/.test(trimmed)) {
     return false;
   }
+  // A job header line never ends with a sentence period
+  if (trimmed.endsWith('.') && !/\b(?:Inc|Ltd|Co|LLC)\.$/i.test(trimmed)) {
+    return false;
+  }
   // 1. Markdown h3 header (### **Role**)
   if (/^#{3,}\s+/.test(trimmed)) {
     return true;
@@ -597,11 +601,12 @@ function isJobStart(line: string, nextLine?: string): boolean {
   }
   // 5. Line looks like a role title and next line has dates, company or location
   if (nextLine && trimmed.length <= 80) {
+    if (trimmed.endsWith('.')) return false;
+    const isRoleLike = /\b(Engineer|Developer|Designer|Architect|Lead|Manager|Director|Specialist|Consultant|Officer|Analyst|Intern|Administrator|Executive|Founder|Supervisor|Assistant|Cook|Chef|Nurse|Teacher|Representative|Associate|Head|VP)\b/i.test(trimmed);
     const nextTrimmed = nextLine.trim();
     if (
-      DATE_REGEX.test(nextTrimmed) ||
-      STANDALONE_YEAR_REGEX.test(nextTrimmed) ||
-      /\s+[-–—•·|]\s+/.test(nextTrimmed)
+      isRoleLike &&
+      (DATE_REGEX.test(nextTrimmed) || STANDALONE_YEAR_REGEX.test(nextTrimmed) || isLocationLine(nextTrimmed))
     ) {
       return true;
     }
@@ -737,9 +742,27 @@ function parseExperienceEntries(lines: string[]): ExperienceEntry[] {
 
     // Bullet point or description line
     if (currentEntry) {
+      const isExplicitBullet = /^[•▪◦·\-–—]\s*/.test(rawLine) || /^\*(?!\*)\s*/.test(rawLine);
       const cleanBullet = rawLine.replace(/^[•▪◦·\-–—]\s*|^\*(?!\*)\s*/, '').trim();
       if (cleanBullet) {
-        currentEntry.bullets.push(cleanBullet);
+        if (isExplicitBullet || currentEntry.bullets.length === 0) {
+          currentEntry.bullets.push(cleanBullet);
+        } else {
+          const lastIdx = currentEntry.bullets.length - 1;
+          const prevBullet = currentEntry.bullets[lastIdx];
+          const prevEndsSentence = /[.!?]$/.test(prevBullet);
+          const startsLower = /^[a-z]/.test(cleanBullet);
+          const startsConjunction = /^(?:and|or|with|for|to|of|in|by|across|on|at|including|such\s+as)\b/i.test(cleanBullet);
+
+          // Continuation if previous line didn't end with a period, or this line starts with lowercase/conjunction
+          const isContinuation = !prevEndsSentence || startsLower || startsConjunction;
+
+          if (isContinuation) {
+            currentEntry.bullets[lastIdx] = `${prevBullet} ${cleanBullet}`.replace(/\s+/g, ' ').trim();
+          } else {
+            currentEntry.bullets.push(cleanBullet);
+          }
+        }
       }
     }
   }
@@ -784,16 +807,24 @@ function parseSkillsGrid(lines: string[]): SkillCategory[] {
       }
     }
 
-    // Non-colon line: clean bullets
-    const clean = rawLine.replace(/^[•▪◦·\-–—]\s*|^\*(?!\*)\s*/, '').trim();
+    // Non-colon line: continuation of skills
+    const clean = rawLine.replace(/^[•▪◦·\-–—]\s*|^\*(?!\*)\s*/, '').replace(/^,\s*/, '').trim();
     if (clean) {
       if (categories.length > 0) {
-        // Append to last category
-        categories[categories.length - 1].items += `, ${clean}`;
+        const prevItems = categories[categories.length - 1].items.replace(/,\s*$/, '').trim();
+        categories[categories.length - 1].items = prevItems ? `${prevItems}, ${clean}` : clean;
       } else {
         categories.push({ category: 'Core Competencies', items: clean });
       }
     }
+  }
+
+  for (const cat of categories) {
+    cat.items = cat.items
+      .replace(/,\s*,+/g, ',')
+      .replace(/Google,\s*Workspace/gi, 'Google Workspace')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   return categories;

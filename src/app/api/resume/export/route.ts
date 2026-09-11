@@ -172,14 +172,6 @@ async function buildPdf(text: string, parsedDoc?: ParsedResumeDocument): Promise
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const italic = await doc.embedFont(StandardFonts.HelveticaOblique);
 
-  let page: PDFPage = doc.addPage([A4.width, A4.height]);
-  let y = A4.height - MARGIN_TOP;
-
-  const newPage = () => {
-    page = doc.addPage([A4.width, A4.height]);
-    y = A4.height - MARGIN_TOP;
-  };
-
   const resume = parsedDoc || parseResumeDocument(text);
   const hasStructuredSections =
     resume.skills.length > 0 ||
@@ -188,13 +180,37 @@ async function buildPdf(text: string, parsedDoc?: ParsedResumeDocument): Promise
     Boolean(resume.summary) ||
     Boolean(resume.projects && resume.projects.length > 0);
 
+  // Dynamic Density Budgeting:
+  // If a resume has standard 1-page scale (<= 16 bullets, <= 4 jobs),
+  // compact the margins and gaps so it fits gracefully onto 1 page without trailing orphans.
+  const totalBullets = resume.experience.reduce((sum, e) => sum + e.bullets.length, 0);
+  const totalJobs = resume.experience.length;
+  const summaryLength = (resume.summary || '').length;
+  const isOnePageScale = totalBullets <= 16 && totalJobs <= 4 && summaryLength < 900;
+
+  const marginTop = isOnePageScale ? 26 : MARGIN_TOP;
+  const marginBottom = isOnePageScale ? 26 : MARGIN_BOTTOM;
+  const bodySize = isOnePageScale ? 9.2 : BODY_SIZE;
+  const lineGap = isOnePageScale ? 2.5 : LINE_GAP;
+  const sectionGapAbove = isOnePageScale ? 6 : 10;
+  const sectionGapBelow = isOnePageScale ? 14 : 20;
+  const roleGap = isOnePageScale ? 2.5 : 4;
+
+  let page: PDFPage = doc.addPage([A4.width, A4.height]);
+  let y = A4.height - marginTop;
+
+  const newPage = () => {
+    page = doc.addPage([A4.width, A4.height]);
+    y = A4.height - marginTop;
+  };
+
   // Helper: Section Heading with hairline underline & orphan protection
   const drawSectionHeading = (title: string) => {
-    if (y - 50 < MARGIN_BOTTOM) {
+    if (y - 50 < marginBottom) {
       newPage();
     }
-    y -= 10;
-    if (y - 10 < MARGIN_BOTTOM) {
+    y -= sectionGapAbove;
+    if (y - 10 < marginBottom) {
       newPage();
     }
 
@@ -214,7 +230,7 @@ async function buildPdf(text: string, parsedDoc?: ParsedResumeDocument): Promise
       color: COLOR_DIVIDER_HAIRLINE,
     });
 
-    y -= 20;
+    y -= sectionGapBelow;
   };
 
   // Helper: Two-column experience/role header with collision check
@@ -229,8 +245,8 @@ async function buildPdf(text: string, parsedDoc?: ParsedResumeDocument): Promise
     const title = cleanLeft.trim();
     const titleWidth = bold.widthOfTextAtSize(title, 10);
 
-    // Orphan check: ensure room for header
-    if (y - 45 < MARGIN_BOTTOM) {
+    // Orphan check: ensure room for header + at least 1st bullet
+    if (y - 40 < marginBottom) {
       newPage();
     }
 
@@ -284,7 +300,7 @@ async function buildPdf(text: string, parsedDoc?: ParsedResumeDocument): Promise
           });
         }
       }
-      y -= 10 + 4;
+      y -= 10 + roleGap;
     } else {
       // No collision: single line
       page.drawText(title, {
@@ -303,24 +319,35 @@ async function buildPdf(text: string, parsedDoc?: ParsedResumeDocument): Promise
           color: COLOR_TEXT_MUTED,
         });
       }
-      y -= 10 + 4;
+      y -= 10 + roleGap;
     }
   };
 
-  // Helper: Skill category with hanging indent alignment
+  // Helper: Skill category with natural inline flow and full-width wrapping
   const drawSkillCategory = (category: string, items: string) => {
     const cleanCategory = sanitizeForPdf(category.replace(/:$/, '').trim());
     const prefix = cleanCategory ? `${cleanCategory}: ` : '';
-    const cleanItems = sanitizeForPdf(items.trim());
+    const cleanItems = sanitizeForPdf(items.trim()).replace(/,\s*,+/g, ',');
 
     if (y - 20 < MARGIN_BOTTOM) {
       newPage();
     }
 
     const prefixWidth = prefix ? bold.widthOfTextAtSize(prefix, 9.5) : 0;
-    if (prefixWidth > 0 && prefixWidth < CONTENT_WIDTH * 0.4) {
-      const itemsWidth = CONTENT_WIDTH - prefixWidth;
-      const rows = wrapText(cleanItems, 9.5, itemsWidth, regular);
+    if (prefixWidth > 0 && prefixWidth < CONTENT_WIDTH * 0.48) {
+      const words = cleanItems.split(/\s+/).filter(Boolean);
+      let line0 = '';
+      let restWords: string[] = [];
+
+      for (let i = 0; i < words.length; i++) {
+        const cand = line0 ? `${line0} ${words[i]}` : words[i];
+        if (regular.widthOfTextAtSize(cand, 9.5) <= CONTENT_WIDTH - prefixWidth - 4) {
+          line0 = cand;
+        } else {
+          restWords = words.slice(i);
+          break;
+        }
+      }
 
       // Draw prefix
       page.drawText(prefix, {
@@ -331,22 +358,24 @@ async function buildPdf(text: string, parsedDoc?: ParsedResumeDocument): Promise
         color: COLOR_TEXT_PRIMARY,
       });
 
-      if (rows.length > 0) {
-        // Row 0
-        page.drawText(rows[0], {
+      if (line0) {
+        page.drawText(line0, {
           x: MARGIN_LEFT + prefixWidth,
           y: y - 9.5,
           size: 9.5,
           font: regular,
           color: COLOR_TEXT_BODY,
         });
+      }
 
-        // Rows 1+ with proper hanging indent
-        for (let r = 1; r < rows.length; r++) {
+      // Draw subsequent lines wrapping back cleanly across full width
+      if (restWords.length > 0) {
+        const restRows = wrapText(restWords.join(' '), 9.5, CONTENT_WIDTH, regular);
+        for (const row of restRows) {
           y -= 9.5 + LINE_GAP;
           if (y - 9.5 < MARGIN_BOTTOM) newPage();
-          page.drawText(rows[r], {
-            x: MARGIN_LEFT + prefixWidth,
+          page.drawText(row, {
+            x: MARGIN_LEFT,
             y: y - 9.5,
             size: 9.5,
             font: regular,
@@ -354,7 +383,7 @@ async function buildPdf(text: string, parsedDoc?: ParsedResumeDocument): Promise
           });
         }
       }
-      y -= 9.5 + 4;
+      y -= 9.5 + 3.5;
     } else {
       if (prefix) {
         page.drawText(prefix, {
@@ -382,50 +411,39 @@ async function buildPdf(text: string, parsedDoc?: ParsedResumeDocument): Promise
     }
   };
 
-  // Helper: Bullet point with orphan dot protection
+  // Helper: Bullet point with complete-bullet orphan protection
   const drawBullet = (bulletText: string) => {
     const rawClean = bulletText.replace(/^[•▪◦·*\-–—]\s*/, '').trim();
     const clean = sanitizeForPdf(rawClean);
     if (!clean) return;
 
-    const rows = wrapText(clean, BODY_SIZE, CONTENT_WIDTH - 14, regular);
+    const rows = wrapText(clean, bodySize, CONTENT_WIDTH - 14, regular);
     if (!rows.length) return;
 
-    // Orphan protection: never draw circle if line requires a new page
-    if (y - BODY_SIZE < MARGIN_BOTTOM) {
+    // Never break an individual bullet point across page boundaries!
+    const bulletHeight = rows.length * (bodySize + lineGap);
+    if (y - bulletHeight < marginBottom) {
       newPage();
     }
 
     page.drawCircle({
       x: MARGIN_LEFT + 4,
-      y: y - BODY_SIZE + 3.2,
+      y: y - bodySize + 3.2,
       size: 1.5,
       color: COLOR_BULLET_CIRCLE,
     });
 
-    page.drawText(rows[0], {
-      x: MARGIN_LEFT + 14,
-      y: y - BODY_SIZE,
-      size: BODY_SIZE,
-      font: regular,
-      color: COLOR_TEXT_BODY,
-    });
-    y -= BODY_SIZE + LINE_GAP;
-
-    for (let r = 1; r < rows.length; r++) {
-      if (y - BODY_SIZE < MARGIN_BOTTOM) {
-        newPage();
-      }
+    for (let r = 0; r < rows.length; r++) {
       page.drawText(rows[r], {
         x: MARGIN_LEFT + 14,
-        y: y - BODY_SIZE,
-        size: BODY_SIZE,
+        y: y - bodySize,
+        size: bodySize,
         font: regular,
         color: COLOR_TEXT_BODY,
       });
-      y -= BODY_SIZE + LINE_GAP;
+      y -= bodySize + lineGap;
     }
-    y -= 2;
+    y -= isOnePageScale ? 1.5 : 2;
   };
 
   // Helper: Header solid divider
@@ -501,19 +519,19 @@ async function buildPdf(text: string, parsedDoc?: ParsedResumeDocument): Promise
     if (resume.summary) {
       drawSectionHeading('PROFESSIONAL SUMMARY');
       const summaryText = sanitizeForPdf(resume.summary);
-      const summaryRows = wrapText(summaryText, BODY_SIZE, CONTENT_WIDTH, regular);
+      const summaryRows = wrapText(summaryText, bodySize, CONTENT_WIDTH, regular);
       for (const row of summaryRows) {
-        if (y - BODY_SIZE < MARGIN_BOTTOM) newPage();
+        if (y - bodySize < marginBottom) newPage();
         page.drawText(row, {
           x: MARGIN_LEFT,
-          y: y - BODY_SIZE,
-          size: BODY_SIZE,
+          y: y - bodySize,
+          size: bodySize,
           font: regular,
           color: COLOR_TEXT_BODY,
         });
-        y -= BODY_SIZE + LINE_GAP;
+        y -= bodySize + lineGap;
       }
-      y -= 4;
+      y -= isOnePageScale ? 2 : 4;
     }
 
     // 6. Skills Grid with Hanging Indent
@@ -538,7 +556,7 @@ async function buildPdf(text: string, parsedDoc?: ParsedResumeDocument): Promise
         for (const bullet of exp.bullets) {
           drawBullet(bullet);
         }
-        y -= 4;
+        y -= isOnePageScale ? 2 : 4;
       }
     }
 
