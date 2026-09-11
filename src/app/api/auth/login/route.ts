@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserByEmail, createSession, createUser, updateUserPasswordByEmail, getActualUserCredits, remapUserId } from '@/lib/db';
+import { getUserByEmail, createSession, createUser, updateUserPasswordByEmail, getActualUserCredits, ensureUserPromoCredits, remapUserId } from '@/lib/db';
 import { verifyPassword, setSessionCookie, sanitizeUser, hashPassword } from '@/lib/auth';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function POST(req: NextRequest) {
   try {
@@ -66,8 +69,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
     }
 
-    // Maintain and display the user's actual saved credit balance from database/ledger upon login
-    const actualCredits = await getActualUserCredits(user.id, user.email);
+    // Maintain and display the user's actual saved credit balance with promotional bonus upon login
+    const { credits: actualCredits } = await ensureUserPromoCredits(user.id, user.email);
     user.credits = actualCredits;
 
     const session = await createSession(user.id, 30, user.email);

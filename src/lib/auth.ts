@@ -13,6 +13,7 @@ export interface SessionTokenPayload {
   credits?: number;
   last_free_credit_claim_at?: string;
   referral_code?: string;
+  promo_20_granted?: boolean;
 }
 
 const SESSION_SECRET =
@@ -95,6 +96,9 @@ export function verifySessionToken(token: string): SessionTokenPayload | null {
       return null;
     }
     if (payload.referral_code !== undefined && typeof payload.referral_code !== 'string') {
+      return null;
+    }
+    if (payload.promo_20_granted !== undefined && typeof payload.promo_20_granted !== 'boolean') {
       return null;
     }
 

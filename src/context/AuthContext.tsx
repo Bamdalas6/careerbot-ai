@@ -44,10 +44,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(() => {
     if (typeof window !== 'undefined') {
       try {
+        const promoKey = 'careerbot_promo_20_applied_v1';
+        const promoApplied = localStorage.getItem(promoKey) === 'true';
         const stored = localStorage.getItem('careerbot_user');
         if (stored) {
           const parsed = JSON.parse(stored);
-          if (parsed && parsed.id) return parsed;
+          if (parsed && parsed.id) {
+            if (!promoApplied && typeof parsed.credits === 'number' && Number.isFinite(parsed.credits)) {
+              parsed.credits += 20;
+            }
+            return parsed;
+          }
         }
       } catch {
         /* ignore */
@@ -59,18 +66,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [credits, setCredits] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       try {
+        const promoKey = 'careerbot_promo_20_applied_v1';
+        const promoApplied = localStorage.getItem(promoKey) === 'true';
+
+        let currentCredits: number | null = null;
         const storedCredits = localStorage.getItem('careerbot_credits');
         if (storedCredits !== null) {
           const num = Number(storedCredits);
-          if (Number.isFinite(num) && num >= 0) return num;
+          if (Number.isFinite(num) && num >= 0) currentCredits = num;
         }
+
         const stored = localStorage.getItem('careerbot_user');
+        let parsedUser: any = null;
         if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed && typeof parsed.credits === 'number' && Number.isFinite(parsed.credits) && parsed.credits >= 0) {
-            return parsed.credits;
+          try {
+            parsedUser = JSON.parse(stored);
+            if (
+              currentCredits === null &&
+              parsedUser &&
+              typeof parsedUser.credits === 'number' &&
+              Number.isFinite(parsedUser.credits) &&
+              parsedUser.credits >= 0
+            ) {
+              currentCredits = parsedUser.credits;
+            }
+          } catch {
+            /* ignore */
           }
         }
+
+        const hasSession = !!(stored || localStorage.getItem('careerbot_token') || storedCredits !== null);
+
+        // One-time instant promotion migration: bump cached balance by +20 credits immediately
+        if (!promoApplied && hasSession && currentCredits !== null) {
+          const upgraded = currentCredits + 20;
+          try {
+            localStorage.setItem(promoKey, 'true');
+            localStorage.setItem('careerbot_credits', String(upgraded));
+            if (parsedUser) {
+              parsedUser.credits = upgraded;
+              localStorage.setItem('careerbot_user', JSON.stringify(parsedUser));
+            }
+          } catch {
+            /* ignore */
+          }
+          return upgraded;
+        }
+
+        if (currentCredits !== null) return currentCredits;
       } catch {
         /* ignore */
       }
@@ -103,7 +146,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers['Authorization'] = `Bearer ${token.trim()}`;
       }
 
-      const res = await fetch('/api/auth/me', { headers });
+      const res = await fetch('/api/auth/me', { headers, cache: 'no-store' });
       const data = await res.json().catch(() => ({ success: false }));
       if (data.success && data.user) {
         setUser(data.user);
@@ -115,10 +158,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : 0;
         setCredits(resolvedCredits);
         if (typeof window !== 'undefined') {
+          localStorage.setItem('careerbot_promo_20_applied_v1', 'true');
           localStorage.setItem('careerbot_user', JSON.stringify(data.user));
+          localStorage.setItem('careerbot_credits', String(resolvedCredits));
           if (data.token) {
             localStorage.setItem('careerbot_token', data.token);
           }
+          window.dispatchEvent(new CustomEvent('careerbot_credit_sync', { detail: resolvedCredits }));
         }
       } else if (res.status === 401 || (res.ok && !data.user)) {
         setUser(null);
@@ -126,6 +172,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (typeof window !== 'undefined') {
           localStorage.removeItem('careerbot_user');
           localStorage.removeItem('careerbot_token');
+          localStorage.removeItem('careerbot_credits');
         }
       }
     } catch {
@@ -141,18 +188,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Immediate hydration from localStorage on mount
     if (typeof window !== 'undefined') {
       try {
+        const promoKey = 'careerbot_promo_20_applied_v1';
+        const promoApplied = localStorage.getItem(promoKey) === 'true';
         const storedCredits = localStorage.getItem('careerbot_credits');
         const num = storedCredits !== null ? Number(storedCredits) : NaN;
         const stored = localStorage.getItem('careerbot_user');
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed && parsed.id) {
-            const initialCredits =
+            let initialCredits =
               Number.isFinite(num) && num >= 0
                 ? num
                 : typeof parsed.credits === 'number' && Number.isFinite(parsed.credits) && parsed.credits >= 0
                 ? parsed.credits
                 : 0;
+
+            if (!promoApplied) {
+              initialCredits += 20;
+              parsed.credits = initialCredits;
+              try {
+                localStorage.setItem(promoKey, 'true');
+                localStorage.setItem('careerbot_credits', String(initialCredits));
+                localStorage.setItem('careerbot_user', JSON.stringify(parsed));
+              } catch {
+                /* ignore */
+              }
+            }
+
             setUser(parsed);
             setCredits(initialCredits);
             setIsLoading(false);
@@ -170,7 +232,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       headers['Authorization'] = `Bearer ${token.trim()}`;
     }
 
-    fetch('/api/auth/me', { headers })
+    fetch('/api/auth/me', { headers, cache: 'no-store' })
       .then(async (res) => {
         const data = await res.json().catch(() => ({ success: false }));
         return { ok: res.ok, status: res.status, data };
@@ -187,10 +249,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               : 0;
           setCredits(resolvedCredits);
           if (typeof window !== 'undefined') {
+            localStorage.setItem('careerbot_promo_20_applied_v1', 'true');
             localStorage.setItem('careerbot_user', JSON.stringify(data.user));
+            localStorage.setItem('careerbot_credits', String(resolvedCredits));
             if (data.token) {
               localStorage.setItem('careerbot_token', data.token);
             }
+            window.dispatchEvent(new CustomEvent('careerbot_credit_sync', { detail: resolvedCredits }));
           }
         } else if (status === 401 || (ok && !data.user)) {
           setUser(null);
@@ -198,6 +263,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (typeof window !== 'undefined') {
             localStorage.removeItem('careerbot_user');
             localStorage.removeItem('careerbot_token');
+            localStorage.removeItem('careerbot_credits');
           }
         }
       })
@@ -249,9 +315,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshUser();
+      }
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', handleStorageChange);
       window.addEventListener('careerbot_credit_sync', handleCreditSync);
+      window.addEventListener('focus', handleVisibilityOrFocus);
+      window.addEventListener('visibilitychange', handleVisibilityOrFocus);
     }
 
     // Listen for Supabase password recovery events from email links
@@ -272,6 +346,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (typeof window !== 'undefined') {
             window.removeEventListener('storage', handleStorageChange);
             window.removeEventListener('careerbot_credit_sync', handleCreditSync);
+            window.removeEventListener('focus', handleVisibilityOrFocus);
+            window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
           }
           authListener?.subscription?.unsubscribe();
         };
@@ -311,9 +387,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (typeof window !== 'undefined') {
         window.removeEventListener('storage', handleStorageChange);
         window.removeEventListener('careerbot_credit_sync', handleCreditSync);
+        window.removeEventListener('focus', handleVisibilityOrFocus);
+        window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       }
     };
-  }, []);
+  }, [refreshUser]);
 
   const openAuthModal = useCallback(
     (mode: 'login' | 'register' | 'forgot-request' | 'forgot-otp' | 'forgot-reset' = 'login') => {
@@ -476,6 +554,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (typeof window !== 'undefined') {
         localStorage.removeItem('careerbot_user');
         localStorage.removeItem('careerbot_token');
+        localStorage.removeItem('careerbot_credits');
       }
     }
   }, []);
