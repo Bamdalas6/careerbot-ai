@@ -15,6 +15,7 @@ export interface CreditPackage {
   popular?: boolean;
   description: string;
   features: readonly string[];
+  payment_link: string;
 }
 
 export const CREDIT_PACKAGES: readonly CreditPackage[] = [
@@ -28,6 +29,7 @@ export const CREDIT_PACKAGES: readonly CreditPackage[] = [
     popular: false,
     description: 'Perfect for quick searches and CV tune-ups',
     features: ['50 Search / Action Credits', '5+ Complete CV Rebuilds', '10+ Tailored Pitch Letters'],
+    payment_link: 'https://paystack.shop/pay/ynploxqege',
   },
   {
     id: 'pro',
@@ -39,6 +41,7 @@ export const CREDIT_PACKAGES: readonly CreditPackage[] = [
     popular: true,
     description: 'Ideal for active job seekers targeting multiple companies',
     features: ['150 Search / Action Credits', '15+ Complete CV Rebuilds', '35+ Tailored Pitch Letters', 'Priority Live ATS Scanning'],
+    payment_link: 'https://paystack.shop/pay/yf5934f14i',
   },
   {
     id: 'accelerator',
@@ -50,6 +53,7 @@ export const CREDIT_PACKAGES: readonly CreditPackage[] = [
     popular: false,
     description: 'Maximum firepower for aggressive career pivots & multiple applications',
     features: ['500 Action Credits', 'Unlimited Searches & Rebuilds', 'Instant Interview Preparation', 'Lifetime History Storage'],
+    payment_link: 'https://paystack.shop/pay/6a6adec50i',
   },
 ] as const;
 

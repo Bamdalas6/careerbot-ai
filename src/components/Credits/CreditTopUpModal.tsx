@@ -442,11 +442,11 @@ export const CreditTopUpModal: React.FC = () => {
             </Link>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {CREDIT_PACKAGES.map((pkg) => (
               <div
                 key={pkg.id}
-                className="flex items-center justify-between rounded-xl border border-black/10 bg-zinc-50/60 p-3 dark:border-white/[0.06] dark:bg-white/[0.02]"
+                className="flex items-center justify-between rounded-xl border border-black/10 bg-zinc-50/60 p-3 dark:border-white/[0.06] dark:bg-white/[0.02] gap-3"
               >
                 <div>
                   <div className="flex items-center gap-2">
@@ -460,11 +460,22 @@ export const CreditTopUpModal: React.FC = () => {
                   <p className="text-[11px] text-zinc-500 dark:text-zinc-400">{pkg.credits} Action Credits</p>
                 </div>
 
-                <div className="text-right">
-                  <p className="text-xs font-black text-zinc-900 dark:text-white">
-                    ₦{pkg.price_ngn.toLocaleString('en-NG')} <span className="text-[10px] font-normal text-zinc-400">(${pkg.price_usd})</span>
-                  </p>
-                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">Paystack Verified</span>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <div className="text-right">
+                    <p className="text-xs font-black text-zinc-900 dark:text-white whitespace-nowrap">
+                      ₦{pkg.price_ngn.toLocaleString('en-NG')} <span className="text-[10px] font-normal text-zinc-400">(${pkg.price_usd})</span>
+                    </p>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block">Paystack Verified</span>
+                  </div>
+                  <a
+                    href={pkg.payment_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 rounded-xl bg-zinc-900 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-black active:scale-[0.97] dark:bg-white dark:text-black dark:hover:bg-zinc-100 shrink-0 cursor-pointer"
+                  >
+                    <span>Buy</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
                 </div>
               </div>
             ))}

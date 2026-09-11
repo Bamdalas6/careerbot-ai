@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest, setSessionCookie } from '@/lib/auth';
 import { claimFreeCredits, getNextFreeClaimInfo } from '@/lib/db';
+import { CREDIT_PACKAGES } from '@/types/credits';
 
 function extractClientClaimAt(req: NextRequest, bodyClaimAt?: unknown): string | undefined {
   if (typeof bodyClaimAt === 'string' && bodyClaimAt.trim()) {
@@ -92,11 +93,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, ...info });
     }
 
-    // Paystack payment - coming soon placeholder
+    // Paystack payment package link resolution
+    if (action === 'purchase' || body.packageId) {
+      const pkg = CREDIT_PACKAGES.find((p) => p.id === body.packageId);
+      if (pkg) {
+        return NextResponse.json({
+          success: true,
+          paymentUrl: pkg.payment_link,
+          package: pkg,
+        });
+      }
+    }
+
     return NextResponse.json({
       success: false,
-      error: 'Paystack payment integration coming soon. Please use the free weekly credits for now.',
-    }, { status: 503 });
+      error: 'Invalid action or package specified.',
+    }, { status: 400 });
 
   } catch (err: unknown) {
     console.error('Credit top-up error:', err);

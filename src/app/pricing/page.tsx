@@ -18,7 +18,8 @@ import {
   Globe, 
   ChevronRight,
   Gift,
-  Plus
+  Plus,
+  ExternalLink
 } from 'lucide-react';
 import { CREDIT_PACKAGES, CREDIT_RATES } from '@/types/credits';
 import { useAuth } from '@/context/AuthContext';
@@ -37,6 +38,11 @@ export default function PricingPage() {
   };
 
   const handlePurchase = (packageId: string) => {
+    const targetPkg = CREDIT_PACKAGES.find((p) => p.id === packageId);
+    if (targetPkg?.payment_link && typeof window !== 'undefined') {
+      window.open(targetPkg.payment_link, '_blank', 'noopener,noreferrer');
+      return;
+    }
     if (!user) {
       openAuthModal('register');
       return;
@@ -228,18 +234,19 @@ export default function PricingPage() {
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handlePurchase(pkg.id)}
+                <a
+                  href={pkg.payment_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className={`w-full min-h-[44px] flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold transition cursor-pointer active:scale-[0.98] ${
                     pkg.popular
-                      ? 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200'
+                      ? 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200 shadow-sm'
                       : 'border border-black/10 bg-zinc-50 text-zinc-900 hover:bg-zinc-100 dark:border-white/10 dark:bg-zinc-800 dark:text-white dark:hover:bg-zinc-700'
                   }`}
                 >
-                  <span>Select {pkg.name}</span>
-                  <ChevronRight className="h-4 w-4" />
-                </button>
+                  <span>Get {pkg.name}</span>
+                  <ExternalLink className="h-4 w-4" />
+                </a>
               </div>
             );
           })}
