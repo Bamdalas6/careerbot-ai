@@ -10,6 +10,7 @@ const suites = [
   { name: 'Milestone 1 Visual Parity Harness', cmd: 'node', args: ['scripts/verify-m1-parity.mjs'] },
   { name: 'Milestone 2 Export API Tests', cmd: 'node', args: ['scripts/test-m2-export.mjs'] },
   { name: 'Milestone 3 In-App Preview Tests', cmd: 'node', args: ['scripts/test-m3-preview.mjs'] },
+  { name: 'Milestone 4 Multi-Industry Skill & CV Quality Tests', cmd: 'node', args: ['scripts/test-skill-and-cv-quality.mjs'] },
 ];
 
 console.log('================================================================');

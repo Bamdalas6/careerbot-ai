@@ -1,4 +1,4 @@
-import { JobListing } from '@/types/job';
+import type { JobListing } from '@/types/job';
 
 export interface FollowUpEmailParams {
   userName: string;

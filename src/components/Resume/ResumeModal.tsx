@@ -758,7 +758,11 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
                 </p>
                 <p>
                   <span className="text-zinc-500 dark:text-[#8a8f98]">Experience level:</span>{' '}
-                  <strong className="text-zinc-900 font-semibold dark:text-[#f7f8f8]">~{extractedProfile.experience_years}+ years</strong>
+                  <strong className="text-zinc-900 font-semibold dark:text-[#f7f8f8]">
+                    {(extractedProfile.experience_years ?? 0) <= 1
+                      ? 'Entry level (~1 year)'
+                      : `~${extractedProfile.experience_years} years`}
+                  </strong>
                 </p>
                 {extractedProfile.preferred_locations && extractedProfile.preferred_locations.length > 0 && (
                   <p>

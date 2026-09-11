@@ -1,4 +1,4 @@
-import { CVReview, CVReviewSection, UpgradedCV } from '@/types/job';
+import type { CVReview, CVReviewSection, UpgradedCV } from '@/types/job';
 import { SKILLS } from './query-parser';
 
 /**
@@ -100,6 +100,35 @@ const ROLE_KEYWORDS: Record<string, string[]> = {
   support: [
     'Customer Success', 'Ticketing Systems (Zendesk)', 'SLA Adherence', 'Customer Retention',
     'Escalation Management', 'CSAT / NPS', 'Root Cause Analysis', 'Knowledge Base Creation',
+  ],
+  culinary: [
+    'Food Preparation', 'Menu Planning', 'Kitchen Operations', 'Food Safety & Hygiene',
+    'HACCP Standards', 'Staff Supervision', 'Inventory Management (FIFO)', 'Portion Control',
+    'Cost Reduction', 'Recipe Standardization', 'Quality Control', 'Catering Management',
+    'Commercial Kitchen Equipment', 'Sanitation Standards', 'Table Service', 'Waste Reduction',
+  ],
+  healthcare: [
+    'Patient Care', 'Clinical Assessment', 'Vital Signs Monitoring', 'Medication Administration',
+    'Triage', 'Infection Control', 'Electronic Health Records (EHR)', 'BLS / CPR',
+    'Phlebotomy', 'Patient Advocacy', 'HIPAA Compliance', 'Wound Care', 'Nursing Care Plans',
+  ],
+  education: [
+    'Curriculum Development', 'Lesson Planning', 'Classroom Management', 'Instructional Design',
+    'Student Assessment', 'Differentiated Instruction', 'Educational Technology',
+    'Mentoring & Coaching', 'Student Engagement', 'Workshop Facilitation', 'Pedagogy',
+  ],
+  administration: [
+    'Office Administration', 'Executive Support', 'Calendar Management', 'Travel Coordination',
+    'Document Management', 'Meeting Minutes', 'Records Management', 'Vendor Coordination',
+    'Invoicing & Billing', 'Front Desk Operations', 'Data Entry',
+  ],
+  retail: [
+    'Store Operations', 'Visual Merchandising', 'POS Systems', 'Cash Handling', 'Loss Prevention',
+    'Inventory Management', 'Customer Service', 'Store Management', 'Staff Scheduling', 'Sales Target Attainment',
+  ],
+  logistics: [
+    'Warehouse Operations', 'Inventory Control', 'Supply Chain Coordination', 'Dispatch & Routing',
+    'Order Fulfillment', 'Shipping & Receiving', 'Fleet Management', 'Forklift Operation', 'Safety Standards',
   ],
 };
 
@@ -203,6 +232,11 @@ const IRREGULAR_PAST: Record<string, string> = {
   coordinating: 'coordinated', spearheading: 'spearheaded', directing: 'directed',
   automating: 'automated', architecting: 'architected', formulating: 'formulated',
   migrating: 'migrated', scaling: 'scaled', deploying: 'deployed', executing: 'executed',
+  preparing: 'prepared', cooking: 'prepared and cooked', cleaning: 'maintained sanitation of',
+  supervising: 'supervised', assisting: 'supported', helping: 'facilitated',
+  operating: 'operated', serving: 'served', training: 'trained', baking: 'baked',
+  ordering: 'procured and managed', inspecting: 'inspected', organizing: 'organized',
+  monitoring: 'monitored', scheduling: 'scheduled', auditing: 'audited',
 };
 
 function gerundToPast(word: string): string | null {
@@ -213,6 +247,52 @@ function gerundToPast(word: string): string | null {
   if (stem.endsWith('e')) return `${stem}d`;
   if (/[^aeiou]y$/.test(stem)) return `${stem.slice(0, -1)}ied`;
   return `${stem}ed`;
+}
+
+/**
+ * Natural, context-appropriate action verb selector to prevent repetitive "Spearheaded"
+ */
+function pickNaturalLeadVerb(coreText: string): string {
+  const lower = coreText.toLowerCase();
+
+  // Culinary / Hospitality
+  if (/\b(food|kitchen|meal|dish|cooking|recipe|flavour|flavor|menu|soup|sauce|stew|pastry|bake|culinary)\b/i.test(lower)) {
+    const verbs = ['Prepared', 'Crafted', 'Supervised', 'Executed', 'Coordinated'];
+    return verbs[Math.abs(hashString(coreText)) % verbs.length];
+  }
+  // Hygiene, Quality & Safety
+  if (/\b(hygiene|sanitation|haccp|safety|clean|cleanliness|inspection|compliance)\b/i.test(lower)) {
+    const verbs = ['Maintained', 'Enforced', 'Upheld', 'Monitored', 'Inspected'];
+    return verbs[Math.abs(hashString(coreText)) % verbs.length];
+  }
+  // Inventory, Stock & Procurement
+  if (/\b(inventory|stock|ingredient|supplies|procurement|fifo|warehouse|spoilage|waste)\b/i.test(lower)) {
+    const verbs = ['Managed', 'Optimized', 'Audited', 'Controlled', 'Coordinated'];
+    return verbs[Math.abs(hashString(coreText)) % verbs.length];
+  }
+  // People & Customer
+  if (/\b(staff|team|assistant|recruit|hire|train|guest|customer|client|patient|student)\b/i.test(lower)) {
+    const verbs = ['Led', 'Trained', 'Supervised', 'Guided', 'Coordinated'];
+    return verbs[Math.abs(hashString(coreText)) % verbs.length];
+  }
+  // Administration & Organization
+  if (/\b(schedule|calendar|document|meeting|record|filing|report|agenda)\b/i.test(lower)) {
+    const verbs = ['Coordinated', 'Organized', 'Administered', 'Maintained', 'Streamlined'];
+    return verbs[Math.abs(hashString(coreText)) % verbs.length];
+  }
+
+  // General varied executive action verbs
+  const generalVerbs = ['Managed', 'Coordinated', 'Delivered', 'Executed', 'Directed', 'Built', 'Accelerated'];
+  return generalVerbs[Math.abs(hashString(coreText)) % generalVerbs.length];
+}
+
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return hash;
 }
 
 function strengthenBullet(bullet: string): string | null {
@@ -253,7 +333,8 @@ function strengthenBullet(bullet: string): string | null {
       });
       out = core.charAt(0).toUpperCase() + core.slice(1);
     } else {
-      out = `Spearheaded ${core.charAt(0).toLowerCase() + core.slice(1)}`;
+      const naturalVerb = pickNaturalLeadVerb(core);
+      out = `${naturalVerb} ${core.charAt(0).toLowerCase() + core.slice(1)}`;
     }
   }
 
@@ -352,6 +433,42 @@ function detectRoleInfo(rawText: string, targetRole?: string): DetectedRole {
     return { key: 'support', title, label: title };
   }
 
+  if (/\b(cook|chef|kitchen|culinary|food\s+service|sous\s+chef|pastry|caterer|restaurant\s+manager|barista|baker|line\s+cook|head\s+cook)\b/i.test(headline)) {
+    const titleMatch = headline.match(/\b(senior\s+|lead\s+|head\s+|executive\s+)?(professional\s+cook\s*&\s*kitchen\s+supervisor|cook\s*&\s*kitchen\s+supervisor|kitchen\s+supervisor|head\s+cook|executive\s+chef|sous\s+chef|pastry\s+chef|culinary\s+specialist|restaurant\s+manager)\b/i);
+    const title = titleMatch ? capitalizeTitle(titleMatch[0]) : 'Professional Cook & Kitchen Supervisor';
+    return { key: 'culinary', title, label: title };
+  }
+
+  if (/\b(nurse|registered\s+nurse|rn\b|clinical|healthcare|medical\s+assistant|physician|caregiver|pharmacist|therapist)\b/i.test(headline)) {
+    const titleMatch = headline.match(/\b(senior\s+|lead\s+|registered\s+)?(nurse|healthcare\s+specialist|clinical\s+coordinator|medical\s+assistant)\b/i);
+    const title = titleMatch ? capitalizeTitle(titleMatch[0]) : 'Registered Nurse & Healthcare Specialist';
+    return { key: 'healthcare', title, label: title };
+  }
+
+  if (/\b(teacher|educator|instructor|lecturer|tutor|curriculum\s+developer|school\s+administrator)\b/i.test(headline)) {
+    const titleMatch = headline.match(/\b(senior\s+|lead\s+)?(teacher|educator|academic\s+instructor|curriculum\s+specialist)\b/i);
+    const title = titleMatch ? capitalizeTitle(titleMatch[0]) : 'Professional Educator & Instructor';
+    return { key: 'education', title, label: title };
+  }
+
+  if (/\b(administrative\s+assistant|office\s+manager|executive\s+assistant|admin\s+officer|receptionist|office\s+administrator|clerk)\b/i.test(headline)) {
+    const titleMatch = headline.match(/\b(senior\s+|lead\s+|executive\s+)?(administrative\s+assistant|office\s+manager|executive\s+assistant|office\s+administrator)\b/i);
+    const title = titleMatch ? capitalizeTitle(titleMatch[0]) : 'Executive Administrative Specialist';
+    return { key: 'administration', title, label: title };
+  }
+
+  if (/\b(retail\s+associate|store\s+manager|cashier|merchandiser|sales\s+associate|retail\s+supervisor|shop\s+assistant)\b/i.test(headline)) {
+    const titleMatch = headline.match(/\b(senior\s+|lead\s+|retail\s+)?(store\s+manager|retail\s+supervisor|sales\s+associate|store\s+associate)\b/i);
+    const title = titleMatch ? capitalizeTitle(titleMatch[0]) : 'Retail Sales & Store Operations Specialist';
+    return { key: 'retail', title, label: title };
+  }
+
+  if (/\b(warehouse|logistics\s+coordinator|supply\s+chain|dispatch|freight|inventory\s+controller|procurement\s+officer)\b/i.test(headline)) {
+    const titleMatch = headline.match(/\b(senior\s+|lead\s+)?(warehouse\s+manager|logistics\s+coordinator|supply\s+chain\s+specialist)\b/i);
+    const title = titleMatch ? capitalizeTitle(titleMatch[0]) : 'Logistics & Warehouse Operations Specialist';
+    return { key: 'logistics', title, label: title };
+  }
+
   // 3. Fallback: Keyword frequency across full text
   let bestKey = 'engineering';
   let maxHits = -1;
@@ -364,6 +481,12 @@ function detectRoleInfo(rawText: string, targetRole?: string): DetectedRole {
   }
 
   const defaultTitles: Record<string, string> = {
+    culinary: 'Professional Cook & Kitchen Supervisor',
+    healthcare: 'Registered Nurse & Healthcare Specialist',
+    education: 'Professional Educator & Instructor',
+    administration: 'Executive Administrative Specialist',
+    retail: 'Retail Sales & Store Operations Specialist',
+    logistics: 'Logistics & Warehouse Operations Specialist',
     engineering: 'Senior Software Engineer',
     data: 'Senior Data Analyst',
     product: 'Senior Product Manager',
@@ -406,8 +529,20 @@ function generateTailoredSummary(role: DetectedRole, years: string, skills: stri
   const skillsPhrase = topSkills ? ` Proficient across ${topSkills}, with` : ' With';
 
   switch (role.key) {
+    case 'culinary':
+      return `Results-driven, passionate, and safety-conscious ${role.title} with over ${years}+ years of hands-on experience in high-volume meal preparation, authentic cuisine execution, recipe consistency, and portion control.${skillsPhrase} a proven track record of upholding strict HACCP food hygiene protocols, leading kitchen teams, and executing rapid service during peak rush hours while minimizing ingredient waste.`;
+    case 'healthcare':
+      return `Compassionate and certified ${role.title} with over ${years}+ years of dedicated clinical experience delivering high-standard patient care, vital signs monitoring, and healthcare workflow coordination.${skillsPhrase} proven expertise in upholding HIPAA compliance, administering medications safely, and collaborating within multidisciplinary medical teams.`;
+    case 'education':
+      return `Engaging and student-centered ${role.title} with over ${years}+ years of experience in curriculum development, classroom instruction, and student performance advancement.${skillsPhrase} demonstrated expertise in modern pedagogy, interactive educational technologies, and fostering collaborative learning environments.`;
+    case 'administration':
+      return `Organized and proactive ${role.title} with over ${years}+ years of experience coordinating executive scheduling, office administration, and departmental operations.${skillsPhrase} a proven track record of managing confidential communications, streamlining administrative workflows, and supporting senior leadership.`;
+    case 'retail':
+      return `Customer-focused and energetic ${role.title} with over ${years}+ years of experience in retail store operations, visual merchandising, and inventory auditing.${skillsPhrase} proven success delivering personalized customer service, driving sales targets, and maintaining accurate point-of-sale transactions.`;
+    case 'logistics':
+      return `Reliable and efficiency-minded ${role.title} with over ${years}+ years of experience in warehouse operations, supply chain logistics, and inventory control.${skillsPhrase} demonstrated expertise in shipment tracking, safety compliance, and optimizing stock management workflows.`;
     case 'engineering':
-      return `Results-driven ${role.title} with over ${years}+ years of experience architecting, building, and scaling high-performance web applications and distributed cloud systems.${skillsPhrase} a strong track record of optimizing system reliability, enforcing rigorous code standards, and collaborating cross-functionally to accelerate feature delivery.`;
+      return `Experienced ${role.title} with over ${years}+ years of experience building and scaling reliable web applications and distributed systems.${skillsPhrase} a track record of delivering clean, maintainable code, optimizing system performance, and collaborating cross-functionally to accelerate feature delivery.`;
     case 'data':
       return `Analytical and detail-oriented ${role.title} with over ${years}+ years of experience transforming complex datasets into actionable business intelligence and predictive models.${skillsPhrase} proven expertise in building automated dashboards, conducting deep statistical analysis, and driving data-informed strategic decisions.`;
     case 'product':
@@ -731,7 +866,23 @@ export function buildUpgradedCV(rawText: string, review: CVReview, targetRole?: 
 
   // 5. Core Competencies & Skills
   const skillsBlock = blocks.find((b) => b.bucket === 'skills');
-  out.push('', 'CORE COMPETENCIES & TECHNICAL SKILLS');
+  const skillsHeading = roleInfo.key === 'culinary'
+    ? 'CORE CULINARY & SUPERVISORY COMPETENCIES'
+    : roleInfo.key === 'healthcare'
+    ? 'CORE CLINICAL & HEALTHCARE COMPETENCIES'
+    : roleInfo.key === 'education'
+    ? 'CORE TEACHING & EDUCATIONAL COMPETENCIES'
+    : roleInfo.key === 'administration'
+    ? 'CORE ADMINISTRATIVE & OPERATIONAL COMPETENCIES'
+    : roleInfo.key === 'retail'
+    ? 'CORE RETAIL & STORE COMPETENCIES'
+    : roleInfo.key === 'logistics'
+    ? 'CORE LOGISTICS & SUPPLY CHAIN COMPETENCIES'
+    : roleInfo.key === 'engineering' || roleInfo.key === 'data'
+    ? 'CORE COMPETENCIES & TECHNICAL SKILLS'
+    : 'CORE COMPETENCIES & PROFESSIONAL SKILLS';
+
+  out.push('', skillsHeading);
   if (skillsBlock && skillsBlock.lines.length > 0) {
     for (const sLine of skillsBlock.lines) {
       out.push(sLine.replace(/^[•▪◦·*\-–—]\s*/, '').trim());
@@ -741,10 +892,10 @@ export function buildUpgradedCV(rawText: string, review: CVReview, targetRole?: 
     const candidateKeywords = ROLE_KEYWORDS[roleInfo.key] || ROLE_KEYWORDS.engineering;
     out.push(
       `Core Functional Skills: ${candidateKeywords.slice(0, 6).join(', ')}.`,
-      `Tools & Technologies: ${candidateKeywords.slice(6).join(', ')}.`
+      `Tools & Methodologies: ${candidateKeywords.slice(6).join(', ')}.`
     );
   }
-  changes.push('Structured core technical competencies into clear craft and tool matrices.');
+  changes.push('Structured core competencies into clear craft and tool matrices.');
 
   // 6. Professional Experience
   const expBlock = blocks.find((b) => b.bucket === 'experience');
@@ -768,13 +919,23 @@ export function buildUpgradedCV(rawText: string, review: CVReview, targetRole?: 
       }
     }
   } else {
-    out.push(
-      `${roleInfo.title} — Professional Experience    2022 – Present`,
-      'Remote',
-      '• Spearheaded key technical initiatives resulting in measurable improvements in operational performance and team delivery speed.',
-      '• Collaborated cross-functionally across engineering, product, and leadership stakeholders to execute mission-critical projects.',
-      '• Automated core workflows and introduced best practices that enhanced system efficiency and product quality.'
-    );
+    if (roleInfo.key === 'culinary') {
+      out.push(
+        `${roleInfo.title} — Professional Experience    2022 – Present`,
+        'Lagos, Nigeria',
+        '• Supervised daily kitchen operations and high-volume meal preparation, maintaining consistent culinary quality and presentation.',
+        '• Enforced strict HACCP hygiene regulations, sanitation protocols, and workstation cleanliness across the culinary team.',
+        '• Managed inventory stock, dry and cold storage organization, and FIFO rotation, reducing ingredient waste.'
+      );
+    } else {
+      out.push(
+        `${roleInfo.title} — Professional Experience    2022 – Present`,
+        'Remote',
+        '• Directed core initiatives resulting in measurable improvements in operational efficiency and project turnaround.',
+        '• Collaborated cross-functionally across internal teams and leadership stakeholders to execute mission-critical deliverables.',
+        '• Standardized core workflows and introduced best practices that elevated overall quality and operational reliability.'
+      );
+    }
   }
   changes.push('Upgraded experience achievements with strong leadership verbs and verified metric precision.');
 
