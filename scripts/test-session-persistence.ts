@@ -137,7 +137,7 @@ async function runTests() {
   const headerContent = fs.readFileSync(
     path.join(process.cwd(), 'src/components/Hero/GlassHeader.tsx'),
     'utf-8'
-  );
+  ).replace(/\r\n/g, '\n');
   assert(!headerContent.includes('<a href="/pricing"'), 'GlassHeader must not contain <a href="/pricing"');
   assert(!headerContent.includes('<a\n                key={link.href}\n                href={link.href}'), 'GlassHeader must not use <a> for nav links');
   assert(headerContent.includes('<Link\n                key={link.href}\n                href={link.href}'), 'GlassHeader must use <Link> for nav links');
@@ -149,7 +149,7 @@ async function runTests() {
   const footerContent = fs.readFileSync(
     path.join(process.cwd(), 'src/components/Sections/SiteFooter.tsx'),
     'utf-8'
-  );
+  ).replace(/\r\n/g, '\n');
   assert(footerContent.includes("import Link from 'next/link';"), 'SiteFooter must import Link');
   assert(footerContent.includes('<Link\n                        href={link.href || \'#\'}'), 'SiteFooter must use Link for internal navigation');
   console.log('  PASSED: SiteFooter uses Next.js <Link> for internal links\n');
@@ -248,7 +248,7 @@ async function runTests() {
   const zeroCredsToken = signSessionToken(zeroCreditsPayload);
   const zeroCredsAuth = await getSessionByToken(zeroCredsToken);
   assert(zeroCredsAuth !== null, 'getSessionByToken must succeed for 0-credits user');
-  assert.strictEqual(zeroCredsAuth.user.credits, 0, 'User with 0 credits must retain 0 credits, not default to 25');
+  assert.strictEqual(zeroCredsAuth.user.credits, 0, 'User with 0 credits must retain 0 credits, not default to 8');
   console.log('  PASSED: Zero credits balance preserved correctly\n');
 
   // Test 14: Reset password page persistence check

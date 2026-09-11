@@ -439,7 +439,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const resolvedCredits =
         typeof data.user?.credits === 'number' && Number.isFinite(data.user.credits) && data.user.credits >= 0
           ? data.user.credits
-          : 25;
+          : 8;
 
       if (typeof window !== 'undefined') {
         localStorage.removeItem('careerbot_ref_code');

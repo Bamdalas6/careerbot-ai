@@ -124,7 +124,7 @@ async function runVerification() {
     username: 'schematester',
     password_hash: 'pbkdf2_hash_val',
     salt: 'salt_123',
-    credits: 25,
+    credits: 8,
     last_free_credit_claim_at: new Date().toISOString(),
     referral_code: 'tester123',
     referred_by: 'user_ref_001',
@@ -284,7 +284,7 @@ async function runVerification() {
   // ----------------------------------------------------
   // TEST 6: Robust User Registration (`createUser`) Local Fallback
   // ----------------------------------------------------
-  step('R1: createUser saves user locally with 25 credits and referral code');
+  step('R1: createUser saves user locally with 8 credits and referral code');
   const uniqueEmail = `test_reg_${Date.now()}@careerbot-test.io`;
   const newUser = await createUser({
     name: 'Alice Wonder',
@@ -296,7 +296,7 @@ async function runVerification() {
 
   assert(newUser && newUser.id, 'User record must have an ID');
   assert.strictEqual(newUser.email, uniqueEmail.toLowerCase());
-  assert.strictEqual(newUser.credits, 25, 'New user receives default 25 free credits');
+  assert.strictEqual(newUser.credits, 8, 'New user receives default 8 free credits');
   assert(newUser.referral_code && newUser.referral_code.length >= 4, 'User has referral code generated');
   assert.strictEqual(newUser.signup_ip, '10.0.0.1', 'User retains signup IP for anti-fraud');
 
@@ -325,13 +325,13 @@ async function runVerification() {
   assert(payload !== null, 'verifySessionToken must decode created session token');
   assert.strictEqual(payload.userId, newUser.id);
   assert.strictEqual(payload.email, newUser.email);
-  assert.strictEqual(payload.credits, 25);
+  assert.strictEqual(payload.credits, 8);
 
   // Verify session lookup
   const authSession = await getSessionByToken(session.token);
   assert(authSession !== null, 'getSessionByToken must resolve active session');
   assert.strictEqual(authSession.user.id, newUser.id);
-  assert.strictEqual(authSession.user.credits, 25);
+  assert.strictEqual(authSession.user.credits, 8);
 
   ok('createSession generates valid HMAC-signed tokens with full session persistence.');
 
@@ -647,7 +647,7 @@ async function runVerification() {
     email: 'user@example.com',
     exp: Math.floor(Date.now() / 1000) + 3600,
     name: 'Test User',
-    credits: 25,
+    credits: 8,
   });
 
   const sessionObj = {
@@ -666,7 +666,7 @@ async function runVerification() {
       email: 'user@example.com',
       exp: Math.floor(Date.now() / 1000) + 3600,
       name: 'Test User',
-      credits: 25,
+      credits: 8,
     });
   }
 
@@ -854,14 +854,14 @@ async function runVerification() {
   const canonicalIdToMerge = `user_merge_canonical_${Date.now()}`;
   const mergeEmail = `test_merge_${Date.now()}@test.io`;
 
-  // Create old user with password hash and 25 credits
+  // Create old user with password hash and 8 credits
   await createUser({
     id: oldIdToMerge,
     name: 'Merge User Old',
     email: mergeEmail,
     password_hash: 'hash_old_secret',
     salt: 'salt_old_secret',
-    initialCredits: 25,
+    initialCredits: 8,
   });
 
   // Create existing canonical user (e.g. from Supabase Auth sync) with 50 credits

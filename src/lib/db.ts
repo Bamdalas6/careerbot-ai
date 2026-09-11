@@ -249,7 +249,7 @@ export async function getActualUserCredits(userId: string, email?: string): Prom
     return localUser.credits;
   }
 
-  return 25;
+  return 8;
 }
 
 export async function getUserByEmail(email: string): Promise<UserRecord | null> {
@@ -423,7 +423,7 @@ export async function insertUserToSupabase(
   }
 
   const safeName = (user.name || (safeEmail ? safeEmail.split('@')[0] : 'User')).trim() || 'User';
-  const safeCredits = typeof user.credits === 'number' && Number.isFinite(user.credits) ? user.credits : 25;
+  const safeCredits = typeof user.credits === 'number' && Number.isFinite(user.credits) ? user.credits : 8;
   const nowIso = new Date().toISOString();
 
   const isInvalidUuidError = (err: any) => {
@@ -772,7 +772,7 @@ export async function createUser(userData: {
   signup_ip?: string;
 }): Promise<UserRecord> {
   const now = new Date().toISOString();
-  const initialCredits = userData.initialCredits ?? 25;
+  const initialCredits = userData.initialCredits ?? 8;
   const safeName = (typeof userData.name === 'string' ? userData.name.trim() : '') || 'User';
   const safeEmail = (typeof userData.email === 'string' ? userData.email.trim().toLowerCase() : '');
   const baseCode = safeName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 7) || 'user';
@@ -899,7 +899,7 @@ export async function getUserByReferralCode(code: string): Promise<UserRecord | 
           email: found.email || '',
           password_hash: '',
           salt: '',
-          credits: found.user_metadata?.credits ?? 25,
+          credits: found.user_metadata?.credits ?? 8,
           referral_code: found.user_metadata?.referral_code || clean,
           referral_count: found.user_metadata?.referral_count || 0,
           referral_earnings: found.user_metadata?.referral_earnings || 0,
@@ -1697,7 +1697,7 @@ export async function getSessionByToken(token: string): Promise<{ session: Sessi
       const fallbackCredits =
         typeof payload.credits === 'number' && Number.isFinite(payload.credits) && payload.credits >= 0
           ? payload.credits
-          : 25;
+          : 8;
 
       user = {
         id: payload.userId,

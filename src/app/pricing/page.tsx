@@ -483,7 +483,7 @@ export default function PricingPage() {
                 Can I search jobs for free before purchasing?
               </h4>
               <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                Yes! Every registered account receives 25 free credits upon sign-up and 5 free credits every week from the top-up menu. Free accounts can search, filter, and inspect verified job cards from 20+ sources without adding a credit card.
+                Yes! Every registered account receives 8 free credits upon sign-up and 5 free credits every week from the top-up menu. Free accounts can search, filter, and inspect verified job cards from 20+ sources without adding a credit card.
               </p>
             </div>
           </div>
