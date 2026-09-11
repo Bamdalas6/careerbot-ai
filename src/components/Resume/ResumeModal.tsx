@@ -191,6 +191,20 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
       setLoading(true);
 
       try {
+        if (!file || file.size === 0) {
+          setError('This file is empty. Please choose a valid CV document.');
+          setFileName(null);
+          setLoading(false);
+          return;
+        }
+
+        if (file.size > 12 * 1024 * 1024) {
+          setError('File exceeds 12 MB limit. Please upload a standard text-based CV.');
+          setFileName(null);
+          setLoading(false);
+          return;
+        }
+
         const isPlainText = file.name.endsWith('.txt') || file.name.endsWith('.md') || file.type === 'text/plain';
         if (isPlainText) {
           const directText = await file.text();

@@ -112,41 +112,38 @@ function extractPdfStreams(buf: Buffer): string {
 }
 
 async function extractPdf(buf: Buffer): Promise<string> {
-  // Tier 1: Try high-fidelity coordinate parser with pdfjs-dist
+  const uint8 = new Uint8Array(buf);
+
+  // Tier 1: Try serverless-optimized unpdf with coordinate-aware spatial reconstruction
   try {
-    const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as PdfjsModule;
-    const pdf = await pdfjs.getDocument({
-      data: new Uint8Array(buf),
-      useSystemFonts: true,
-      isEvalSupported: false,
-      disableFontFace: true,
-    }).promise;
+    const { extractTextItems } = await import('unpdf');
+    const { items, totalPages } = await extractTextItems(uint8);
 
     const pageTexts: string[] = [];
 
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const content = await page.getTextContent();
+    for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+      const pageItems = items[pageNum] || [];
+      if (!pageItems.length) continue;
 
-      const items: PositionedItem[] = [];
-
-      for (const item of content.items) {
-        if (!item.str || typeof item.str !== 'string') continue;
-        const trimmed = item.str.trim();
-        if (!trimmed && !item.hasEOL) continue;
-
-        const transform = item.transform || [12, 0, 0, 12, 0, 0];
-        const x = transform[4] ?? 0;
-        const y = transform[5] ?? 0;
-        const height = item.height || Math.abs(transform[3]) || 12;
-        const width = item.width || 0;
-
-        items.push({ str: item.str, x, y, height, width });
+      // Filter empty items
+      const validItems: PositionedItem[] = [];
+      for (const it of pageItems) {
+        if (!it.str || typeof it.str !== 'string') continue;
+        const trimmed = it.str.trim();
+        if (!trimmed && !it.hasEOL) continue;
+        validItems.push({
+          str: it.str,
+          x: it.x ?? 0,
+          y: it.y ?? 0,
+          height: it.height || 12,
+          width: it.width || 0,
+        });
       }
 
-      if (items.length === 0) continue;
+      if (validItems.length === 0) continue;
 
-      items.sort((a, b) => b.y - a.y || a.x - b.x);
+      // Sort top-to-bottom, left-to-right
+      validItems.sort((a, b) => b.y - a.y || a.x - b.x);
 
       const lines: { y: number; text: string; height: number }[] = [];
       let currentLineItems: PositionedItem[] = [];
@@ -154,7 +151,7 @@ async function extractPdf(buf: Buffer): Promise<string> {
       let avgHeight = 12;
       const Y_TOLERANCE = 4.5;
 
-      for (const item of items) {
+      for (const item of validItems) {
         if (currentY === null || Math.abs(item.y - currentY) > Y_TOLERANCE) {
           if (currentLineItems.length > 0 && currentY !== null) {
             currentLineItems.sort((a, b) => a.x - b.x);
@@ -208,17 +205,57 @@ async function extractPdf(buf: Buffer): Promise<string> {
     if (fullText.trim().length >= 30) {
       return fullText;
     }
+  } catch (err) {
+    console.warn('unpdf extractTextItems failed, falling back to direct extractText:', err);
+  }
+
+  // Tier 2: unpdf direct text extraction (handles complex fonts / inlined workers)
+  try {
+    const { extractText } = await import('unpdf');
+    const { text } = await extractText(uint8, { mergePages: true });
+    if (text && text.trim().length >= 30) {
+      return text.trim();
+    }
+  } catch (err) {
+    console.warn('unpdf extractText failed, trying pdfjs fallback:', err);
+  }
+
+  // Tier 3: pdfjs-dist fallback
+  try {
+    const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as PdfjsModule;
+    const pdf = await pdfjs.getDocument({
+      data: uint8,
+      useSystemFonts: true,
+      isEvalSupported: false,
+      disableFontFace: true,
+    }).promise;
+
+    const pageTexts: string[] = [];
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
+      const text = content.items
+        .map((i) => ('str' in i && typeof i.str === 'string' ? i.str : ''))
+        .filter(Boolean)
+        .join(' ');
+      if (text.trim()) pageTexts.push(text.trim());
+    }
+
+    const full = pageTexts.join('\n\n');
+    if (full.trim().length >= 30) {
+      return full;
+    }
   } catch (pdfjsErr) {
     console.warn('pdfjs extraction failed, trying stream fallback:', pdfjsErr);
   }
 
-  // Tier 2: Stream decompression fallback
+  // Tier 4: Stream decompression fallback
   const fallbackText = extractPdfStreams(buf);
   if (fallbackText.trim().length >= 30) {
     return fallbackText;
   }
 
-  throw new Error('Could not extract readable text from this PDF. Please save as Word (.docx) or copy and paste your CV text directly into the box.');
+  throw new Error('Could not extract readable text from this PDF. If this document is a scanned image or screenshot, please copy and paste your CV text directly into the box, or save as Word (.docx) and re-upload.');
 }
 
 function joinLineItems(items: PositionedItem[]): string {
@@ -262,6 +299,13 @@ export async function POST(req: NextRequest) {
     }
 
     const file = entry as File;
+    if (file.size === 0) {
+      return NextResponse.json(
+        { success: false, error: 'The uploaded file is empty. Please choose a valid CV document.' },
+        { status: 400 }
+      );
+    }
+
     if (file.size > MAX_BYTES) {
       return NextResponse.json(
         { success: false, error: 'File exceeds 12 MB limit. Please upload a standard text-based CV.' },
