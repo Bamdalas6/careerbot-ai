@@ -82,7 +82,7 @@ export interface CVRecord {
 export interface TransactionRecord {
   id: string;
   user_id: string;
-  type: 'initial_bonus' | 'purchase' | 'usage' | 'free_claim';
+  type: 'initial_bonus' | 'purchase' | 'usage' | 'free_claim' | 'bonus';
   amount?: number;
   currency?: string;
   credits_delta: number;
@@ -2740,4 +2740,87 @@ export async function getCrawledJobs(limit = 150): Promise<JobListing[]> {
     (j) => !isCompanyExcluded(j.company) && !isJobicyExcluded(j) && (!j.age_days || j.age_days <= 150)
   );
   return valid.slice(-limit);
+}
+
+/**
+ * Grants an additional promotional credit bonus to all user accounts.
+ * Idempotent: checks each user's transaction history to prevent duplicate grants.
+ */
+export async function grantCreditsToAllUsers(
+  additionalCredits = 20,
+  grantDescription = 'Additional 20 bonus credits granted to account'
+): Promise<{ success: boolean; usersUpdated: number; totalUsers: number }> {
+  const db = ensureLocalDb();
+  let usersUpdated = 0;
+  const now = new Date().toISOString();
+
+  // 1. Process local database users
+  for (const user of db.users) {
+    const alreadyGranted = (db.transactions || []).some(
+      (t) => t.user_id === user.id && t.description === grantDescription
+    );
+    if (!alreadyGranted) {
+      const currentCredits = typeof user.credits === 'number' && Number.isFinite(user.credits) ? user.credits : 0;
+      const newCredits = currentCredits + additionalCredits;
+      user.credits = newCredits;
+      user.updated_at = now;
+
+      const tx: TransactionRecord = {
+        id: `tx_${crypto.randomUUID()}`,
+        user_id: user.id,
+        type: 'bonus',
+        credits_delta: additionalCredits,
+        balance_after: newCredits,
+        description: grantDescription,
+        created_at: now,
+      };
+      db.transactions.push(tx);
+      usersUpdated++;
+    }
+  }
+
+  if (usersUpdated > 0) {
+    writeLocalDb(db);
+  }
+
+  // 2. Process Supabase users if configured
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: remoteUsers, error: userErr } = await supabase.from('users').select('id, credits, email');
+      if (!userErr && Array.isArray(remoteUsers)) {
+        for (const rUser of remoteUsers) {
+          const { data: existingTx } = await supabase
+            .from('transactions')
+            .select('id')
+            .eq('user_id', rUser.id)
+            .eq('description', grantDescription)
+            .maybeSingle();
+
+          if (!existingTx) {
+            const currentCredits = typeof rUser.credits === 'number' && Number.isFinite(rUser.credits) ? rUser.credits : 0;
+            const newCredits = currentCredits + additionalCredits;
+            await supabase
+              .from('users')
+              .update({ credits: newCredits, updated_at: now })
+              .eq('id', rUser.id);
+
+            const tx: TransactionRecord = {
+              id: `tx_${crypto.randomUUID()}`,
+              user_id: rUser.id,
+              type: 'bonus',
+              credits_delta: additionalCredits,
+              balance_after: newCredits,
+              description: grantDescription,
+              created_at: now,
+            };
+            await supabase.from('transactions').insert([tx]);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase grantCreditsToAllUsers notice:', err);
+    }
+  }
+
+  return { success: true, usersUpdated, totalUsers: db.users.length };
 }

@@ -250,4 +250,8 @@ CREATE POLICY "Allow all operations for anon on crawled_jobs" ON crawled_jobs FO
 DROP POLICY IF EXISTS "Allow all operations for authenticated on crawled_jobs" ON crawled_jobs;
 CREATE POLICY "Allow all operations for authenticated on crawled_jobs" ON crawled_jobs FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
-
+-- ==========================================================
+-- 9. Promotional Grant Migration: +20 Additional Credits
+-- Run this if granting +20 credits to all existing users:
+-- UPDATE users SET credits = credits + 20, updated_at = now();
+-- ==========================================================
