@@ -70,6 +70,74 @@ interface StoredCV extends UpgradedCV {
 }
 
 /**
+ * Sanitizes and repairs stored or pasted CV text:
+ * - Fixes embedded headings in summary
+ * - Fixes fragmented bullets created by PDF wrapping
+ * - Cleans double commas and normalizes text
+ */
+function sanitizeStoredCVText(rawText: string): string {
+  if (!rawText) return rawText;
+  let text = rawText;
+
+  // 1. Separate embedded section headings that got appended to summary
+  text = text.replace(
+    /(?<=\S)\s+(?=(?:CORE\s+(?:COMPETENCIES|SKILLS|TECHNICAL|CULINARY|CLINICAL|PROFESSIONAL)(?:\s*(?:&|and)\s*(?:SKILLS|COMPETENCIES|TECHNICAL\s+SKILLS|PROFESSIONAL\s+SKILLS|EXPERTISE))?|PROFESSIONAL\s+EXPERIENCE|WORK\s+EXPERIENCE|EDUCATION\s*&?\s*CERTIFICATIONS|KEY\s+PROJECTS)\b)/gi,
+    '\n\n'
+  );
+
+  // 2. Separate category labels attached directly after a section heading
+  text = text.replace(
+    /(?<=(?:CORE\s+(?:COMPETENCIES|SKILLS|TECHNICAL|CULINARY|CLINICAL|PROFESSIONAL)(?:\s*(?:&|and)\s*(?:SKILLS|COMPETENCIES|TECHNICAL\s+SKILLS|PROFESSIONAL\s+SKILLS|EXPERTISE))?|TECHNICAL\s+SKILLS|CORE\s+SKILLS|AREAS\s+OF\s+EXPERTISE|KEY\s+SKILLS))\s+(?=[A-Za-z0-9\s/&+-]{2,40}:\s*\S)/gi,
+    '\n'
+  );
+
+  // 3. Fix double commas and "Google, Workspace"
+  text = text.replace(/,\s*,+/g, ',').replace(/Google,\s*Workspace/gi, 'Google Workspace');
+
+  // 4. Merge fragmented continuation bullets e.g. "• Spearheaded ... advisory\n• initiatives."
+  const lines = text.split(/\r?\n/);
+  const outLines: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const trimmed = rawLine.trim();
+    if (!trimmed) {
+      outLines.push(rawLine);
+      continue;
+    }
+
+    if (outLines.length > 0) {
+      const lastIdx = outLines.length - 1;
+      const lastLine = outLines[lastIdx].trim();
+      const lastIsBullet = /^[•▪◦·*\-–—]\s*/.test(lastLine);
+      const curIsBullet = /^[•▪◦·*\-–—]\s*/.test(trimmed);
+      const cleanCur = trimmed.replace(/^[•▪◦·*\-–—]\s*/, '').trim();
+
+      if (lastIsBullet && cleanCur) {
+        const lastClean = lastLine.replace(/^[•▪◦·*\-–—]\s*/, '').trim();
+        const prevEndsSentence = /[.!?]$/.test(lastClean);
+        const startsLower = /^[a-z]/.test(cleanCur);
+        const startsConjunction = /^(?:and|or|with|for|to|of|in|by|across|on|at|including|such\s+as)\b/i.test(cleanCur);
+        const isShortFragment = cleanCur.split(/\s+/).length <= 6 && !/[.!?].+[.!?]/.test(cleanCur);
+
+        const isContinuation =
+          startsLower ||
+          (startsConjunction && isShortFragment) ||
+          (!prevEndsSentence && (!curIsBullet || startsLower || startsConjunction || isShortFragment));
+
+        if (isContinuation) {
+          outLines[lastIdx] = `• ${lastClean} ${cleanCur}`.replace(/\s+/g, ' ').trim();
+          continue;
+        }
+      }
+    }
+
+    outLines.push(rawLine);
+  }
+
+  return outLines.join('\n');
+}
+
+/**
  * Read at first render rather than in an effect: an effect that calls setState
  * cascades a second render, and the modal renders nothing until it's opened, so
  * there is no hydration mismatch to worry about either.
@@ -80,7 +148,17 @@ function readStoredCV(): StoredCV | null {
     const raw = window.localStorage.getItem(CV_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredCV;
-    return parsed?.text ? parsed : null;
+    if (!parsed?.text) return null;
+    const sanitizedText = sanitizeStoredCVText(parsed.text);
+    if (sanitizedText !== parsed.text) {
+      parsed.text = sanitizedText;
+      try {
+        window.localStorage.setItem(CV_STORAGE_KEY, JSON.stringify(parsed));
+      } catch {
+        /* storage full or blocked */
+      }
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -463,13 +541,14 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
    */
   const exportCv = async (format: 'pdf' | 'docx' | 'html') => {
     if (!upgraded) return;
+    const cleanText = sanitizeStoredCVText(upgraded.text);
     setExporting(format);
     setError(null);
     try {
       const res = await fetch('/api/resume/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: upgraded.text, format }),
+        body: JSON.stringify({ text: cleanText, format }),
       });
       if (res.ok) {
         const blob = await res.blob();

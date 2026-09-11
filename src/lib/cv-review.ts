@@ -869,7 +869,7 @@ export function buildUpgradedCV(rawText: string, review: CVReview, targetRole?: 
 
   // 4. Professional Summary
   const summaryBlock = blocks.find((b) => b.bucket === 'summary');
-  const skillsBlock = blocks.find((b) => b.bucket === 'skills');
+  let skillsBlock = blocks.find((b) => b.bucket === 'skills');
   out.push('', 'PROFESSIONAL SUMMARY');
   if (summaryBlock && summaryBlock.lines.length > 0) {
     const cleanSummaryLines: string[] = [];
@@ -877,6 +877,19 @@ export function buildUpgradedCV(rawText: string, review: CVReview, targetRole?: 
     for (const sLine of summaryBlock.lines) {
       const trimmed = sLine.trim();
       if (!trimmed) continue;
+
+      // Check if this line has an embedded skills heading inside it
+      const embeddedMatch = trimmed.match(
+        /\b(CORE\s+(?:COMPETENCIES|SKILLS|TECHNICAL|CULINARY|CLINICAL|PROFESSIONAL)(?:\s*(?:&|and)\s*(?:SKILLS|COMPETENCIES|TECHNICAL\s+SKILLS|PROFESSIONAL\s+SKILLS|EXPERTISE))?|TECHNICAL\s+SKILLS|CORE\s+SKILLS|AREAS\s+OF\s+EXPERTISE|KEY\s+SKILLS)\b/i
+      );
+      if (embeddedMatch && embeddedMatch.index !== undefined && embeddedMatch.index > 0) {
+        const preSummary = trimmed.slice(0, embeddedMatch.index).trim();
+        const postSkills = trimmed.slice(embeddedMatch.index + embeddedMatch[0].length).trim();
+        if (preSummary) cleanSummaryLines.push(preSummary);
+        if (postSkills) straySkills.push(postSkills);
+        continue;
+      }
+
       if (matchCanonicalHeading(trimmed)) continue;
       if (isSkillsInventory(trimmed) || /^[A-Za-z0-9\s/&+-]{2,45}:\s*.+/.test(trimmed)) {
         straySkills.push(trimmed);
@@ -884,7 +897,11 @@ export function buildUpgradedCV(rawText: string, review: CVReview, targetRole?: 
       }
       cleanSummaryLines.push(trimmed);
     }
-    if (straySkills.length > 0 && skillsBlock) {
+    if (straySkills.length > 0) {
+      if (!skillsBlock) {
+        skillsBlock = { bucket: 'skills', heading: 'CORE COMPETENCIES & PROFESSIONAL SKILLS', lines: [] };
+        blocks.push(skillsBlock);
+      }
       skillsBlock.lines.push(...straySkills);
     }
     if (cleanSummaryLines.length > 0) {
@@ -933,20 +950,60 @@ export function buildUpgradedCV(rawText: string, review: CVReview, targetRole?: 
   const expBlock = blocks.find((b) => b.bucket === 'experience');
   out.push('', 'PROFESSIONAL EXPERIENCE');
   if (expBlock && expBlock.lines.length > 0) {
-    for (let i = 0; i < expBlock.lines.length; i++) {
-      const line = expBlock.lines[i].trim();
+    interface ExpItem {
+      kind: 'header' | 'location' | 'bullet';
+      text: string;
+    }
+    const items: ExpItem[] = [];
+
+    for (const rawLine of expBlock.lines) {
+      const line = rawLine.trim();
       if (!line) continue;
 
       if (isRoleHeaderLine(line)) {
-        if (i > 0) out.push('');
-        out.push(line);
-      } else if (/^[A-Za-z .'-]+,\s*(?:Nigeria|Canada|Germany|France|Netherlands|Kenya|Ghana|South\s+Africa|Australia|United\s+Kingdom|United\s+States|UK|USA?|Remote|[A-Za-z]{2}\b)(?:\s*\([^)\r\n]+\))?/i.test(line) && line.length < 65) {
-        // Location line
-        out.push(line);
+        items.push({ kind: 'header', text: line });
+      } else if (
+        /^[A-Za-z .'-]+,\s*(?:Nigeria|Canada|Germany|France|Netherlands|Kenya|Ghana|South\s+Africa|Australia|United\s+Kingdom|United\s+States|UK|USA?|Remote|[A-Za-z]{2}\b)(?:\s*\([^)\r\n]+\))?/i.test(line) &&
+        line.length < 65
+      ) {
+        items.push({ kind: 'location', text: line });
       } else {
-        // Bullet point
+        const isExplicitBullet = /^[•▪◦·*\-–—]\s*/.test(line);
         const cleanBullet = line.replace(/^[•▪◦·*\-–—]\s*/, '').trim();
-        const upgraded = strengthenBullet(cleanBullet) || cleanBullet;
+        if (!cleanBullet) continue;
+
+        const lastItem = items.length > 0 ? items[items.length - 1] : null;
+        if (lastItem && lastItem.kind === 'bullet') {
+          const prevBullet = lastItem.text;
+          const prevEndsSentence = /[.!?]$/.test(prevBullet);
+          const startsLower = /^[a-z]/.test(cleanBullet);
+          const startsConjunction = /^(?:and|or|with|for|to|of|in|by|across|on|at|including|such\s+as)\b/i.test(cleanBullet);
+          const isShortFragment = cleanBullet.split(/\s+/).length <= 6 && !/[.!?].+[.!?]/.test(cleanBullet);
+
+          const isContinuation =
+            startsLower ||
+            (startsConjunction && isShortFragment) ||
+            (!prevEndsSentence && (!isExplicitBullet || startsLower || startsConjunction || isShortFragment));
+
+          if (isContinuation) {
+            lastItem.text = `${prevBullet} ${cleanBullet}`.replace(/\s+/g, ' ').trim();
+            continue;
+          }
+        }
+
+        items.push({ kind: 'bullet', text: cleanBullet });
+      }
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'header') {
+        if (i > 0) out.push('');
+        out.push(item.text);
+      } else if (item.kind === 'location') {
+        out.push(item.text);
+      } else {
+        const upgraded = strengthenBullet(item.text) || item.text;
         out.push(`• ${upgraded}`);
       }
     }

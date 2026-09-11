@@ -745,7 +745,7 @@ function parseExperienceEntries(lines: string[]): ExperienceEntry[] {
       const isExplicitBullet = /^[•▪◦·\-–—]\s*/.test(rawLine) || /^\*(?!\*)\s*/.test(rawLine);
       const cleanBullet = rawLine.replace(/^[•▪◦·\-–—]\s*|^\*(?!\*)\s*/, '').trim();
       if (cleanBullet) {
-        if (isExplicitBullet || currentEntry.bullets.length === 0) {
+        if (currentEntry.bullets.length === 0) {
           currentEntry.bullets.push(cleanBullet);
         } else {
           const lastIdx = currentEntry.bullets.length - 1;
@@ -753,9 +753,20 @@ function parseExperienceEntries(lines: string[]): ExperienceEntry[] {
           const prevEndsSentence = /[.!?]$/.test(prevBullet);
           const startsLower = /^[a-z]/.test(cleanBullet);
           const startsConjunction = /^(?:and|or|with|for|to|of|in|by|across|on|at|including|such\s+as)\b/i.test(cleanBullet);
+          const isShortFragment = cleanBullet.split(/\s+/).length <= 6 && !/[.!?].+[.!?]/.test(cleanBullet);
 
-          // Continuation if previous line didn't end with a period, or this line starts with lowercase/conjunction
-          const isContinuation = !prevEndsSentence || startsLower || startsConjunction;
+          // Continuation conditions:
+          // 1. Line starts with a lowercase letter (e.g. "initiatives.", "reach by 40%.", "across web, mobile, and print.")
+          // 2. Line starts with a conjunction/preposition AND is a short fragment
+          // 3. Previous bullet did not end with a sentence terminator [.!?], and this line is either:
+          //    - not an explicit bullet, OR
+          //    - starts with lowercase, OR
+          //    - starts with conjunction, OR
+          //    - is a short sentence-finishing fragment
+          const isContinuation =
+            startsLower ||
+            (startsConjunction && isShortFragment) ||
+            (!prevEndsSentence && (!isExplicitBullet || startsLower || startsConjunction || isShortFragment));
 
           if (isContinuation) {
             currentEntry.bullets[lastIdx] = `${prevBullet} ${cleanBullet}`.replace(/\s+/g, ' ').trim();
@@ -1063,7 +1074,12 @@ function htmlToPlainText(html: string): string {
  */
 export function parseResumeDocument(rawText: string): ParsedResumeDocument {
   const isHtml = /<!DOCTYPE\b|<html\b|<body\b|<head\b|<div\s+class=["'][^"']*resume-container/i.test(rawText || '');
-  const text = isHtml ? htmlToPlainText(rawText || '') : (rawText || '').trim();
+  let text = isHtml ? htmlToPlainText(rawText || '') : (rawText || '').trim();
+  // Pre-split embedded section headings that appear attached directly to preceding sentences (e.g. "...impact. CORE COMPETENCIES...")
+  text = text.replace(
+    /(?<=[.!?])\s+(?=(?:CORE\s+(?:COMPETENCIES|SKILLS|TECHNICAL|CULINARY|CLINICAL|PROFESSIONAL)(?:\s*(?:&|and)\s*(?:SKILLS|COMPETENCIES|TECHNICAL\s+SKILLS|PROFESSIONAL\s+SKILLS|EXPERTISE))?|PROFESSIONAL\s+EXPERIENCE|WORK\s+EXPERIENCE|EDUCATION\s*&?\s*CERTIFICATIONS|KEY\s+PROJECTS)\b)/gi,
+    '\n\n'
+  );
   const rawLines = text.split(/\r?\n/).map((l) => l.replace(/\s+$/, ''));
 
   const headerLines: string[] = [];
@@ -1175,6 +1191,20 @@ export function parseResumeDocument(rawText: string): ParsedResumeDocument {
     for (const rawLine of summarySec.lines) {
       const line = rawLine.trim();
       if (!line) continue;
+
+      // Check if this line has an embedded skills heading inside it (e.g. "...impact. CORE COMPETENCIES & ...")
+      const embeddedSkillsMatch = line.match(
+        /\b(CORE\s+(?:COMPETENCIES|SKILLS|TECHNICAL|CULINARY|CLINICAL|PROFESSIONAL)(?:\s*(?:&|and)\s*(?:SKILLS|COMPETENCIES|TECHNICAL\s+SKILLS|PROFESSIONAL\s+SKILLS|EXPERTISE))?|TECHNICAL\s+SKILLS|CORE\s+SKILLS|AREAS\s+OF\s+EXPERTISE|KEY\s+SKILLS)\b/i
+      );
+      if (embeddedSkillsMatch && embeddedSkillsMatch.index !== undefined && embeddedSkillsMatch.index > 0) {
+        const preSummary = line.slice(0, embeddedSkillsMatch.index).trim();
+        const postSkills = line.slice(embeddedSkillsMatch.index + embeddedSkillsMatch[0].length).trim();
+        if (preSummary) cleanSummaryLines.push(preSummary);
+        if (postSkills) leakedSkillsLines.push(postSkills);
+        encounteredSkillsBlock = true;
+        continue;
+      }
+
       const heading = matchSectionHeading(line);
       if (heading && heading.bucket === 'skills') {
         encounteredSkillsBlock = true;
