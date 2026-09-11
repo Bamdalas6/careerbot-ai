@@ -4,10 +4,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   X, FileText, Sparkles, Loader2, CheckCircle2, ArrowRight, UploadCloud,
   AlertTriangle, Copy, Check, RotateCcw, Target, Download, TrendingUp, Wand2,
-  FileType2, Zap, PenLine, Send,
+  FileType2, Zap, PenLine, Send, FileCode,
 } from 'lucide-react';
 import { CVReview, ResumeProfile, UpgradedCV } from '@/types/job';
 import { useAuth } from '@/context/AuthContext';
+import { ExecutiveResumePreview } from './ExecutiveResumePreview';
+import { renderExecutiveResumeHtml } from '@/lib/resume-template';
+
 
 interface ResumeModalProps {
   isOpen: boolean;
@@ -142,8 +145,9 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
   // The rebuilt document, restored from the last session if there was one.
   const [upgraded, setUpgraded] = useState<StoredCV | null>(readStoredCV);
   const [rebuilding, setRebuilding] = useState(false);
-  const [exporting, setExporting] = useState<'pdf' | 'docx' | null>(null);
+  const [exporting, setExporting] = useState<'pdf' | 'docx' | 'html' | null>(null);
   const [cvCopied, setCvCopied] = useState(false);
+  const [viewMode, setViewMode] = useState<'preview' | 'edit'>('preview');
 
   // Manual edit state
   const [editInstruction, setEditInstruction] = useState('');
@@ -440,10 +444,10 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
   };
 
   /**
-   * PDF and Word are rendered server-side from whatever is in the box right now,
-   * so hand edits make it into the downloaded file.
+   * PDF, Word, and HTML are rendered server-side or generated client-side from whatever
+   * is in the box right now, so hand edits make it into the downloaded file.
    */
-  const exportCv = async (format: 'pdf' | 'docx') => {
+  const exportCv = async (format: 'pdf' | 'docx' | 'html') => {
     if (!upgraded) return;
     setExporting(format);
     setError(null);
@@ -453,15 +457,26 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: upgraded.text, format }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error || `Could not generate the ${format.toUpperCase()} file.`);
+      if (res.ok) {
+        const blob = await res.blob();
+        saveBlob(filenameFrom(res.headers.get('Content-Disposition'), `executive-resume.${format}`), blob);
         return;
       }
-      const blob = await res.blob();
-      saveBlob(filenameFrom(res.headers.get('Content-Disposition'), `upgraded-cv.${format}`), blob);
+      // If format is html and server responded with an error (e.g. before M2 route), fallback to client-side generation
+      if (format === 'html') {
+        const htmlContent = renderExecutiveResumeHtml(upgraded.text);
+        saveBlob('executive-resume.html', new Blob([htmlContent], { type: 'text/html;charset=utf-8' }));
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      setError(data?.error || `Could not generate the ${format.toUpperCase()} file.`);
     } catch {
-      setError(`Network error while generating the ${format === 'pdf' ? 'PDF' : 'Word document'}. Try again.`);
+      if (format === 'html') {
+        const htmlContent = renderExecutiveResumeHtml(upgraded.text);
+        saveBlob('executive-resume.html', new Blob([htmlContent], { type: 'text/html;charset=utf-8' }));
+      } else {
+        setError(`Network error while generating the ${format === 'pdf' ? 'PDF' : format === 'docx' ? 'Word document' : 'HTML file'}. Try again.`);
+      }
     } finally {
       setExporting(null);
     }
@@ -513,7 +528,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 p-0 sm:p-4 backdrop-blur-sm">
-      <div className="relative flex max-h-[95vh] sm:max-h-[90vh] w-full sm:max-w-2xl flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl border border-black/10 bg-white text-zinc-900 shadow-2xl dark:border-white/[0.08] dark:bg-[#0a0a0a] dark:text-[#f7f8f8]">
+      <div className={`relative flex max-h-[95vh] sm:max-h-[90vh] w-full ${tab === 'rebuilt' ? 'sm:max-w-4xl lg:max-w-5xl' : 'sm:max-w-2xl'} flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl border border-black/10 bg-white text-zinc-900 shadow-2xl transition-all duration-200 dark:border-white/[0.08] dark:bg-[#0a0a0a] dark:text-[#f7f8f8]`}>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-black/10 bg-zinc-50 px-4 sm:px-6 py-3.5 sm:py-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
           <div className="flex items-center gap-3">
@@ -967,69 +982,116 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
                 </div>
               )}
 
-              {/* Manual edit instructions */}
-              <div className="space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
-                <div className="flex items-center gap-2 text-xs font-bold text-zinc-900 dark:text-[#f7f8f8]">
-                  <PenLine className="h-3.5 w-3.5 text-indigo-600" />
-                  <span>Tell me what to change</span>
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={editInstruction}
-                    onChange={(e) => { setEditInstruction(e.target.value); setEditFeedback(null); }}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !editing && editInstruction.trim()) handleManualEdit(); }}
-                    placeholder='e.g. "add Sketch to skills", "change title to Lead Designer", "remove Bamdalas Graphics experience"'
-                    className="flex-1 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 placeholder:text-zinc-400 transition focus:border-zinc-900 focus:outline-none dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:placeholder:text-[#62666d]"
-                  />
+              {/* Segmented View Switcher */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-zinc-200 pb-3 dark:border-white/[0.08]">
+                <div className="inline-flex rounded-xl bg-zinc-100 p-1 dark:bg-white/[0.06]">
                   <button
-                    onClick={handleManualEdit}
-                    disabled={editing || !editInstruction.trim()}
-                    className="flex items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-[11px] font-semibold text-zinc-900 transition hover:bg-zinc-100 disabled:opacity-40 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:hover:bg-white/[0.09]"
+                    type="button"
+                    onClick={() => setViewMode('preview')}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                      viewMode === 'preview'
+                        ? 'bg-white text-zinc-900 shadow-sm dark:bg-white/20 dark:text-[#f7f8f8]'
+                        : 'text-zinc-600 hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]'
+                    }`}
                   >
-                    {editing ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Send className="h-3.5 w-3.5" />
-                    )}
-                    Apply
+                    <span>📄 Executive Preview</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('edit')}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                      viewMode === 'edit'
+                        ? 'bg-white text-zinc-900 shadow-sm dark:bg-white/20 dark:text-[#f7f8f8]'
+                        : 'text-zinc-600 hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]'
+                    }`}
+                  >
+                    <span>✏️ Plaintext Editor</span>
                   </button>
                 </div>
-                {editFeedback && (
-                  <p className={`text-[11px] leading-relaxed ${editFeedback.success ? 'text-zinc-700 dark:text-[#c9ccd1]' : 'text-rose-600 dark:text-[#f7f8f8]'}`}>
-                    {editFeedback.success ? <Check className="mr-1 inline h-3 w-3 text-emerald-600" /> : <AlertTriangle className="mr-1 inline h-3 w-3" />}
-                    {editFeedback.message}
-                  </p>
-                )}
-                <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-[#62666d]">
-                  Add skills, change your title, remove sections, add certifications, or replace text.
-                  You can also edit the CV directly in the text box below.
-                </p>
-              </div>
 
-              {/* The document itself, editable */}
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
-                    Your upgraded CV
-                  </label>
+                <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button
                     onClick={copyCv}
                     className="flex items-center gap-1 text-[11px] text-zinc-500 transition hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
                   >
-                    {cvCopied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
-                    {cvCopied ? 'Copied' : 'Copy text'}
+                    {cvCopied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    <span>{cvCopied ? 'Copied text' : 'Copy text'}</span>
                   </button>
                 </div>
-                <textarea
-                  rows={16}
-                  value={upgraded.text}
-                  onChange={(e) => setUpgraded({ ...upgraded, text: e.target.value })}
-                  onBlur={persistEdits}
-                  className="custom-scrollbar w-full resize-none rounded-2xl border border-zinc-300 bg-white p-4 font-mono text-[11px] leading-relaxed text-zinc-900 transition focus:border-zinc-900 focus:outline-none dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:focus:border-white/25"
-                />
-                {savedNote && <p className="mt-2 text-[11px] text-zinc-500 dark:text-[#62666d]">{savedNote}</p>}
               </div>
+
+              {/* Rebuilt View: Preview vs Edit */}
+              {viewMode === 'preview' ? (
+                <div className="custom-scrollbar max-h-[65vh] overflow-y-auto rounded-2xl bg-zinc-100/70 p-2 sm:p-5 dark:bg-white/[0.03]">
+                  <ExecutiveResumePreview text={upgraded.text} />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Manual edit instructions */}
+                  <div className="space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
+                    <div className="flex items-center gap-2 text-xs font-bold text-zinc-900 dark:text-[#f7f8f8]">
+                      <PenLine className="h-3.5 w-3.5 text-indigo-600" />
+                      <span>Tell me what to change</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={editInstruction}
+                        onChange={(e) => { setEditInstruction(e.target.value); setEditFeedback(null); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !editing && editInstruction.trim()) handleManualEdit(); }}
+                        placeholder='e.g. "add Sketch to skills", "change title to Lead Designer", "remove Bamdalas Graphics experience"'
+                        className="flex-1 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 placeholder:text-zinc-400 transition focus:border-zinc-900 focus:outline-none dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:placeholder:text-[#62666d]"
+                      />
+                      <button
+                        onClick={handleManualEdit}
+                        disabled={editing || !editInstruction.trim()}
+                        className="flex items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-[11px] font-semibold text-zinc-900 transition hover:bg-zinc-100 disabled:opacity-40 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:hover:bg-white/[0.09]"
+                      >
+                        {editing ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Send className="h-3.5 w-3.5" />
+                        )}
+                        Apply
+                      </button>
+                    </div>
+                    {editFeedback && (
+                      <p className={`text-[11px] leading-relaxed ${editFeedback.success ? 'text-zinc-700 dark:text-[#c9ccd1]' : 'text-rose-600 dark:text-[#f7f8f8]'}`}>
+                        {editFeedback.success ? <Check className="mr-1 inline h-3 w-3 text-emerald-600" /> : <AlertTriangle className="mr-1 inline h-3 w-3" />}
+                        {editFeedback.message}
+                      </p>
+                    )}
+                    <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-[#62666d]">
+                      Add skills, change your title, remove sections, add certifications, or replace text.
+                      You can also edit the CV directly in the text box below.
+                    </p>
+                  </div>
+
+                  {/* The document itself, editable */}
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
+                        Your upgraded CV
+                      </label>
+                      <button
+                        onClick={copyCv}
+                        className="flex items-center gap-1 text-[11px] text-zinc-500 transition hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
+                      >
+                        {cvCopied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                        {cvCopied ? 'Copied' : 'Copy text'}
+                      </button>
+                    </div>
+                    <textarea
+                      rows={16}
+                      value={upgraded.text}
+                      onChange={(e) => setUpgraded({ ...upgraded, text: e.target.value })}
+                      onBlur={persistEdits}
+                      className="custom-scrollbar w-full resize-none rounded-2xl border border-zinc-300 bg-white p-4 font-mono text-[11px] leading-relaxed text-zinc-900 transition focus:border-zinc-900 focus:outline-none dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#f7f8f8] dark:focus:border-white/25"
+                    />
+                    {savedNote && <p className="mt-2 text-[11px] text-zinc-500 dark:text-[#62666d]">{savedNote}</p>}
+                  </div>
+                </div>
+              )}
 
               {/* Downloads — the formats employers actually ask for */}
               <div className="space-y-2 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
@@ -1060,6 +1122,18 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
                     Word (.docx)
                   </button>
                   <button
+                    onClick={() => exportCv('html')}
+                    disabled={exporting !== null}
+                    className="flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-zinc-900 transition hover:bg-zinc-100 disabled:opacity-40 dark:border-white/[0.12] dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:hover:bg-white/[0.09]"
+                  >
+                    {exporting === 'html' ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <FileCode className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                    )}
+                    HTML
+                  </button>
+                  <button
                     onClick={() => download('upgraded-cv.txt', upgraded.text)}
                     className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-900 dark:border-white/[0.08] dark:bg-white/[0.02] dark:text-[#c9ccd1] dark:hover:bg-white/[0.06] dark:hover:text-[#f7f8f8]"
                   >
@@ -1075,9 +1149,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
                   </button>
                 </div>
                 <p className="text-[11px] leading-relaxed text-zinc-500 dark:text-[#62666d]">
-                  PDF for applying by email, Word if the employer asks for an editable file, plain
-                  text for pasting into application forms. All three are single-column, so parsers
-                  read them in the right order.
+                  PDF for applying by email, Word if the employer asks for an editable file, HTML for executive visual layout, plain text for pasting into application forms. All single-column, so parsers read them in the right order.
                 </p>
               </div>
 
