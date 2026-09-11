@@ -13,9 +13,12 @@ import {
   Briefcase, 
   CheckCircle2, 
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Mic,
+  MicOff
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { useVoiceSpeech } from '@/hooks/useVoiceSpeech';
 
 interface HeroSectionProps {
   onSearch: (query: string) => void;
@@ -43,14 +46,32 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearch, onOpenResume
   const [searchQuery, setSearchQuery] = useState('');
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [previewLiked, setPreviewLiked] = useState(false);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const baseQueryRef = React.useRef('');
+
+  const { isListening, isSupported, errorMessage, toggleListening, stopListening } = useVoiceSpeech({
+    onTranscript: (spokenText) => {
+      const prefix = baseQueryRef.current ? `${baseQueryRef.current.trim()} ` : '';
+      setSearchQuery(`${prefix}${spokenText}`);
+    },
+  });
+
+  const handleVoiceToggle = () => {
+    if (!isListening) {
+      baseQueryRef.current = searchQuery;
+      inputRef.current?.focus();
+    }
+    toggleListening();
+  };
 
   // Rotate placeholder text smoothly
   useEffect(() => {
+    if (isListening) return;
     const interval = setInterval(() => {
       setPlaceholderIndex((prev) => (prev + 1) % SAMPLE_SEARCHES.length);
     }, 3800);
     return () => clearInterval(interval);
-  }, []);
+  }, [isListening]);
 
   const triggerFunConfetti = () => {
     confetti({
@@ -63,9 +84,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearch, onOpenResume
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isListening) stopListening();
     const queryToUse = searchQuery.trim() || SAMPLE_SEARCHES[placeholderIndex];
     triggerFunConfetti();
     onSearch(queryToUse);
+    baseQueryRef.current = '';
   };
 
   const handleTagClick = (query: string) => {
@@ -113,15 +136,40 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearch, onOpenResume
             className="group relative rounded-2xl border-2 border-zinc-800 bg-zinc-900/90 p-2 shadow-2xl backdrop-blur-xl transition-all duration-300 hover:border-indigo-500/60 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/20"
           >
             <div className="flex flex-col sm:flex-row items-center gap-2">
-              <div className="relative flex flex-1 items-center w-full pl-3">
+              <div className="relative flex flex-1 items-center w-full pl-3 pr-2">
                 <Search className="h-5 w-5 text-indigo-400 shrink-0 mr-2.5 transition group-focus-within:text-indigo-300" />
                 <input
+                  ref={inputRef}
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={`Try: "${SAMPLE_SEARCHES[placeholderIndex]}"`}
-                  className="w-full bg-transparent py-3 pr-4 text-sm sm:text-base text-white placeholder-zinc-500 focus:outline-none"
+                  placeholder={isListening ? "Listening to your voice... Speak your role or skills" : `Try: "${SAMPLE_SEARCHES[placeholderIndex]}"`}
+                  className="w-full bg-transparent py-3 pr-2 text-sm sm:text-base text-white placeholder-zinc-500 focus:outline-none"
                 />
+
+                {/* Microphone Button */}
+                {isSupported && (
+                  <button
+                    type="button"
+                    onClick={handleVoiceToggle}
+                    aria-label={isListening ? 'Stop voice speech' : 'Search with voice'}
+                    title={isListening ? 'Listening to your voice... Click to stop' : 'Search using your voice'}
+                    className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all select-none cursor-pointer active:scale-95 ${
+                      isListening
+                        ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 scale-105 ring-2 ring-rose-400/50 animate-pulse'
+                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800/80'
+                    }`}
+                  >
+                    {isListening ? (
+                      <span className="relative flex h-3.5 w-3.5 items-center justify-center">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-200 opacity-75" />
+                        <Mic className="h-3.5 w-3.5 text-white" />
+                      </span>
+                    ) : (
+                      <Mic className="h-4 w-4" />
+                    )}
+                  </button>
+                )}
               </div>
 
               <div className="flex w-full sm:w-auto items-center gap-2">
@@ -146,6 +194,19 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onSearch, onOpenResume
               </div>
             </div>
           </form>
+
+          {errorMessage && (
+            <div className="mt-3 px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 text-xs flex items-center justify-between gap-2">
+              <span>{errorMessage}</span>
+              <button
+                type="button"
+                onClick={() => stopListening()}
+                className="text-[10px] font-bold uppercase underline"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
 
           {/* Quick Trending Filter Pills */}
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">

@@ -89,6 +89,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const handleVoiceToggle = () => {
     if (!isListening) {
       baseInputRef.current = input;
+      inputRef.current?.focus();
     }
     toggleListening();
   };

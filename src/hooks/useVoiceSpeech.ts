@@ -72,28 +72,35 @@ export function useVoiceSpeech(options: UseVoiceSpeechOptions = {}) {
         let interimTranscript = '';
         let finalTranscript = '';
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
+        for (let i = 0; i < event.results.length; ++i) {
           const result = event.results[i];
           const text = result[0]?.transcript || '';
           if (result.isFinal) {
-            finalTranscript += text;
+            finalTranscript += (finalTranscript ? ' ' : '') + text.trim();
           } else {
-            interimTranscript += text;
+            interimTranscript += (interimTranscript ? ' ' : '') + text.trim();
           }
         }
 
-        const currentText = finalTranscript || interimTranscript;
-        if (currentText.trim() && onTranscriptRef.current) {
-          onTranscriptRef.current(currentText.trim(), Boolean(finalTranscript));
+        const combined = [finalTranscript.trim(), interimTranscript.trim()]
+          .filter(Boolean)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        if (combined && onTranscriptRef.current) {
+          onTranscriptRef.current(combined, Boolean(finalTranscript));
         }
       };
 
       recognition.onerror = (event: any) => {
-        console.warn('Speech recognition error:', event.error);
+        console.warn('Speech recognition notice:', event.error);
         if (event.error === 'not-allowed') {
           setErrorMessage('Microphone access was denied. Please allow microphone permissions in your browser.');
         } else if (event.error === 'no-speech') {
-          // Graceful no-speech timeout
+          // Graceful timeout when silence is detected; no error needed
+        } else if (event.error === 'aborted') {
+          // Normal abort when user stops or clicks toggle
         } else {
           setErrorMessage(`Speech recognition notice: ${event.error}`);
         }
