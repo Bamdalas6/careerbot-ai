@@ -291,6 +291,10 @@ function matchSectionHeading(line: string): MatchedSection | null {
   const wordCount = clean.split(/\s+/).length;
   if (wordCount > 7) return null;
 
+  // A section heading must not be an inline key-value pair (e.g. "Category: item1, item2")
+  // Section headings may end with a colon ("SKILLS:"), but not have substantive content after it.
+  if (/^[^:]+:\s+\S+/.test(clean)) return null;
+
   // 1. Summary
   if (
     /^(?:professional\s+|executive\s+|career\s+)?(?:summary|profile|overview|objective|statement)(?:\s*[:–—-]|\s*$)/i.test(clean) ||
@@ -303,10 +307,21 @@ function matchSectionHeading(line: string): MatchedSection | null {
 
   // 2. Skills
   if (
-    /^(?:core\s+|technical\s+|key\s+|functional\s+|professional\s+)*(?:skills|competencies|expertise|proficiencies|technologies|tools|tech\s*stack)(?:\s*(?:&|and)\s*(?:technical\s+|functional\s+|core\s+)?(?:skills|competencies|expertise|proficiencies|technologies|tools|abilities|stack))?(?:\s*[:–—-]|\s*$)/i.test(clean) ||
-    /^(?:core\s+competencies\s*(?:&|and)\s*technical\s+skills|areas\s+of\s+expertise|technical\s+proficiencies)(?:\s*[:–—-]|\s*$)/i.test(clean)
+    /\b(?:skills|competencies|expertise|proficiencies|technologies|tools|tech\s*stack)\b/i.test(clean) &&
+    !/[.!?]$/.test(clean) &&
+    !/\b(?:responsible|managed|assisted|worked|developed|led|history|education)\b/i.test(clean) &&
+    (
+      /^(?:core|technical|key|functional|professional|clinical|culinary|teaching|educational|administrative|operational|retail|store|logistics|supply\s+chain|specialized|primary|relevant)\b/i.test(clean) ||
+      /^(?:skills|competencies|expertise|proficiencies|technologies|tools|tech\s*stack|areas\s+of\s+expertise)/i.test(clean) ||
+      clean.toUpperCase() === clean
+    )
   ) {
-    return { bucket: 'skills', title: 'Core Competencies & Technical Skills' };
+    return { bucket: 'skills', title: 'Core Competencies & Skills' };
+  }
+  if (
+    /^(?:areas\s+of\s+expertise|technical\s+proficiencies|tools\s*(&|and)\s*technologies|technical\s+tools|core\s+strengths)(?:\s*[:–—-]|\s*$)/i.test(clean)
+  ) {
+    return { bucket: 'skills', title: 'Core Competencies & Skills' };
   }
 
   // 3. Experience
@@ -335,9 +350,12 @@ function matchSectionHeading(line: string): MatchedSection | null {
     return { bucket: 'education', title: 'Education & Certifications' };
   }
 
-  // 6. Generic uppercase header (e.g. ALL CAPS <= 4 words)
+  // 6. Generic uppercase header (e.g. ALL CAPS <= 7 words)
   const lettersOnly = clean.replace(/[^A-Za-z]/g, '');
-  if (lettersOnly.length >= 4 && lettersOnly === lettersOnly.toUpperCase() && wordCount <= 4) {
+  if (lettersOnly.length >= 4 && lettersOnly === lettersOnly.toUpperCase() && wordCount <= 7) {
+    if (/\b(?:SKILL|COMPETENC|TOOL|TECH)\b/i.test(clean)) {
+      return { bucket: 'skills', title: 'Core Competencies & Skills' };
+    }
     return { bucket: 'unknown', title: clean };
   }
 
@@ -1116,9 +1134,49 @@ export function parseResumeDocument(rawText: string): ParsedResumeDocument {
   });
   const contact = parseContactChips(contactLines);
 
-  // 3. Summary Section
+  // 3. Summary Section — with defensive sanitization to prevent leaked headings or skills
   const summarySec = sections.find((s) => s.bucket === 'summary');
-  const summary = summarySec ? summarySec.lines.join(' ').replace(/\s+/g, ' ').trim() : undefined;
+  if (summarySec) {
+    const cleanSummaryLines: string[] = [];
+    const leakedSkillsLines: string[] = [];
+    let encounteredSkillsBlock = false;
+
+    for (const rawLine of summarySec.lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      const heading = matchSectionHeading(line);
+      if (heading && heading.bucket === 'skills') {
+        encounteredSkillsBlock = true;
+        continue;
+      }
+      if (heading && heading.bucket !== 'summary') {
+        continue;
+      }
+      if (
+        encounteredSkillsBlock ||
+        /^[A-Za-z0-9\s/&+-]{2,45}:\s*.+/.test(line) ||
+        /^(?:core\s+|technical\s+|key\s+|functional\s+)?[a-z\s/&+-]{3,35}(?:skills|competencies|proficiencies)/i.test(line)
+      ) {
+        leakedSkillsLines.push(line);
+      } else {
+        cleanSummaryLines.push(line);
+      }
+    }
+
+    summarySec.lines = cleanSummaryLines;
+
+    if (leakedSkillsLines.length > 0) {
+      let sSec = sections.find((s) => s.bucket === 'skills');
+      if (!sSec) {
+        sSec = { bucket: 'skills', title: 'Core Competencies & Skills', lines: [] };
+        sections.push(sSec);
+      }
+      sSec.lines.push(...leakedSkillsLines);
+    }
+  }
+  const summary = summarySec && summarySec.lines.length > 0
+    ? summarySec.lines.join(' ').replace(/\s+/g, ' ').trim()
+    : undefined;
 
   // 4. Skills Section
   const skillsSec = sections.find((s) => s.bucket === 'skills');

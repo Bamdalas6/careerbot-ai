@@ -6,6 +6,7 @@ register('./scripts/test-loader.mjs', pathToFileURL('./'));
 
 const { parseResumeText } = await import('../src/lib/ai-agent.ts');
 const { reviewResume, buildUpgradedCV } = await import('../src/lib/cv-review.ts');
+const { parseResumeDocument } = await import('../src/lib/resume-template.ts');
 
 console.log('======================================================================');
 console.log('   MULTI-INDUSTRY SKILL ACCURACY & CV GENERATION QUALITY TESTS');
@@ -228,6 +229,70 @@ it('Detects Registered Nurse title and healthcare skills', () => {
 it('Generates authentic healthcare summary without tech boilerplate', () => {
   assert.ok(/patient care|clinical|hipaa/i.test(reviewNurse.rewritten_summary));
   assert.ok(!reviewNurse.rewritten_summary.includes('web applications'));
+});
+
+console.log('\n--- SUITE 6: Professional Summary Cleanliness & Zero Skill Leaking ---');
+
+const productDesignResume = `JOHN DOE
+Product Designer
+Lagos, Nigeria • john@example.com • +234 801 234 5678
+
+PROFESSIONAL SUMMARY
+Dynamic, user-centered Product Designer with 6+ years of experience leading cross-functional teams to design intuitive web and mobile solutions. Proven expertise in transforming complex user requirements into high-converting, accessible digital products that drive measurable business impact.
+
+CORE COMPETENCIES & PROFESSIONAL SKILLS
+Product & UI/UX Design: Design Systems Architecture, User Research, Interaction Design, Wireframing, Rapid Prototyping
+UX Research & Strategy: Usability Testing, Persona Development, A/B Testing, Heuristic Evaluation
+Tools & Collaboration: Figma, FigJam, Principle, Jira, Agile/Scrum
+
+PROFESSIONAL EXPERIENCE
+Lead Product Designer — Fintech Solutions Ltd | 2021 – Present
+Lagos, Nigeria
+* Spearheaded redesign of flagship mobile banking application serving 500,000+ active users.
+* Established comprehensive Design System reducing design-to-engineering handoff time by 40%.
+
+EDUCATION & CERTIFICATIONS
+* Bachelor of Science in Computer Science — University of Lagos (2015 – 2019)
+`;
+
+const parsedDoc = parseResumeDocument(productDesignResume);
+
+it('Professional summary is 100% clean and contains ONLY summary narrative sentences', () => {
+  assert.ok(parsedDoc.summary, 'Summary must exist');
+  assert.ok(parsedDoc.summary.includes('Dynamic, user-centered Product Designer'), 'Summary must contain intro');
+  assert.ok(parsedDoc.summary.includes('measurable business impact.'), 'Summary must contain conclusion');
+  
+  // Must NOT leak skills heading
+  assert.ok(!parsedDoc.summary.includes('CORE COMPETENCIES'), 'Summary must NOT contain "CORE COMPETENCIES"');
+  assert.ok(!parsedDoc.summary.includes('PROFESSIONAL SKILLS'), 'Summary must NOT contain "PROFESSIONAL SKILLS"');
+  
+  // Must NOT leak skill category names or lists
+  assert.ok(!parsedDoc.summary.includes('Product & UI/UX Design:'), 'Summary must NOT contain "Product & UI/UX Design:"');
+  assert.ok(!parsedDoc.summary.includes('UX Research & Strategy:'), 'Summary must NOT contain "UX Research & Strategy:"');
+  assert.ok(!parsedDoc.summary.includes('Tools & Collaboration:'), 'Summary must NOT contain "Tools & Collaboration:"');
+  assert.ok(!parsedDoc.summary.includes('Design Systems Architecture'), 'Summary must NOT contain skill items');
+  assert.ok(!parsedDoc.summary.includes('Figma'), 'Summary must NOT contain tool names');
+});
+
+it('Skills section correctly receives all skill categories', () => {
+  assert.strictEqual(parsedDoc.skills.length, 3, `Expected 3 skill categories, got ${parsedDoc.skills.length}`);
+  assert.strictEqual(parsedDoc.skills[0].category, 'Product & UI/UX Design');
+  assert.ok(parsedDoc.skills[0].items.includes('Design Systems Architecture'));
+  assert.strictEqual(parsedDoc.skills[1].category, 'UX Research & Strategy');
+  assert.strictEqual(parsedDoc.skills[2].category, 'Tools & Collaboration');
+  assert.ok(parsedDoc.skills[2].items.includes('Figma'));
+});
+
+it('Round-trip buildUpgradedCV -> parseResumeDocument guarantees clean unpolluted summary', () => {
+  const rev = reviewResume(productDesignResume);
+  const upgraded = buildUpgradedCV(productDesignResume, rev, 'Product Designer');
+  const upgradedDoc = parseResumeDocument(upgraded.text);
+
+  assert.ok(upgradedDoc.summary, 'Upgraded document must have summary');
+  assert.ok(!upgradedDoc.summary.includes('CORE COMPETENCIES'), 'Upgraded summary must NOT contain skills heading');
+  assert.ok(!upgradedDoc.summary.includes('PROFESSIONAL SKILLS'), 'Upgraded summary must NOT contain skills heading');
+  assert.ok(!upgradedDoc.summary.includes('Tools & Collaboration:'), 'Upgraded summary must NOT contain tools category');
+  assert.ok(upgradedDoc.skills.length >= 2, `Upgraded document must have parsed skills, got ${upgradedDoc.skills.length}`);
 });
 
 console.log('\n======================================================================');

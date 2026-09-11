@@ -583,7 +583,10 @@ interface Block {
  */
 function matchCanonicalHeading(line: string): { bucket: SectionBucket; heading: string } | null {
   const t = line.trim().replace(/[:•\-–—_#*]+$/, '').replace(/^[:•\-–—_#*]+\s*/, '').trim();
-  if (!t || t.length > 55 || t.split(/\s+/).length > 6) return null;
+  if (!t || t.length > 65 || t.split(/\s+/).length > 8) return null;
+
+  // A section heading must not be an inline key-value pair (e.g. "Category: item1, item2")
+  if (/^[^:]+:\s+\S+/.test(t)) return null;
 
   // Summary aliases
   if (/^(professional\s+|career\s+|executive\s+)?(summary|profile|overview|objective|background|statement)/i.test(t) ||
@@ -593,11 +596,22 @@ function matchCanonicalHeading(line: string): { bucket: SectionBucket; heading: 
   }
 
   // Skills aliases
-  if (/^(core\s+|technical\s+|key\s+|functional\s+)?(skills|competencies|expertise|proficiencies|technologies|tools|tech\s*stack)/i.test(t) ||
-      /^areas\s+of\s+expertise$/i.test(t) ||
-      /^skills\s+(&|and)\s+(abilities|expertise|tools)$/i.test(t) ||
-      /^technical\s+proficiencies$/i.test(t)) {
-    return { bucket: 'skills', heading: 'CORE COMPETENCIES & TECHNICAL SKILLS' };
+  if (
+    /\b(?:skills|competencies|expertise|proficiencies|technologies|tools|tech\s*stack)\b/i.test(t) &&
+    !/[.!?]$/.test(t) &&
+    !/\b(?:responsible|managed|assisted|worked|developed|led|history|education)\b/i.test(t) &&
+    (
+      /^(?:core|technical|key|functional|professional|clinical|culinary|teaching|educational|administrative|operational|retail|store|logistics|supply\s+chain|specialized|primary|relevant)\b/i.test(t) ||
+      /^(?:skills|competencies|expertise|proficiencies|technologies|tools|tech\s*stack|areas\s+of\s+expertise)/i.test(t) ||
+      t.toUpperCase() === t
+    )
+  ) {
+    return { bucket: 'skills', heading: 'CORE COMPETENCIES & PROFESSIONAL SKILLS' };
+  }
+  if (
+    /^(?:areas\s+of\s+expertise|technical\s+proficiencies|tools\s*(&|and)\s*technologies|technical\s+tools|core\s+strengths)(?:\s*[:–—-]|\s*$)/i.test(t)
+  ) {
+    return { bucket: 'skills', heading: 'CORE COMPETENCIES & PROFESSIONAL SKILLS' };
   }
 
   // Experience aliases
@@ -855,17 +869,35 @@ export function buildUpgradedCV(rawText: string, review: CVReview, targetRole?: 
 
   // 4. Professional Summary
   const summaryBlock = blocks.find((b) => b.bucket === 'summary');
+  const skillsBlock = blocks.find((b) => b.bucket === 'skills');
   out.push('', 'PROFESSIONAL SUMMARY');
   if (summaryBlock && summaryBlock.lines.length > 0) {
-    const sumText = summaryBlock.lines.join(' ').replace(/\s+/g, ' ').trim();
-    out.push(sumText);
+    const cleanSummaryLines: string[] = [];
+    const straySkills: string[] = [];
+    for (const sLine of summaryBlock.lines) {
+      const trimmed = sLine.trim();
+      if (!trimmed) continue;
+      if (matchCanonicalHeading(trimmed)) continue;
+      if (isSkillsInventory(trimmed) || /^[A-Za-z0-9\s/&+-]{2,45}:\s*.+/.test(trimmed)) {
+        straySkills.push(trimmed);
+        continue;
+      }
+      cleanSummaryLines.push(trimmed);
+    }
+    if (straySkills.length > 0 && skillsBlock) {
+      skillsBlock.lines.push(...straySkills);
+    }
+    if (cleanSummaryLines.length > 0) {
+      out.push(cleanSummaryLines.join(' ').replace(/\s+/g, ' ').trim());
+    } else {
+      out.push(review.rewritten_summary);
+    }
   } else {
     out.push(review.rewritten_summary);
   }
   changes.push('Polished professional summary highlighting proven domain track record and impact.');
 
   // 5. Core Competencies & Skills
-  const skillsBlock = blocks.find((b) => b.bucket === 'skills');
   const skillsHeading = roleInfo.key === 'culinary'
     ? 'CORE CULINARY & SUPERVISORY COMPETENCIES'
     : roleInfo.key === 'healthcare'
