@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
@@ -19,15 +19,78 @@ import {
   ChevronRight,
   Gift,
   Plus,
-  ExternalLink
+  ExternalLink,
+  CheckCircle2,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { CREDIT_PACKAGES, CREDIT_RATES } from '@/types/credits';
 import { useAuth } from '@/context/AuthContext';
 
 export default function PricingPage() {
   const router = useRouter();
-  const { user, credits, openCreditModal, openAuthModal } = useAuth();
+  const { user, credits, openCreditModal, openAuthModal, refreshUser } = useAuth();
   const [currency, setCurrency] = useState<'NGN' | 'USD'>('NGN');
+  const [verifying, setVerifying] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<{
+    success: boolean;
+    message: string;
+    creditsAdded?: number;
+    newBalance?: number;
+    packageName?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('reference') || params.get('trxref');
+    if (!ref) return;
+
+    const verifiedKey = `careerbot_verified_${ref}`;
+    if (sessionStorage.getItem(verifiedKey)) return;
+
+    setVerifying(true);
+    fetch(`/api/credits/verify?reference=${encodeURIComponent(ref)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        sessionStorage.setItem(verifiedKey, 'true');
+        if (data.success) {
+          setVerificationResult({
+            success: true,
+            message: data.message || 'Payment confirmed and coins credited!',
+            creditsAdded: data.creditsAdded,
+            newBalance: data.newBalance,
+            packageName: data.package?.name,
+          });
+          import('canvas-confetti').then((m) => {
+            const confetti = m.default || m;
+            confetti({
+              particleCount: 120,
+              spread: 100,
+              origin: { y: 0.4 },
+              colors: ['#f59e0b', '#10b981', '#6366f1', '#ec4899'],
+            });
+          }).catch(() => {});
+          refreshUser();
+        } else {
+          setVerificationResult({
+            success: false,
+            message: data.error || 'Could not verify payment reference.',
+          });
+        }
+      })
+      .catch(() => {
+        setVerificationResult({
+          success: false,
+          message: 'Network notice: If your payment completed, Paystack webhook will automatically credit your account.',
+        });
+      })
+      .finally(() => {
+        setVerifying(false);
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      });
+  }, [refreshUser]);
 
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -134,6 +197,62 @@ export default function PricingPage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-8 sm:py-20">
+        {/* Verification Status Banner */}
+        {verifying && (
+          <div className="mb-8 max-w-2xl mx-auto rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-center">
+            <div className="flex items-center justify-center gap-2.5 text-amber-700 dark:text-amber-300 font-semibold text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+              <span>Verifying your Paystack payment reference... Please wait.</span>
+            </div>
+          </div>
+        )}
+
+        {verificationResult && (
+          <div
+            className={`mb-8 max-w-2xl mx-auto rounded-2xl border p-4 sm:p-5 shadow-sm transition-all animate-in fade-in slide-in-from-top-2 ${
+              verificationResult.success
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200'
+                : 'border-rose-500/30 bg-rose-500/10 text-rose-950 dark:text-rose-200'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              {verificationResult.success ? (
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+              ) : (
+                <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1">
+                <h4 className="text-sm font-bold">
+                  {verificationResult.success ? '🎉 Payment Confirmed & Coins Credited!' : 'Payment Verification Notice'}
+                </h4>
+                <p className="text-xs sm:text-sm mt-1 opacity-90 leading-relaxed">
+                  {verificationResult.message}
+                </p>
+                {verificationResult.success && typeof verificationResult.creditsAdded === 'number' && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
+                    <span className="rounded-lg bg-emerald-600 text-white px-2.5 py-1">
+                      +{verificationResult.creditsAdded} Credits Added
+                    </span>
+                    {typeof verificationResult.newBalance === 'number' && (
+                      <span className="rounded-lg bg-white/70 dark:bg-black/40 px-2.5 py-1 border border-emerald-500/20">
+                        New Balance: {verificationResult.newBalance} Credits
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setVerificationResult(null)}
+                className="text-xs font-bold opacity-60 hover:opacity-100 px-2 py-1 cursor-pointer"
+                title="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Hero Section */}
         <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
           <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-zinc-100 px-3.5 py-1.5 text-xs font-semibold text-zinc-700 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 mb-6">

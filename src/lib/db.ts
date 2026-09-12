@@ -126,7 +126,7 @@ const INITIAL_DB: DatabaseSchema = {
   crawled_jobs: [],
 };
 
-function ensureLocalDb(): DatabaseSchema {
+export function ensureLocalDb(): DatabaseSchema {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -153,7 +153,7 @@ function ensureLocalDb(): DatabaseSchema {
   }
 }
 
-function writeLocalDb(data: DatabaseSchema): void {
+export function writeLocalDb(data: DatabaseSchema): void {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
