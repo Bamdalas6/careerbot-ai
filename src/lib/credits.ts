@@ -194,7 +194,7 @@ export async function fulfillPaystackPurchase(params: {
   let user = await getUserByEmail(normalizedEmail);
   if (!user) {
     // User paid before registering: pre-create account with bonus so their coins are ready upon registration
-    const initialCoins = 8 + pkg.credits;
+    const initialCoins = 5 + pkg.credits;
     user = await createUser({
       name: normalizedEmail.split('@')[0],
       email: normalizedEmail,

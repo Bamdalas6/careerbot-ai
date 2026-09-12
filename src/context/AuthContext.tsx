@@ -44,15 +44,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const promoKey = 'careerbot_promo_20_applied_v1';
-        const promoApplied = localStorage.getItem(promoKey) === 'true';
         const stored = localStorage.getItem('careerbot_user');
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed && parsed.id) {
-            if (!promoApplied && typeof parsed.credits === 'number' && Number.isFinite(parsed.credits)) {
-              parsed.credits += 20;
-            }
             return parsed;
           }
         }
@@ -66,9 +61,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [credits, setCredits] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const promoKey = 'careerbot_promo_20_applied_v1';
-        const promoApplied = localStorage.getItem(promoKey) === 'true';
-
         let currentCredits: number | null = null;
         const storedCredits = localStorage.getItem('careerbot_credits');
         if (storedCredits !== null) {
@@ -77,10 +69,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         const stored = localStorage.getItem('careerbot_user');
-        let parsedUser: any = null;
         if (stored) {
           try {
-            parsedUser = JSON.parse(stored);
+            const parsedUser = JSON.parse(stored);
             if (
               currentCredits === null &&
               parsedUser &&
@@ -93,24 +84,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch {
             /* ignore */
           }
-        }
-
-        const hasSession = !!(stored || localStorage.getItem('careerbot_token') || storedCredits !== null);
-
-        // One-time instant promotion migration: bump cached balance by +20 credits immediately
-        if (!promoApplied && hasSession && currentCredits !== null) {
-          const upgraded = currentCredits + 20;
-          try {
-            localStorage.setItem(promoKey, 'true');
-            localStorage.setItem('careerbot_credits', String(upgraded));
-            if (parsedUser) {
-              parsedUser.credits = upgraded;
-              localStorage.setItem('careerbot_user', JSON.stringify(parsedUser));
-            }
-          } catch {
-            /* ignore */
-          }
-          return upgraded;
         }
 
         if (currentCredits !== null) return currentCredits;
@@ -158,7 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : 0;
         setCredits(resolvedCredits);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('careerbot_promo_20_applied_v1', 'true');
+          localStorage.removeItem('careerbot_promo_20_applied_v1');
           localStorage.setItem('careerbot_user', JSON.stringify(data.user));
           localStorage.setItem('careerbot_credits', String(resolvedCredits));
           if (data.token) {
@@ -188,32 +161,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Immediate hydration from localStorage on mount
     if (typeof window !== 'undefined') {
       try {
-        const promoKey = 'careerbot_promo_20_applied_v1';
-        const promoApplied = localStorage.getItem(promoKey) === 'true';
+        localStorage.removeItem('careerbot_promo_20_applied_v1');
+        const resetKey = 'careerbot_credit_reset_v5';
+        if (localStorage.getItem(resetKey) !== 'true') {
+          localStorage.setItem(resetKey, 'true');
+          const stored = localStorage.getItem('careerbot_user');
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              if (parsed && typeof parsed.credits === 'number' && parsed.credits > 5) {
+                parsed.credits = 5;
+                localStorage.setItem('careerbot_user', JSON.stringify(parsed));
+                localStorage.setItem('careerbot_credits', '5');
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+
         const storedCredits = localStorage.getItem('careerbot_credits');
         const num = storedCredits !== null ? Number(storedCredits) : NaN;
         const stored = localStorage.getItem('careerbot_user');
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed && parsed.id) {
-            let initialCredits =
+            const initialCredits =
               Number.isFinite(num) && num >= 0
                 ? num
                 : typeof parsed.credits === 'number' && Number.isFinite(parsed.credits) && parsed.credits >= 0
                 ? parsed.credits
                 : 0;
-
-            if (!promoApplied) {
-              initialCredits += 20;
-              parsed.credits = initialCredits;
-              try {
-                localStorage.setItem(promoKey, 'true');
-                localStorage.setItem('careerbot_credits', String(initialCredits));
-                localStorage.setItem('careerbot_user', JSON.stringify(parsed));
-              } catch {
-                /* ignore */
-              }
-            }
 
             setUser(parsed);
             setCredits(initialCredits);
@@ -249,7 +227,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               : 0;
           setCredits(resolvedCredits);
           if (typeof window !== 'undefined') {
-            localStorage.setItem('careerbot_promo_20_applied_v1', 'true');
+            localStorage.removeItem('careerbot_promo_20_applied_v1');
             localStorage.setItem('careerbot_user', JSON.stringify(data.user));
             localStorage.setItem('careerbot_credits', String(resolvedCredits));
             if (data.token) {
@@ -517,7 +495,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const resolvedCredits =
         typeof data.user?.credits === 'number' && Number.isFinite(data.user.credits) && data.user.credits >= 0
           ? data.user.credits
-          : 8;
+          : 5;
 
       if (typeof window !== 'undefined') {
         localStorage.removeItem('careerbot_ref_code');

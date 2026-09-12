@@ -249,7 +249,7 @@ export async function getActualUserCredits(userId: string, email?: string): Prom
     return localUser.credits;
   }
 
-  return 8;
+  return 5;
 }
 
 export async function getUserByEmail(email: string): Promise<UserRecord | null> {
@@ -423,7 +423,7 @@ export async function insertUserToSupabase(
   }
 
   const safeName = (user.name || (safeEmail ? safeEmail.split('@')[0] : 'User')).trim() || 'User';
-  const safeCredits = typeof user.credits === 'number' && Number.isFinite(user.credits) ? user.credits : 8;
+  const safeCredits = typeof user.credits === 'number' && Number.isFinite(user.credits) ? user.credits : 5;
   const nowIso = new Date().toISOString();
 
   const isInvalidUuidError = (err: any) => {
@@ -772,7 +772,7 @@ export async function createUser(userData: {
   signup_ip?: string;
 }): Promise<UserRecord> {
   const now = new Date().toISOString();
-  const initialCredits = userData.initialCredits ?? 8;
+  const initialCredits = userData.initialCredits ?? 5;
   const safeName = (typeof userData.name === 'string' ? userData.name.trim() : '') || 'User';
   const safeEmail = (typeof userData.email === 'string' ? userData.email.trim().toLowerCase() : '');
   const baseCode = safeName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 7) || 'user';
@@ -899,7 +899,7 @@ export async function getUserByReferralCode(code: string): Promise<UserRecord | 
           email: found.email || '',
           password_hash: '',
           salt: '',
-          credits: found.user_metadata?.credits ?? 8,
+          credits: found.user_metadata?.credits ?? 5,
           referral_code: found.user_metadata?.referral_code || clean,
           referral_count: found.user_metadata?.referral_count || 0,
           referral_earnings: found.user_metadata?.referral_earnings || 0,
@@ -1697,7 +1697,7 @@ export async function getSessionByToken(token: string): Promise<{ session: Sessi
       const fallbackCredits =
         typeof payload.credits === 'number' && Number.isFinite(payload.credits) && payload.credits >= 0
           ? payload.credits
-          : 8;
+          : 5;
 
       user = {
         id: payload.userId,
@@ -2837,150 +2837,62 @@ export async function ensureUserPromoCredits(
   currentToken?: string
 ): Promise<{ credits: number; token?: string; upgraded: boolean }> {
   const normalizedEmail = email ? email.trim().toLowerCase() : undefined;
-  const grantDescription = 'Additional 20 bonus credits granted to account';
-  const now = new Date().toISOString();
+  const currentCredits = await getActualUserCredits(userId, normalizedEmail);
 
-  let tokenPayload: SessionTokenPayload | null = null;
+  let updatedToken: string | undefined = undefined;
   if (currentToken) {
-    tokenPayload = verifySessionToken(currentToken);
-  }
-
-  const db = ensureLocalDb();
-  let localUser = db.users.find(
-    (u) => (userId && u.id === userId) || (normalizedEmail && u.email.toLowerCase() === normalizedEmail)
-  );
-
-  // Check if promo was already granted locally
-  const alreadyGrantedLocal = (db.transactions || []).some(
-    (t) =>
-      ((userId && t.user_id === userId) || (localUser && t.user_id === localUser.id)) &&
-      (t.description === grantDescription || t.description.includes('20 bonus credits') || t.description.includes('+20 credits'))
-  );
-
-  // Check Supabase if configured
-  let alreadyGrantedSupabase = false;
-  let remoteUserCredits: number | null = null;
-  const targetId = userId || localUser?.id || tokenPayload?.userId;
-
-  if (isSupabaseConfigured && supabase && targetId) {
-    try {
-      const { data: txRow } = await supabase
-        .from('transactions')
-        .select('id')
-        .eq('user_id', targetId)
-        .eq('description', grantDescription)
-        .limit(1)
-        .maybeSingle();
-
-      if (txRow) {
-        alreadyGrantedSupabase = true;
-      }
-
-      const { data: uRow } = await supabase
-        .from('users')
-        .select('credits')
-        .eq('id', targetId)
-        .maybeSingle();
-
-      if (uRow && typeof uRow.credits === 'number' && Number.isFinite(uRow.credits)) {
-        remoteUserCredits = uRow.credits;
-      }
-    } catch (err) {
-      console.warn('Supabase ensureUserPromoCredits lookup notice:', err);
-    }
-  }
-
-  const alreadyGranted =
-    alreadyGrantedLocal ||
-    alreadyGrantedSupabase ||
-    (tokenPayload?.promo_20_granted === true && (localUser !== undefined || remoteUserCredits !== null));
-
-  if (alreadyGranted) {
-    const currentCredits = await getActualUserCredits(userId, normalizedEmail);
-    let updatedToken: string | undefined = undefined;
-    if (tokenPayload && !tokenPayload.promo_20_granted) {
+    const tokenPayload = verifySessionToken(currentToken);
+    if (tokenPayload && tokenPayload.credits !== currentCredits) {
       updatedToken = signSessionToken({
         ...tokenPayload,
         credits: currentCredits,
-        promo_20_granted: true,
       });
     }
-    return { credits: currentCredits, token: updatedToken, upgraded: false };
   }
 
-  // Not yet granted: apply the +20 credit promotional bonus!
-  let baseCredits = 8;
-  if (remoteUserCredits !== null && Number.isFinite(remoteUserCredits)) {
-    baseCredits = remoteUserCredits;
-  } else if (localUser && typeof localUser.credits === 'number' && Number.isFinite(localUser.credits)) {
-    baseCredits = localUser.credits;
-  } else if (tokenPayload && typeof tokenPayload.credits === 'number' && Number.isFinite(tokenPayload.credits)) {
-    baseCredits = tokenPayload.credits;
+  return { credits: currentCredits, token: updatedToken, upgraded: false };
+}
+
+/**
+ * Resets the coin balance of all registered users to targetCredits (default 5).
+ * Updates both local JSON DB (.data/db.json) and Supabase (if connected).
+ */
+export async function resetAllUsersCredits(targetCredits: number = 5): Promise<{ count: number }> {
+  const now = new Date().toISOString();
+  const db = ensureLocalDb();
+  let count = 0;
+
+  if (db.users && Array.isArray(db.users)) {
+    for (const u of db.users) {
+      const prev = typeof u.credits === 'number' ? u.credits : 0;
+      u.credits = targetCredits;
+      u.updated_at = now;
+      count++;
+
+      if (!db.transactions) db.transactions = [];
+      db.transactions.push({
+        id: `tx_reset_${crypto.randomUUID()}`,
+        user_id: u.id,
+        type: 'bonus',
+        credits_delta: targetCredits - prev,
+        balance_after: targetCredits,
+        description: 'System balance adjustment: Reset to 5 coins for live launch',
+        created_at: now,
+      });
+    }
+    writeLocalDb(db);
   }
 
-  const newCredits = baseCredits + 20;
-
-  // Update local user
-  if (localUser) {
-    localUser.credits = newCredits;
-    localUser.updated_at = now;
-  } else if (targetId) {
-    localUser = {
-      id: targetId,
-      name: tokenPayload?.name || (normalizedEmail ? normalizedEmail.split('@')[0] : 'User'),
-      email: normalizedEmail || tokenPayload?.email || '',
-      password_hash: '',
-      salt: '',
-      credits: newCredits,
-      referral_code: tokenPayload?.referral_code,
-      referral_count: 0,
-      referral_earnings: 0,
-      last_free_credit_claim_at: tokenPayload?.last_free_credit_claim_at,
-      created_at: now,
-      updated_at: now,
-    };
-    db.users.push(localUser);
-  }
-
-  const tx: TransactionRecord = {
-    id: `tx_${crypto.randomUUID()}`,
-    user_id: targetId || '',
-    type: 'bonus',
-    credits_delta: 20,
-    balance_after: newCredits,
-    description: grantDescription,
-    created_at: now,
-  };
-  if (!db.transactions) db.transactions = [];
-  db.transactions.push(tx);
-  writeLocalDb(db);
-
-  // Update Supabase if configured
-  if (isSupabaseConfigured && supabase && targetId) {
+  if (isSupabaseConfigured && supabase) {
     try {
       await supabase
         .from('users')
-        .update({ credits: newCredits, updated_at: now })
-        .eq('id', targetId);
-
-      await supabase.from('transactions').insert([tx]);
+        .update({ credits: targetCredits, updated_at: now })
+        .neq('id', '');
     } catch (err) {
-      console.warn('Supabase ensureUserPromoCredits grant notice:', err);
+      console.warn('Supabase resetAllUsersCredits notice:', err);
     }
   }
 
-  // Re-sign token with upgraded credits and promo_20_granted = true
-  const exp = tokenPayload?.exp || Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
-  const newToken = signSessionToken({
-    userId: targetId || '',
-    email: normalizedEmail || tokenPayload?.email || '',
-    exp,
-    name: localUser?.name || tokenPayload?.name,
-    credits: newCredits,
-    last_free_credit_claim_at: localUser?.last_free_credit_claim_at || tokenPayload?.last_free_credit_claim_at,
-    referral_code: localUser?.referral_code || tokenPayload?.referral_code,
-    promo_20_granted: true,
-  });
-
-  return { credits: newCredits, token: newToken, upgraded: true };
+  return { count };
 }

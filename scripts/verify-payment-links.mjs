@@ -11,7 +11,7 @@ const starter = CREDIT_PACKAGES.find((p) => p.id === 'starter');
 assert(starter !== undefined, 'Starter pack must exist');
 assert.strictEqual(
   starter.payment_link,
-  'https://paystack.shop/pay/ynploxqege',
+  'https://paystack.shop/pay/-starterpack',
   'Starter pack payment link must match exactly'
 );
 
@@ -19,7 +19,7 @@ const pro = CREDIT_PACKAGES.find((p) => p.id === 'pro');
 assert(pro !== undefined, 'Pro Job Hunter pack must exist');
 assert.strictEqual(
   pro.payment_link,
-  'https://paystack.shop/pay/yf5934f14i',
+  'https://paystack.shop/pay/pro-job-hunter',
   'Pro Job Hunter payment link must match exactly'
 );
 
@@ -27,7 +27,7 @@ const accelerator = CREDIT_PACKAGES.find((p) => p.id === 'accelerator');
 assert(accelerator !== undefined, 'Career Accelerator pack must exist');
 assert.strictEqual(
   accelerator.payment_link,
-  'https://paystack.shop/pay/6a6adec50i',
+  'https://paystack.shop/pay/career-accelerator',
   'Career Accelerator payment link must match exactly'
 );
 console.log('  PASSED: All 3 packages defined with exact Paystack payment links\n');

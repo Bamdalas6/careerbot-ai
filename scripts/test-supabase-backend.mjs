@@ -284,7 +284,7 @@ async function runVerification() {
   // ----------------------------------------------------
   // TEST 6: Robust User Registration (`createUser`) Local Fallback
   // ----------------------------------------------------
-  step('R1: createUser saves user locally with 8 credits and referral code');
+  step('R1: createUser saves user locally with 5 credits and referral code');
   const uniqueEmail = `test_reg_${Date.now()}@careerbot-test.io`;
   const newUser = await createUser({
     name: 'Alice Wonder',
@@ -296,7 +296,7 @@ async function runVerification() {
 
   assert(newUser && newUser.id, 'User record must have an ID');
   assert.strictEqual(newUser.email, uniqueEmail.toLowerCase());
-  assert.strictEqual(newUser.credits, 8, 'New user receives default 8 free credits');
+  assert.strictEqual(newUser.credits, 5, 'New user receives default 5 free credits');
   assert(newUser.referral_code && newUser.referral_code.length >= 4, 'User has referral code generated');
   assert.strictEqual(newUser.signup_ip, '10.0.0.1', 'User retains signup IP for anti-fraud');
 
@@ -304,7 +304,8 @@ async function runVerification() {
   const fetchedUser = await getUserById(newUser.id);
   assert(fetchedUser !== null, 'Created user must be retrievable by ID');
   assert.strictEqual(fetchedUser.id, newUser.id);
-  assert.strictEqual(fetchedUser.email, uniqueEmail);
+  assert.strictEqual(fetchedUser.email, uniqueEmail.toLowerCase());
+  assert.strictEqual(fetchedUser.credits, 5);
 
   const fetchedByEmail = await getUserByEmail(uniqueEmail);
   assert(fetchedByEmail !== null, 'Created user must be retrievable by email');
@@ -325,13 +326,13 @@ async function runVerification() {
   assert(payload !== null, 'verifySessionToken must decode created session token');
   assert.strictEqual(payload.userId, newUser.id);
   assert.strictEqual(payload.email, newUser.email);
-  assert.strictEqual(payload.credits, 8);
+  assert.strictEqual(payload.credits, 5);
 
   // Verify session lookup
   const authSession = await getSessionByToken(session.token);
   assert(authSession !== null, 'getSessionByToken must resolve active session');
   assert.strictEqual(authSession.user.id, newUser.id);
-  assert.strictEqual(authSession.user.credits, 8);
+  assert.strictEqual(authSession.user.credits, 5);
 
   ok('createSession generates valid HMAC-signed tokens with full session persistence.');
 

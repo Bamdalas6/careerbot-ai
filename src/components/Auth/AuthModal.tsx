@@ -248,7 +248,7 @@ export const AuthModal: React.FC = () => {
             <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-center dark:border-white/[0.08] dark:bg-white/[0.03]">
               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-950 dark:text-[#f7f8f8]">
                 <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
-                Get 8 free search & resume credits on signup!
+                Get 5 free search & resume credits on signup!
               </span>
             </div>
           )}

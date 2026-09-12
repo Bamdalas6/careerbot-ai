@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       const userMeta = {
         name: name.trim(),
         referred_by: referrerUser ? referrerUser.id : null,
-        credits: 8,
+        credits: 5,
         referral_count: 0,
         referral_earnings: 0,
         signup_ip: clientIp,
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
       email: email.trim().toLowerCase(),
       password_hash: hash,
       salt,
-      initialCredits: 8, // 8 free credits upon sign up
+      initialCredits: 5, // 5 free credits upon sign up
       referred_by: referrerUser ? referrerUser.id : undefined,
       signup_ip: clientIp,
     });
@@ -219,8 +219,8 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       success: true,
       message: referrerUser
-        ? `Welcome! 8 free credits added to your account. Your friend earned 10 bonus tokens for the referral!`
-        : `Account created successfully! 8 free credits have been added.`,
+        ? `Welcome! 5 free credits added to your account. Your friend earned 10 bonus tokens for the referral!`
+        : `Account created successfully! 5 free credits have been added.`,
       user: safeUser,
       token: session.token,
     });
