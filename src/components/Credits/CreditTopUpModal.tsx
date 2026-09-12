@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Zap, ChevronRight, Sparkles, ShieldCheck, ExternalLink, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Zap, ChevronRight, Sparkles, ShieldCheck, ExternalLink, Loader2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { CREDIT_PACKAGES } from '@/types/credits';
 import Link from 'next/link';
@@ -12,23 +12,46 @@ export const CreditTopUpModal: React.FC = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Auto-refresh credits on modal open and whenever user refocuses window after Paystack checkout
+  // Auto-refresh credits on modal open and active polling whenever user returns from Paystack checkout
   useEffect(() => {
     if (!isCreditModalOpen) return;
-    refreshUser();
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    const startPollingIfCheckoutActive = () => {
+      refreshUser();
+      const activeCheckout = typeof window !== 'undefined' ? localStorage.getItem('careerbot_checkout_active') : null;
+      if (activeCheckout) {
+        const checkoutTime = Number(activeCheckout);
+        // If checkout was initiated in the last 15 minutes, poll every 2.5s for 30s to catch incoming webhook
+        if (Date.now() - checkoutTime < 15 * 60 * 1000) {
+          let count = 0;
+          if (pollInterval) clearInterval(pollInterval);
+          pollInterval = setInterval(() => {
+            count++;
+            refreshUser();
+            if (count >= 12) {
+              if (pollInterval) clearInterval(pollInterval);
+            }
+          }, 2500);
+        }
+      }
+    };
+
+    startPollingIfCheckoutActive();
 
     const handleFocus = () => {
-      refreshUser();
+      startPollingIfCheckoutActive();
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        refreshUser();
+        startPollingIfCheckoutActive();
       }
     };
 
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
+      if (pollInterval) clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
@@ -117,7 +140,18 @@ export const CreditTopUpModal: React.FC = () => {
           {/* Current Balance */}
           <div className="flex items-center justify-between rounded-2xl border border-black/10 bg-zinc-50 px-4 py-3.5 dark:border-white/[0.08] dark:bg-white/[0.03]">
             <div>
-              <p className="text-[11px] font-medium text-zinc-500 dark:text-[#8a8f98]">Current balance</p>
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] font-medium text-zinc-500 dark:text-[#8a8f98]">Current balance</p>
+                <button
+                  type="button"
+                  onClick={() => refreshUser()}
+                  className="text-[10px] text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 inline-flex items-center gap-1 transition cursor-pointer"
+                  title="Refresh balance"
+                >
+                  <RefreshCw className="h-2.5 w-2.5" />
+                  <span>Sync</span>
+                </button>
+              </div>
               <div className="flex items-baseline gap-1.5 mt-0.5">
                 <span className="text-3xl font-bold text-zinc-900 dark:text-white">{credits}</span>
                 <span className="text-sm text-zinc-500 dark:text-[#8a8f98]">coins / credits</span>
@@ -194,9 +228,14 @@ export const CreditTopUpModal: React.FC = () => {
                         <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block">Paystack Verified</span>
                       </div>
                       <a
-                        href={pkg.payment_link}
+                        href={checkoutUrl}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={() => {
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('careerbot_checkout_active', String(Date.now()));
+                          }
+                        }}
                         className="flex items-center gap-1 rounded-xl bg-zinc-900 px-3 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-black active:scale-[0.97] dark:bg-white dark:text-black dark:hover:bg-zinc-100 shrink-0 cursor-pointer"
                       >
                         <span>Buy</span>

@@ -37,6 +37,26 @@ async function handleVerification(req: NextRequest, referenceInput?: string | nu
   );
 
   if (existingLocalTx) {
+    if (activeUserId && existingLocalTx.user_id !== activeUserId) {
+      const fulfillment = await fulfillPaystackPurchase({
+        email: activeUserEmail || 'customer@paystack.com',
+        amountInSmallestUnit: (existingLocalTx.amount ? Math.round(existingLocalTx.amount * 100) : 150000),
+        currency: existingLocalTx.currency || 'NGN',
+        reference: cleanReference,
+        targetUserId: activeUserId,
+      });
+
+      return NextResponse.json({
+        success: true,
+        verified: true,
+        credited: fulfillment.credited,
+        creditsAdded: fulfillment.creditsAdded,
+        newBalance: fulfillment.newBalance,
+        package: fulfillment.package,
+        message: fulfillment.message,
+      });
+    }
+
     const currentBalance = await getActualUserCredits(
       activeUserId || existingLocalTx.user_id,
       activeUserEmail
@@ -56,11 +76,31 @@ async function handleVerification(req: NextRequest, referenceInput?: string | nu
     try {
       const { data: supaTx } = await supabase
         .from('transactions')
-        .select('id, balance_after, credits_delta, user_id, description')
+        .select('id, balance_after, credits_delta, user_id, description, amount, currency')
         .or(`description.ilike.%${cleanReference}%,description.ilike.%${rawReference}%`)
         .maybeSingle();
 
       if (supaTx) {
+        if (activeUserId && supaTx.user_id !== activeUserId) {
+          const fulfillment = await fulfillPaystackPurchase({
+            email: activeUserEmail || 'customer@paystack.com',
+            amountInSmallestUnit: (supaTx.amount ? Math.round(Number(supaTx.amount) * 100) : 150000),
+            currency: supaTx.currency || 'NGN',
+            reference: cleanReference,
+            targetUserId: activeUserId,
+          });
+
+          return NextResponse.json({
+            success: true,
+            verified: true,
+            credited: fulfillment.credited,
+            creditsAdded: fulfillment.creditsAdded,
+            newBalance: fulfillment.newBalance,
+            package: fulfillment.package,
+            message: fulfillment.message,
+          });
+        }
+
         const currentBalance = await getActualUserCredits(
           activeUserId || supaTx.user_id,
           activeUserEmail
@@ -116,8 +156,8 @@ async function handleVerification(req: NextRequest, referenceInput?: string | nu
         }
       }
 
-      // If still not found and reference looks like an Order code, try Paystack order endpoint
-      if ((!paystackData || !paystackData.status) && (cleanReference.toLowerCase().includes('ord') || cleanReference.startsWith('ORD_'))) {
+      // If still not found, try Paystack Shop order endpoint
+      if (!paystackData || !paystackData.status) {
         try {
           const orderRes = await fetch(
             `https://api.paystack.co/order/${encodeURIComponent(cleanReference)}`,

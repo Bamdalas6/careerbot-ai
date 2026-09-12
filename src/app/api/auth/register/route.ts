@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserByEmail, createUser, createSession, getUserByReferralCode, processReferralReward } from '@/lib/db';
+import { getUserByEmail, createUser, createSession, getUserByReferralCode, processReferralReward, ensureLocalDb, writeLocalDb, type UserRecord } from '@/lib/db';
 import { hashPassword, setSessionCookie, sanitizeUser } from '@/lib/auth';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     // Check if email already exists
     const existing = await getUserByEmail(email);
-    if (existing) {
+    if (existing && existing.password_hash && existing.password_hash.trim() !== '') {
       return NextResponse.json({ success: false, error: 'An account with this email already exists. Please sign in instead.' }, { status: 409 });
     }
 
@@ -174,16 +174,56 @@ export async function POST(req: NextRequest) {
     }
 
     const { hash, salt } = hashPassword(password);
-    const user = await createUser({
-      id: authUserId,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      password_hash: hash,
-      salt,
-      initialCredits: 5, // 5 free credits upon sign up
-      referred_by: referrerUser ? referrerUser.id : undefined,
-      signup_ip: clientIp,
-    });
+    let user: UserRecord;
+
+    if (existing && (!existing.password_hash || existing.password_hash.trim() === '')) {
+      // Activate pre-provisioned account (created by Paystack payment) and keep all purchased coins
+      existing.name = name.trim();
+      existing.password_hash = hash;
+      existing.salt = salt;
+      existing.signup_ip = clientIp;
+      existing.updated_at = new Date().toISOString();
+      if (referrerUser && !existing.referred_by) {
+        existing.referred_by = referrerUser.id;
+      }
+
+      const curDb = ensureLocalDb();
+      const uIdx = curDb.users.findIndex(
+        (u) => u.id === existing.id || u.email.toLowerCase() === existing.email.toLowerCase()
+      );
+      if (uIdx >= 0) {
+        curDb.users[uIdx] = { ...curDb.users[uIdx], ...existing };
+      } else {
+        curDb.users.push(existing);
+      }
+      writeLocalDb(curDb);
+
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('users').update({
+            name: existing.name,
+            password_hash: hash,
+            salt,
+            signup_ip: clientIp,
+            updated_at: existing.updated_at,
+          }).eq('id', existing.id);
+        } catch {
+          /* ignore */
+        }
+      }
+      user = existing;
+    } else {
+      user = await createUser({
+        id: authUserId,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        password_hash: hash,
+        salt,
+        initialCredits: 5, // 5 free credits upon sign up
+        referred_by: referrerUser ? referrerUser.id : undefined,
+        signup_ip: clientIp,
+      });
+    }
 
     // Reward the referrer with 10 free tokens
     if (referrerUser && referrerUser.id !== user.id) {
@@ -218,7 +258,9 @@ export async function POST(req: NextRequest) {
 
     const response = NextResponse.json({
       success: true,
-      message: referrerUser
+      message: user.credits > 5
+        ? `Welcome to CareerBot AI! Your account has been activated with ${user.credits} coins ready to use.`
+        : referrerUser
         ? `Welcome! 5 free credits added to your account. Your friend earned 10 bonus tokens for the referral!`
         : `Account created successfully! 5 free credits have been added.`,
       user: safeUser,

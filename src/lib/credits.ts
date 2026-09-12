@@ -104,10 +104,10 @@ export async function addPurchasedCredits(
 
 /**
  * Resolves the matching credit package from payment details.
- * Supports metadata, title, plan/slug, and new live Paystack Shop prices:
- * - Starter Pack: 50 coins, 1,500 NGN
- * - Pro Job Hunter: 150 coins, 3,500 NGN
- * - Career Accelerator: 500 coins, 7,500 NGN
+ * Supports metadata, title, plan/slug, and Paystack Shop prices:
+ * - Starter Pack: 50 coins, 5,000 NGN
+ * - Pro Job Hunter: 150 coins, 12,000 NGN
+ * - Career Accelerator: 500 coins, 29,000 NGN
  */
 export function resolvePackageFromPayment(
   amountInSmallestUnit: number,
@@ -117,44 +117,47 @@ export function resolvePackageFromPayment(
 ): (typeof CREDIT_PACKAGES)[number] {
   const combinedContext = `${metadataPackageId || ''} ${extraContext || ''}`.toLowerCase();
 
-  // 1. Context / slug / title match
+  // 1. Context / slug / title match using word-safe tokens
   if (
-    combinedContext.includes('accelerator') ||
     combinedContext.includes('career-accelerator') ||
+    combinedContext.includes('accelerator') ||
     combinedContext.includes('power user') ||
-    combinedContext.includes('500')
+    /\b500\s*(coins?|credits?)\b/i.test(combinedContext) ||
+    /\b500\b/.test(combinedContext)
   ) {
-    return CREDIT_PACKAGES[2]; // Career Accelerator (500 coins, 7,500 NGN)
+    return CREDIT_PACKAGES[2]; // Career Accelerator (500 coins, 29,000 NGN)
   }
   if (
-    combinedContext.includes('pro') ||
     combinedContext.includes('pro-job-hunter') ||
     combinedContext.includes('job hunter') ||
-    combinedContext.includes('150')
+    combinedContext.includes('pro') ||
+    /\b150\s*(coins?|credits?)\b/i.test(combinedContext) ||
+    /\b150\b/.test(combinedContext)
   ) {
-    return CREDIT_PACKAGES[1]; // Pro Job Hunter (150 coins, 3,500 NGN)
+    return CREDIT_PACKAGES[1]; // Pro Job Hunter (150 coins, 12,000 NGN)
   }
   if (
-    combinedContext.includes('starter') ||
-    combinedContext.includes('starterpack') ||
     combinedContext.includes('-starterpack') ||
-    combinedContext.includes('50')
+    combinedContext.includes('starterpack') ||
+    combinedContext.includes('starter') ||
+    /\b50\s*(coins?|credits?)\b/i.test(combinedContext) ||
+    /\b50\b/.test(combinedContext)
   ) {
-    return CREDIT_PACKAGES[0]; // Starter Pack (50 coins, 1,500 NGN)
+    return CREDIT_PACKAGES[0]; // Starter Pack (50 coins, 5,000 NGN)
   }
 
   const isNgn = currency.toUpperCase() === 'NGN';
   const majorAmount = Math.round(amountInSmallestUnit / 100);
 
-  // 2. Amount-based matching with resilient thresholds
+  // 2. Amount-based matching with resilient thresholds (5,000 / 12,000 / 29,000 NGN)
   if (isNgn) {
-    if (majorAmount >= 6000) return CREDIT_PACKAGES[2]; // Career Accelerator (7,500 NGN)
-    if (majorAmount >= 2500) return CREDIT_PACKAGES[1]; // Pro Job Hunter (3,500 NGN)
-    return CREDIT_PACKAGES[0]; // Starter Pack (1,500 NGN)
+    if (majorAmount >= 20000) return CREDIT_PACKAGES[2]; // Career Accelerator (29,000 NGN)
+    if (majorAmount >= 8000) return CREDIT_PACKAGES[1];  // Pro Job Hunter (12,000 NGN)
+    return CREDIT_PACKAGES[0];                           // Starter Pack (5,000 NGN)
   } else {
-    if (majorAmount >= 20) return CREDIT_PACKAGES[2]; // $29
-    if (majorAmount >= 8) return CREDIT_PACKAGES[1]; // $12
-    return CREDIT_PACKAGES[0]; // $5
+    if (majorAmount >= 20) return CREDIT_PACKAGES[2];    // $29
+    if (majorAmount >= 8) return CREDIT_PACKAGES[1];     // $12
+    return CREDIT_PACKAGES[0];                           // $5
   }
 }
 
@@ -183,16 +186,65 @@ export async function fulfillPaystackPurchase(params: {
   const normalizedEmail = email.trim().toLowerCase();
   const pkg = resolvePackageFromPayment(amountInSmallestUnit, currency, packageId, extraContext);
   const majorAmount = Math.round(amountInSmallestUnit / 100);
-  const cleanRef = reference.trim().replace(/^#+/, '');
+  const cleanRef = reference
+    .replace(/^(reference|ref|order|trxref|payment)[:#\s-]+/i, '')
+    .replace(/^#+/, '')
+    .trim();
   const description = `Paystack ${pkg.name} purchase (+${pkg.credits} credits) [Ref: ${cleanRef}]`;
 
   // 1. Check idempotency in local database
   const db = ensureLocalDb();
   const existingLocalTx = (db.transactions || []).find(
-    (t: TransactionRecord) => t.description && t.description.includes(cleanRef)
+    (t: TransactionRecord) =>
+      t.description &&
+      (t.description.includes(cleanRef) || (reference && t.description.includes(reference.trim())))
   );
 
   if (existingLocalTx) {
+    if (targetUserId && existingLocalTx.user_id !== targetUserId) {
+      // Re-attribute to active logged-in user claiming this reference
+      const prevUser = await getUserById(existingLocalTx.user_id);
+      if (prevUser && (!prevUser.password_hash || prevUser.password_hash.trim() === '')) {
+        prevUser.credits = Math.max(0, (prevUser.credits || 0) - pkg.credits);
+        const curDb = ensureLocalDb();
+        const pU = (curDb.users || []).find((u) => u.id === existingLocalTx.user_id);
+        if (pU) {
+          pU.credits = prevUser.credits;
+          writeLocalDb(curDb);
+        }
+      }
+
+      const creditRes = await updateUserCredits(
+        targetUserId,
+        pkg.credits,
+        'purchase',
+        description,
+        majorAmount,
+        currency.toUpperCase()
+      );
+
+      existingLocalTx.user_id = targetUserId;
+      writeLocalDb(ensureLocalDb());
+
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('transactions').update({ user_id: targetUserId }).eq('id', existingLocalTx.id);
+        } catch {
+          /* ignore */
+        }
+      }
+
+      return {
+        success: true,
+        credited: true,
+        userId: targetUserId,
+        creditsAdded: pkg.credits,
+        newBalance: creditRes.credits,
+        package: pkg,
+        message: `${pkg.credits} coins successfully credited to your account!`,
+      };
+    }
+
     const currentCredits = await getActualUserCredits(existingLocalTx.user_id, normalizedEmail);
     return {
       success: true,
@@ -215,6 +267,33 @@ export async function fulfillPaystackPurchase(params: {
         .maybeSingle();
 
       if (existingTx) {
+        if (targetUserId && existingTx.user_id !== targetUserId) {
+          const creditRes = await updateUserCredits(
+            targetUserId,
+            pkg.credits,
+            'purchase',
+            description,
+            majorAmount,
+            currency.toUpperCase()
+          );
+
+          try {
+            await supabase.from('transactions').update({ user_id: targetUserId }).eq('id', existingTx.id);
+          } catch {
+            /* ignore */
+          }
+
+          return {
+            success: true,
+            credited: true,
+            userId: targetUserId,
+            creditsAdded: pkg.credits,
+            newBalance: creditRes.credits,
+            package: pkg,
+            message: `${pkg.credits} coins successfully credited to your account!`,
+          };
+        }
+
         const currentCredits = await getActualUserCredits(existingTx.user_id, normalizedEmail);
         return {
           success: true,

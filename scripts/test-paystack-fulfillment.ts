@@ -8,27 +8,27 @@ async function runPaystackTests() {
   console.log('=== RUNNING PAYSTACK SHOP & WEBHOOK FULFILLMENT TESTS ===\n');
 
   // -------------------------------------------------------------
-  // Test 1: Package Resolution with new Paystack Shop prices
+  // Test 1: Package Resolution with Paystack Shop prices
   // -------------------------------------------------------------
-  console.log('Test 1: Package resolution for new Paystack Shop prices (1.5k, 3.5k, 7.5k)');
+  console.log('Test 1: Package resolution for Paystack Shop prices (5k, 12k, 29k)');
   
-  // Starter Pack: 1,500 NGN (150,000 kobo) -> 50 coins
-  const pkgStarter = resolvePackageFromPayment(150000, 'NGN');
-  assert.strictEqual(pkgStarter.id, 'starter', '1,500 NGN must resolve to Starter Pack');
+  // Starter Pack: 5,000 NGN (500,000 kobo) -> 50 coins
+  const pkgStarter = resolvePackageFromPayment(500000, 'NGN');
+  assert.strictEqual(pkgStarter.id, 'starter', '5,000 NGN must resolve to Starter Pack');
   assert.strictEqual(pkgStarter.credits, 50, 'Starter Pack must provide 50 credits');
-  assert.strictEqual(pkgStarter.price_ngn, 1500, 'Starter Pack price must be 1,500 NGN');
+  assert.strictEqual(pkgStarter.price_ngn, 5000, 'Starter Pack price must be 5,000 NGN');
 
-  // Pro Job Hunter: 3,500 NGN (350,000 kobo) -> 150 coins
-  const pkgPro = resolvePackageFromPayment(350000, 'NGN');
-  assert.strictEqual(pkgPro.id, 'pro', '3,500 NGN must resolve to Pro Job Hunter');
+  // Pro Job Hunter: 12,000 NGN (1,200,000 kobo) -> 150 coins
+  const pkgPro = resolvePackageFromPayment(1200000, 'NGN');
+  assert.strictEqual(pkgPro.id, 'pro', '12,000 NGN must resolve to Pro Job Hunter');
   assert.strictEqual(pkgPro.credits, 150, 'Pro Job Hunter must provide 150 credits');
-  assert.strictEqual(pkgPro.price_ngn, 3500, 'Pro Job Hunter price must be 3,500 NGN');
+  assert.strictEqual(pkgPro.price_ngn, 12000, 'Pro Job Hunter price must be 12,000 NGN');
 
-  // Career Accelerator: 7,500 NGN (750,000 kobo) -> 500 coins
-  const pkgAccel = resolvePackageFromPayment(750000, 'NGN');
-  assert.strictEqual(pkgAccel.id, 'accelerator', '7,500 NGN must resolve to Career Accelerator');
+  // Career Accelerator: 29,000 NGN (2,900,000 kobo) -> 500 coins
+  const pkgAccel = resolvePackageFromPayment(2900000, 'NGN');
+  assert.strictEqual(pkgAccel.id, 'accelerator', '29,000 NGN must resolve to Career Accelerator');
   assert.strictEqual(pkgAccel.credits, 500, 'Career Accelerator must provide 500 credits');
-  assert.strictEqual(pkgAccel.price_ngn, 7500, 'Career Accelerator price must be 7,500 NGN');
+  assert.strictEqual(pkgAccel.price_ngn, 29000, 'Career Accelerator price must be 29,000 NGN');
 
   // Context-based / slug-based matching
   const pkgFromSlug = resolvePackageFromPayment(0, 'NGN', undefined, 'paystack.shop/pay/pro-job-hunter');
@@ -58,7 +58,7 @@ async function runPaystackTests() {
   const refStarter = `REF_STARTER_${Date.now()}`;
   const fulfillment1 = await fulfillPaystackPurchase({
     email: testEmail,
-    amountInSmallestUnit: 150000,
+    amountInSmallestUnit: 500000,
     currency: 'NGN',
     reference: refStarter,
   });
@@ -73,13 +73,13 @@ async function runPaystackTests() {
   console.log('  PASSED: Existing user credited successfully (+50 coins -> 55)\n');
 
   // -------------------------------------------------------------
-  // Test 3: Purchase Pro Job Hunter (3,500 NGN -> +150 coins)
+  // Test 3: Purchase Pro Job Hunter (12,000 NGN -> +150 coins)
   // -------------------------------------------------------------
   console.log('Test 3: Fulfilling Pro Job Hunter purchase for user');
   const refPro = `REF_PRO_${Date.now()}`;
   const fulfillment2 = await fulfillPaystackPurchase({
     email: testEmail,
-    amountInSmallestUnit: 350000,
+    amountInSmallestUnit: 1200000,
     currency: 'NGN',
     reference: refPro,
   });
@@ -98,7 +98,7 @@ async function runPaystackTests() {
   console.log('Test 4: Idempotency with leading # in reference');
   const duplicateFulfillment = await fulfillPaystackPurchase({
     email: testEmail,
-    amountInSmallestUnit: 350000,
+    amountInSmallestUnit: 1200000,
     currency: 'NGN',
     reference: `#${refPro}`, // user copied reference with #
   });
@@ -120,7 +120,7 @@ async function runPaystackTests() {
   const refPrepay = `REF_PREPAY_${Date.now()}`;
   const fulfillmentNew = await fulfillPaystackPurchase({
     email: newEmail,
-    amountInSmallestUnit: 750000, // Career Accelerator (500 coins, 7,500 NGN)
+    amountInSmallestUnit: 2900000, // Career Accelerator (500 coins, 29,000 NGN)
     currency: 'NGN',
     reference: refPrepay,
   });
@@ -145,7 +145,7 @@ async function runPaystackTests() {
   // Simulate order.created event payload from Paystack Shop
   const shopOrderFulfillment = await fulfillPaystackPurchase({
     email: shopCustomerEmail,
-    amountInSmallestUnit: 350000, // 3,500 NGN -> Pro Job Hunter (150 coins)
+    amountInSmallestUnit: 1200000, // 12,000 NGN -> Pro Job Hunter (150 coins)
     currency: 'NGN',
     reference: shopOrderRef,
     extraContext: 'pro-job-hunter storefront order',
@@ -175,7 +175,7 @@ async function runPaystackTests() {
   const crossRef = `REF_CROSS_${Date.now()}`;
   const crossFulfillment = await fulfillPaystackPurchase({
     email: checkoutEmail,
-    amountInSmallestUnit: 150000,
+    amountInSmallestUnit: 500000,
     currency: 'NGN',
     reference: crossRef,
     targetUserId: activeUser.id,

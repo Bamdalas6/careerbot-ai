@@ -142,30 +142,39 @@ const INITIAL_DB: DatabaseSchema = {
 };
 
 export function ensureLocalDb(): DatabaseSchema {
-  try {
-    if (!fs.existsSync(DATA_DIR)) {
-      fs.mkdirSync(DATA_DIR, { recursive: true });
+  let attempts = 0;
+  while (attempts < 3) {
+    try {
+      attempts++;
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      if (!fs.existsSync(DB_FILE)) {
+        fs.writeFileSync(DB_FILE, JSON.stringify(INITIAL_DB, null, 2), 'utf-8');
+        return { ...INITIAL_DB };
+      }
+      const raw = fs.readFileSync(DB_FILE, 'utf-8');
+      const parsed = JSON.parse(raw) as Partial<DatabaseSchema>;
+      return {
+        users: parsed.users || [],
+        sessions: parsed.sessions || [],
+        chats: parsed.chats || [],
+        resumes: parsed.resumes || [],
+        transactions: parsed.transactions || [],
+        applications: parsed.applications || [],
+        password_resets: parsed.password_resets || [],
+        crawled_jobs: parsed.crawled_jobs || [],
+      };
+    } catch (err) {
+      if (attempts >= 3) {
+        console.error('Local database read error after retries:', err);
+        return { ...INITIAL_DB };
+      }
+      const end = Date.now() + 50;
+      while (Date.now() < end) {}
     }
-    if (!fs.existsSync(DB_FILE)) {
-      fs.writeFileSync(DB_FILE, JSON.stringify(INITIAL_DB, null, 2), 'utf-8');
-      return { ...INITIAL_DB };
-    }
-    const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    const parsed = JSON.parse(raw) as Partial<DatabaseSchema>;
-    return {
-      users: parsed.users || [],
-      sessions: parsed.sessions || [],
-      chats: parsed.chats || [],
-      resumes: parsed.resumes || [],
-      transactions: parsed.transactions || [],
-      applications: parsed.applications || [],
-      password_resets: parsed.password_resets || [],
-      crawled_jobs: parsed.crawled_jobs || [],
-    };
-  } catch (err) {
-    console.error('Local database read error:', err);
-    return { ...INITIAL_DB };
   }
+  return { ...INITIAL_DB };
 }
 
 export function writeLocalDb(data: DatabaseSchema): void {
@@ -173,7 +182,14 @@ export function writeLocalDb(data: DatabaseSchema): void {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
-    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    const tempFile = `${DB_FILE}.${process.pid}.${Date.now()}.tmp`;
+    fs.writeFileSync(tempFile, JSON.stringify(data, null, 2), 'utf-8');
+    try {
+      fs.renameSync(tempFile, DB_FILE);
+    } catch {
+      fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+      try { fs.unlinkSync(tempFile); } catch {}
+    }
   } catch (err) {
     console.error('Failed to write local database file:', err);
   }

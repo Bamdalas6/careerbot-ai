@@ -43,20 +43,45 @@ export default function PricingPage() {
   const [manualRef, setManualRef] = useState('');
   const [manualLoading, setManualLoading] = useState(false);
 
-  // Auto-refresh user coins whenever page is refocused after Paystack checkout tab
+  // Auto-refresh user coins with active polling whenever page is refocused after Paystack checkout tab
   useEffect(() => {
-    const handleFocus = () => {
+    let pollInterval: NodeJS.Timeout | null = null;
+
+    const startPollingIfCheckoutActive = () => {
       refreshUser();
+      const activeCheckout = typeof window !== 'undefined' ? localStorage.getItem('careerbot_checkout_active') : null;
+      if (activeCheckout) {
+        const checkoutTime = Number(activeCheckout);
+        // If checkout was initiated in the last 15 minutes, poll every 2.5s for 30s to catch incoming webhook
+        if (Date.now() - checkoutTime < 15 * 60 * 1000) {
+          let count = 0;
+          if (pollInterval) clearInterval(pollInterval);
+          pollInterval = setInterval(() => {
+            count++;
+            refreshUser();
+            if (count >= 12) {
+              if (pollInterval) clearInterval(pollInterval);
+            }
+          }, 2500);
+        }
+      }
+    };
+
+    startPollingIfCheckoutActive();
+
+    const handleFocus = () => {
+      startPollingIfCheckoutActive();
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        refreshUser();
+        startPollingIfCheckoutActive();
       }
     };
 
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
+      if (pollInterval) clearInterval(pollInterval);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
@@ -183,7 +208,11 @@ export default function PricingPage() {
   const handlePurchase = (packageId: string) => {
     const targetPkg = CREDIT_PACKAGES.find((p) => p.id === packageId);
     if (targetPkg?.payment_link && typeof window !== 'undefined') {
-      window.open(targetPkg.payment_link, '_blank', 'noopener,noreferrer');
+      localStorage.setItem('careerbot_checkout_active', String(Date.now()));
+      const checkoutUrl = user?.email
+        ? `${targetPkg.payment_link}?email=${encodeURIComponent(user.email)}`
+        : targetPkg.payment_link;
+      window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
       return;
     }
     if (!user) {
@@ -729,7 +758,7 @@ export default function PricingPage() {
                 Can I test CareerBot before purchasing?
               </h4>
               <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                Yes! Every registered account receives 5 free starter credits upon sign-up so you can test our AI job search and CV scoring tools. Additional credits can be purchased at any time via Paystack starting at ₦1,500.
+                Yes! Every registered account receives 5 free starter credits upon sign-up so you can test our AI job search and CV scoring tools. Additional credits can be purchased at any time via Paystack starting at ₦5,000.
               </p>
             </div>
           </div>
