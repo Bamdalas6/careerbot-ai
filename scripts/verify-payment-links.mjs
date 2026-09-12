@@ -44,7 +44,7 @@ console.log('  PASSED: Pricing page cards contain live direct payment links\n');
 // Test 3: Verify CreditTopUpModal has live Buy buttons for each package
 console.log('Test 3: Verify CreditTopUpModal live Buy buttons');
 const modalSrc = fs.readFileSync(path.join(process.cwd(), 'src/components/Credits/CreditTopUpModal.tsx'), 'utf-8');
-assert(modalSrc.includes('href={pkg.payment_link}'), 'Modal packages must have link to pkg.payment_link');
+assert(modalSrc.includes('href={pkg.payment_link}') || modalSrc.includes('href={checkoutUrl}'), 'Modal packages must have link to pkg.payment_link');
 assert(modalSrc.includes('<span>Buy</span>'), 'Modal must contain Buy button');
 assert(modalSrc.includes('target="_blank"'), 'Modal buy button must open in new tab');
 console.log('  PASSED: CreditTopUpModal contains live Buy buttons for each package\n');

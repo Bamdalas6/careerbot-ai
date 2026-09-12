@@ -40,7 +40,7 @@ async function handleVerification(req: NextRequest, referenceInput?: string | nu
     if (activeUserId && existingLocalTx.user_id !== activeUserId) {
       const fulfillment = await fulfillPaystackPurchase({
         email: activeUserEmail || 'customer@paystack.com',
-        amountInSmallestUnit: (existingLocalTx.amount ? Math.round(existingLocalTx.amount * 100) : 150000),
+        amountInSmallestUnit: (existingLocalTx.amount ? Math.round(existingLocalTx.amount * 100) : 500000),
         currency: existingLocalTx.currency || 'NGN',
         reference: cleanReference,
         targetUserId: activeUserId,
@@ -84,7 +84,7 @@ async function handleVerification(req: NextRequest, referenceInput?: string | nu
         if (activeUserId && supaTx.user_id !== activeUserId) {
           const fulfillment = await fulfillPaystackPurchase({
             email: activeUserEmail || 'customer@paystack.com',
-            amountInSmallestUnit: (supaTx.amount ? Math.round(Number(supaTx.amount) * 100) : 150000),
+            amountInSmallestUnit: (supaTx.amount ? Math.round(Number(supaTx.amount) * 100) : 500000),
             currency: supaTx.currency || 'NGN',
             reference: cleanReference,
             targetUserId: activeUserId,
