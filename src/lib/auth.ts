@@ -38,6 +38,92 @@ export function signSessionToken(payload: SessionTokenPayload): string {
 
 export const generateSessionToken = signSessionToken;
 
+export interface PasswordResetTokenPayload {
+  email: string;
+  purpose: 'password_reset';
+  iat: number;
+  exp: number;
+  nonce: string;
+}
+
+/**
+ * Creates an HMAC-signed stateless password reset token.
+ * Contains normalized email, purpose tag, issue timestamp, expiration, and random nonce.
+ */
+export function signPasswordResetToken(email: string, expiresInSeconds = 3600): string {
+  const normalized = email.trim().toLowerCase();
+  const now = Math.floor(Date.now() / 1000);
+  const payload: PasswordResetTokenPayload = {
+    email: normalized,
+    purpose: 'password_reset',
+    iat: now,
+    exp: now + expiresInSeconds,
+    nonce: crypto.randomBytes(16).toString('hex'),
+  };
+
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', SESSION_SECRET)
+    .update(`pr.${encodedPayload}`)
+    .digest('base64url');
+
+  return `pr.${encodedPayload}.${signature}`;
+}
+
+/**
+ * Verifies a stateless HMAC-signed password reset token.
+ * Returns decoded PasswordResetTokenPayload if signature is valid and unexpired; otherwise null.
+ */
+export function verifyStatelessPasswordResetToken(token: string): PasswordResetTokenPayload | null {
+  if (!token || typeof token !== 'string') return null;
+  const trimmed = token.trim();
+  const parts = trimmed.split('.');
+
+  if (parts.length !== 3 || parts[0] !== 'pr') {
+    return null;
+  }
+
+  const [, encodedPayload, signature] = parts;
+  const data = `pr.${encodedPayload}`;
+
+  const expectedSignature = crypto
+    .createHmac('sha256', SESSION_SECRET)
+    .update(data)
+    .digest('base64url');
+
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expectedSignature);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as PasswordResetTokenPayload;
+    if (
+      !payload ||
+      typeof payload !== 'object' ||
+      payload.purpose !== 'password_reset' ||
+      typeof payload.email !== 'string' ||
+      !payload.email.includes('@') ||
+      typeof payload.exp !== 'number' ||
+      !Number.isFinite(payload.exp) ||
+      typeof payload.iat !== 'number' ||
+      !Number.isFinite(payload.iat)
+    ) {
+      return null;
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (payload.exp < nowSeconds) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Verifies an HMAC-signed session token.
  * Returns decoded SessionTokenPayload if signature is valid and unexpired; otherwise null.

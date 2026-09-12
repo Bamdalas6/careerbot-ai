@@ -67,7 +67,7 @@ function ResetPasswordForm() {
         setError('Missing or invalid reset token. Please request a new password reset link.');
       }
     }
-  }, [token]);
+  }, [token, emailParam]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,8 +101,8 @@ function ResetPasswordForm() {
           ...(supabaseAccessToken ? { Authorization: `Bearer ${supabaseAccessToken}` } : {}),
         },
         body: JSON.stringify({
-          token: token || undefined,
-          email: accountEmail || emailFromSession || undefined,
+          token: token.trim() || undefined,
+          email: (accountEmail || emailFromSession || '').trim() || undefined,
           newPassword,
         }),
       });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { hashPassword, setSessionCookie, sanitizeUser } from '@/lib/auth';
-import { verifyPasswordResetToken, updateUserPasswordByEmail, getUserByEmail, createSession } from '@/lib/db';
+import { verifyPasswordResetToken, updateUserPasswordByEmail, getUserByEmail, createSession, markPasswordResetTokenUsed } from '@/lib/db';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
@@ -19,7 +19,18 @@ export async function POST(req: NextRequest) {
 
     // 1. Primary: Verify token if token is provided
     if (token && typeof token === 'string' && token.trim().length > 0) {
-      email = await verifyPasswordResetToken(token.trim());
+      const cleanToken = token.trim();
+      email = await verifyPasswordResetToken(cleanToken);
+      if (!email) {
+        try {
+          const decoded = decodeURIComponent(cleanToken);
+          if (decoded !== cleanToken) {
+            email = await verifyPasswordResetToken(decoded);
+          }
+        } catch {
+          /* ignore */
+        }
+      }
     }
 
     // 2. Secondary: If from Supabase Auth recovery session
@@ -46,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { hash, salt } = hashPassword(newPassword);
-    const updated = await updateUserPasswordByEmail(email, hash, salt);
+    const updated = await updateUserPasswordByEmail(email, hash, salt, newPassword);
 
     if (!updated) {
       return NextResponse.json(
@@ -55,17 +66,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Sync to Supabase Auth cloud
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const { data: usersData } = await supabase.auth.admin.listUsers();
-        const authUser = usersData?.users?.find((u) => u.email?.toLowerCase() === email);
-        if (authUser) {
-          await supabase.auth.admin.updateUserById(authUser.id, { password: newPassword });
-        }
-      } catch (e) {
-        console.warn('Supabase password sync notice:', e);
-      }
+    // Invalidate the reset token so it cannot be re-used
+    if (token && typeof token === 'string') {
+      markPasswordResetTokenUsed(token.trim());
     }
 
     // Auto-login: Create session so the user does NOT need to type email & password again

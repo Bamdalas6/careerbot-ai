@@ -4,10 +4,22 @@ import crypto from 'crypto';
 import type { SavedJob, ApplicationEvent, JobListing } from '@/types/job';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { isCompanyExcluded, isJobicyExcluded } from './ats-boards';
-import { signSessionToken, verifySessionToken, type SessionTokenPayload } from './auth';
+import {
+  signSessionToken,
+  verifySessionToken,
+  signPasswordResetToken,
+  verifyStatelessPasswordResetToken,
+  type SessionTokenPayload,
+  type PasswordResetTokenPayload,
+} from './auth';
 
-export { signSessionToken, verifySessionToken };
-export type { SessionTokenPayload };
+export {
+  signSessionToken,
+  verifySessionToken,
+  signPasswordResetToken,
+  verifyStatelessPasswordResetToken,
+};
+export type { SessionTokenPayload, PasswordResetTokenPayload };
 
 export interface ApplicationRecord {
   id: string;
@@ -40,6 +52,7 @@ export interface UserRecord {
   referral_count?: number;
   referral_earnings?: number;
   signup_ip?: string;
+  password_updated_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -109,6 +122,7 @@ interface DatabaseSchema {
   transactions: TransactionRecord[];
   applications: ApplicationRecord[];
   password_resets?: PasswordResetRecord[];
+  used_reset_tokens?: string[];
   crawled_jobs?: JobListing[];
 }
 
@@ -123,6 +137,7 @@ const INITIAL_DB: DatabaseSchema = {
   transactions: [],
   applications: [],
   password_resets: [],
+  used_reset_tokens: [],
   crawled_jobs: [],
 };
 
@@ -1157,33 +1172,92 @@ export async function updateUserPassword(
 export async function updateUserPasswordByEmail(
   email: string,
   password_hash: string,
-  salt: string
+  salt: string,
+  plainPassword?: string
 ): Promise<boolean> {
   const normalized = email.trim().toLowerCase();
   const now = new Date().toISOString();
   let success = false;
 
+  // 1. Locate user in DB or remote Supabase Auth
+  let user = await getUserByEmail(normalized);
+
+  // 2. Update or insert in local db so credentials match immediately
+  const db = ensureLocalDb();
+  const localIndex = db.users.findIndex((u) => u.email.toLowerCase() === normalized);
+  if (localIndex >= 0) {
+    db.users[localIndex].password_hash = password_hash;
+    db.users[localIndex].salt = salt;
+    db.users[localIndex].updated_at = now;
+    db.users[localIndex].password_updated_at = now;
+    user = db.users[localIndex];
+    success = true;
+  } else if (user) {
+    const updatedUser = {
+      ...user,
+      password_hash,
+      salt,
+      updated_at: now,
+      password_updated_at: now,
+    };
+    db.users.push(updatedUser);
+    user = updatedUser;
+    success = true;
+  } else {
+    const newUser: UserRecord = {
+      id: `user_${crypto.randomUUID()}`,
+      name: normalized.split('@')[0] || 'User',
+      email: normalized,
+      password_hash,
+      salt,
+      credits: 5,
+      created_at: now,
+      updated_at: now,
+      password_updated_at: now,
+    };
+    db.users.push(newUser);
+    user = newUser;
+    success = true;
+  }
+  writeLocalDb(db);
+
+  // 3. Update Supabase users table (with graceful fallback if column password_updated_at doesn't exist)
   if (isSupabaseConfigured && supabase) {
     try {
       const { error } = await supabase
         .from('users')
-        .update({ password_hash, salt, updated_at: now })
+        .update({ password_hash, salt, updated_at: now, password_updated_at: now })
         .ilike('email', normalized);
 
-      if (!error) success = true;
+      if (!error) {
+        success = true;
+      } else {
+        const { error: fallbackErr } = await supabase
+          .from('users')
+          .update({ password_hash, salt, updated_at: now })
+          .ilike('email', normalized);
+        if (!fallbackErr) success = true;
+      }
     } catch (err) {
       console.warn('Supabase updateUserPasswordByEmail error:', err);
     }
   }
 
-  const db = ensureLocalDb();
-  const user = db.users.find((u) => u.email.toLowerCase() === normalized);
-  if (user) {
-    user.password_hash = password_hash;
-    user.salt = salt;
-    user.updated_at = now;
-    writeLocalDb(db);
-    success = true;
+  // 4. Sync password with Supabase Auth cloud admin if available
+  if (plainPassword && isSupabaseConfigured && supabase) {
+    try {
+      if (user?.id && isUuid(user.id)) {
+        await supabase.auth.admin.updateUserById(user.id, { password: plainPassword });
+      } else {
+        const { data: usersData } = await supabase.auth.admin.listUsers();
+        const authUser = usersData?.users?.find((u) => u.email?.toLowerCase() === normalized);
+        if (authUser) {
+          await supabase.auth.admin.updateUserById(authUser.id, { password: plainPassword });
+        }
+      }
+    } catch (sbErr) {
+      console.warn('Supabase Auth admin password update notice:', sbErr);
+    }
   }
 
   return success;
@@ -1275,65 +1349,149 @@ export async function verifyPasswordResetOtp(email: string, otp: string): Promis
   return false;
 }
 
-export async function createPasswordResetToken(email: string): Promise<string> {
-  const normalized = email.trim().toLowerCase();
-  const rawToken = crypto.randomBytes(32).toString('hex');
-  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-  const now = new Date().toISOString();
-  const expiresAt = Date.now() + 15 * 60 * 1000;
+const inMemoryUsedResetTokens = new Set<string>();
 
-  const record: Record<string, unknown> = {
-    id: `pr_${crypto.randomUUID()}`,
-    email: normalized,
-    otp: '',
-    token: rawToken,
-    token_hash: tokenHash,
-    expires_at: expiresAt,
-    used: false,
-    created_at: now,
-  };
+export function markPasswordResetTokenUsed(tokenOrHash: string): void {
+  if (!tokenOrHash) return;
+  const trimmed = tokenOrHash.trim();
+  inMemoryUsedResetTokens.add(trimmed);
+  const hash = crypto.createHash('sha256').update(trimmed).digest('hex');
+  inMemoryUsedResetTokens.add(hash);
 
-  const db = ensureLocalDb();
-  if (!db.password_resets) db.password_resets = [];
-  db.password_resets = db.password_resets.map((r) =>
-    r.email === normalized ? { ...r, used: true } : r
-  );
-  db.password_resets.push(record as unknown as PasswordResetRecord);
-  writeLocalDb(db);
+  try {
+    const db = ensureLocalDb();
+    if (!db.used_reset_tokens) db.used_reset_tokens = [];
+    if (!db.used_reset_tokens.includes(hash)) {
+      db.used_reset_tokens.push(hash);
+    }
+    if (db.password_resets) {
+      db.password_resets = db.password_resets.map((r) =>
+        r.token_hash === hash || (r as any).token === trimmed ? { ...r, used: true } : r
+      );
+    }
+    writeLocalDb(db);
+  } catch {
+    /* ignore */
+  }
 
   if (isSupabaseConfigured && supabase) {
     try {
-      const { error: upErr } = await supabase.from('password_resets').update({ used: true }).eq('email', normalized).eq('used', false);
-      if (upErr) {
-        console.warn('Supabase createPasswordResetToken update notice:', upErr.message || upErr);
-      }
-      const { error: inErr } = await supabase.from('password_resets').insert([record]);
-      if (inErr) {
-        const isColErr =
-          inErr.code === '42703' ||
-          (inErr.message && inErr.message.toLowerCase().includes('column'));
-        if (isColErr) {
-          // Fallback for legacy table schema without token_hash column
-          const legacyRecord = { ...record };
-          delete legacyRecord.token_hash;
-          const { error: legacyErr } = await supabase.from('password_resets').insert([legacyRecord]);
-          if (legacyErr) {
-            console.warn('Supabase createPasswordResetToken legacy retry notice:', legacyErr.message || legacyErr);
-          }
-        } else {
-          console.warn('Supabase createPasswordResetToken insert notice:', inErr.message || inErr);
-        }
-      }
-    } catch (err: any) {
-      console.warn('Supabase createPasswordResetToken exception:', err?.message || err);
+      supabase.from('password_resets').update({ used: true }).or(`token_hash.eq.${hash},token.eq.${trimmed}`).then(() => {});
+    } catch {
+      /* ignore */
     }
   }
+}
 
-  return rawToken;
+export function isPasswordResetTokenUsed(tokenOrHash: string): boolean {
+  if (!tokenOrHash) return true;
+  const trimmed = tokenOrHash.trim();
+  const hash = crypto.createHash('sha256').update(trimmed).digest('hex');
+  if (inMemoryUsedResetTokens.has(trimmed) || inMemoryUsedResetTokens.has(hash)) {
+    return true;
+  }
+  try {
+    const db = ensureLocalDb();
+    if (db.used_reset_tokens?.includes(hash) || db.used_reset_tokens?.includes(trimmed)) {
+      return true;
+    }
+    const match = db.password_resets?.find(
+      (r) => (r.token_hash === hash || (r as any).token === trimmed) && r.used
+    );
+    if (match) return true;
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
+export async function createPasswordResetToken(email: string): Promise<string> {
+  const normalized = email.trim().toLowerCase();
+
+  // 1. Generate stateless HMAC reset token valid for 1 hour
+  const token = signPasswordResetToken(normalized, 3600);
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const now = new Date().toISOString();
+  const expiresAt = Date.now() + 3600 * 1000;
+
+  // 2. Best-effort audit logging into local db and Supabase (non-critical)
+  try {
+    const record: Record<string, unknown> = {
+      id: `pr_${crypto.randomUUID()}`,
+      email: normalized,
+      otp: '',
+      token,
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+      used: false,
+      created_at: now,
+    };
+
+    const db = ensureLocalDb();
+    if (!db.password_resets) db.password_resets = [];
+    db.password_resets = db.password_resets.map((r) =>
+      r.email === normalized ? { ...r, used: true } : r
+    );
+    db.password_resets.push(record as unknown as PasswordResetRecord);
+    writeLocalDb(db);
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { error: upErr } = await supabase.from('password_resets').update({ used: true }).eq('email', normalized).eq('used', false);
+        if (upErr) {
+          console.warn('Supabase createPasswordResetToken update notice:', upErr.message || upErr);
+        }
+        const { error: inErr } = await supabase.from('password_resets').insert([record]);
+        if (inErr) {
+          const isColErr =
+            inErr.code === '42703' ||
+            (inErr.message && inErr.message.toLowerCase().includes('column'));
+          if (isColErr) {
+            const legacyRecord = { ...record };
+            delete legacyRecord.token_hash;
+            await supabase.from('password_resets').insert([legacyRecord]);
+          }
+        }
+      } catch (err: any) {
+        console.warn('Supabase createPasswordResetToken notice:', err?.message || err);
+      }
+    }
+  } catch (err: any) {
+    console.warn('createPasswordResetToken audit log notice:', err?.message || err);
+  }
+
+  return token;
 }
 
 export async function verifyPasswordResetToken(rawToken: string): Promise<string | null> {
-  const tokenHash = crypto.createHash('sha256').update(rawToken.trim()).digest('hex');
+  if (!rawToken || typeof rawToken !== 'string') return null;
+  const trimmed = rawToken.trim();
+
+  // 1. Stateless HMAC token validation
+  if (trimmed.startsWith('pr.')) {
+    const payload = verifyStatelessPasswordResetToken(trimmed);
+    if (!payload) return null;
+
+    // Check if token or nonce was already used
+    if (isPasswordResetTokenUsed(trimmed) || isPasswordResetTokenUsed(payload.nonce)) {
+      return null;
+    }
+
+    // Check against user's password_updated_at if available
+    const user = await getUserByEmail(payload.email);
+    if (user && user.password_updated_at) {
+      const lastUpdatedSec = Math.floor(new Date(user.password_updated_at).getTime() / 1000);
+      // If the password was changed more than 5 seconds AFTER this token was issued, the token is consumed
+      if (lastUpdatedSec > payload.iat + 5) {
+        return null;
+      }
+    }
+
+    return payload.email;
+  }
+
+  // 2. Legacy fallback for old hex tokens
+  const tokenHash = crypto.createHash('sha256').update(trimmed).digest('hex');
   const now = Date.now();
 
   const db = ensureLocalDb();
@@ -1366,7 +1524,7 @@ export async function verifyPasswordResetToken(rawToken: string): Promise<string
       const { data: legacyData, error: legErr } = await supabase
         .from('password_resets')
         .select('*')
-        .eq('token', rawToken.trim())
+        .eq('token', trimmed)
         .eq('used', false)
         .gt('expires_at', now)
         .maybeSingle();
@@ -1374,7 +1532,9 @@ export async function verifyPasswordResetToken(rawToken: string): Promise<string
         await supabase.from('password_resets').update({ used: true }).eq('id', legacyData.id);
         return (legacyData as PasswordResetRecord).email;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   return null;
