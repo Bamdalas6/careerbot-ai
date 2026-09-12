@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { Logo } from '@/components/Brand/Logo';
 
 interface SiteFooterProps {
   onStartSearch: () => void;
@@ -58,15 +59,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
       <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8">
         <div className="grid grid-cols-2 gap-10 sm:grid-cols-4 lg:grid-cols-[minmax(0,1fr)_repeat(4,minmax(0,auto))] lg:gap-16">
           <div className="col-span-2 flex flex-col gap-3 sm:col-span-4 lg:col-span-1">
-            <div className="flex items-center gap-2">
-              <svg viewBox="0 0 16 16" aria-hidden="true" className="h-[18px] w-[18px] text-zinc-900 dark:text-[#f7f8f8]">
-                <path fill="currentColor" d="M8 0a8 8 0 1 0 8 8h-2.4A5.6 5.6 0 1 1 8 2.4V0Z" />
-                <circle cx="8" cy="8" r="2.6" fill="currentColor" />
-              </svg>
-              <span className="text-[14px] font-semibold tracking-tight text-zinc-900 dark:text-[#f7f8f8]">
-                CareerBot
-              </span>
-            </div>
+            <Logo size="md" />
             <p className="max-w-[15rem] text-[13px] leading-relaxed text-zinc-600 dark:text-[#62666d]">
               Conversational job discovery with direct links to the company’s own
               application page.

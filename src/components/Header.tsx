@@ -3,6 +3,7 @@
 import React from 'react';
 import { Sparkles, Bookmark, FileText, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { SavedJob } from '@/types/job';
+import { Logo } from '@/components/Brand/Logo';
 
 interface HeaderProps {
   savedJobs: SavedJob[];
@@ -22,20 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-800 bg-zinc-950/80 px-4 py-3 backdrop-blur-md sm:px-6">
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-cyan-500 shadow-lg shadow-indigo-500/20">
-          <Sparkles className="h-5 w-5 text-white animate-pulse" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="font-bold tracking-tight text-white sm:text-lg">CareerBot AI</h1>
-            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-400 border border-emerald-500/20">
-              Live Sourcing
-            </span>
-          </div>
-          <p className="hidden text-xs text-zinc-400 sm:block">
-            Direct career page deep-linking & AI-matched tech roles
-          </p>
-        </div>
+        <Logo size="md" />
       </div>
 
       <div className="flex items-center gap-2">

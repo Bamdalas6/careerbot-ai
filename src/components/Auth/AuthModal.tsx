@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
+import { LogoBadge } from '@/components/Brand/Logo';
 import confetti from 'canvas-confetti';
 
 type AuthMode = 'login' | 'register' | 'forgot-request';
@@ -168,9 +169,13 @@ export const AuthModal: React.FC = () => {
         {/* Top Header */}
         <div className="flex items-center justify-between border-b border-black/10 bg-zinc-50 px-6 py-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-black/10 bg-black/[0.04] text-zinc-900 dark:border-white/10 dark:bg-white/[0.06] dark:text-[#f7f8f8]">
-              {isForgotFlow ? <KeyRound className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-            </div>
+            {isForgotFlow ? (
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-black/10 bg-black/[0.04] text-zinc-900 dark:border-white/10 dark:bg-white/[0.06] dark:text-[#f7f8f8]">
+                <KeyRound className="h-4 w-4" />
+              </div>
+            ) : (
+              <LogoBadge size="md" />
+            )}
             <div>
               <h3 className="text-sm font-bold text-zinc-900 dark:text-[#f7f8f8]">
                 {isForgotFlow ? 'Reset Password' : 'CareerBot AI'}

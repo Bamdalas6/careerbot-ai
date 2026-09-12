@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { CREDIT_PACKAGES, CREDIT_RATES } from '@/types/credits';
 import { useAuth } from '@/context/AuthContext';
+import { Logo } from '@/components/Brand/Logo';
 
 export default function PricingPage() {
   const router = useRouter();
@@ -122,13 +123,12 @@ export default function PricingPage() {
             <button
               type="button"
               onClick={handleBack}
-              className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold transition hover:opacity-80 cursor-pointer"
+              className="flex items-center gap-2 text-xs sm:text-sm font-semibold transition hover:opacity-80 cursor-pointer"
             >
-              <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-black shrink-0">
+              <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-black shrink-0 shadow-xs">
                 <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </div>
-              <span className="hidden sm:inline">Back to CareerBot</span>
-              <span className="sm:hidden">Back</span>
+              <Logo size="sm" />
             </button>
           </div>
 

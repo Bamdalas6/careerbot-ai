@@ -7,9 +7,11 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://careerbot-ai-seven.ver
 export async function sendPasswordResetEmail(
   toEmail: string,
   userName: string,
-  resetToken: string
+  resetToken: string,
+  siteUrl?: string
 ): Promise<{ success: boolean; error?: string }> {
-  const resetUrl = `${SITE}/auth/reset-password?token=${resetToken}&email=${encodeURIComponent(toEmail.trim())}`;
+  const base = (siteUrl || process.env.NEXT_PUBLIC_SITE_URL || 'https://careerbot-ai-seven.vercel.app').replace(/\/$/, '');
+  const resetUrl = `${base}/auth/reset-password?token=${resetToken}&email=${encodeURIComponent(toEmail.trim())}`;
   const year = new Date().getFullYear();
   try {
     const { error } = await resend.emails.send({

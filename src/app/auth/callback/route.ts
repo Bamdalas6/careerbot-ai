@@ -2,7 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export async function GET(req: NextRequest) {
-  const { searchParams, origin } = new URL(req.url);
+  const { searchParams } = new URL(req.url);
+  const forwardedHost = req.headers.get('x-forwarded-host');
+  const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+  const activeOrigin =
+    (forwardedHost && !forwardedHost.includes('localhost')
+      ? `${forwardedProto}://${forwardedHost}`
+      : null) ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    'https://careerbot-ai-seven.vercel.app';
+
   const code = searchParams.get('code');
   const type = searchParams.get('type');
   const next = searchParams.get('next') || '/';
@@ -21,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   // If this is a password recovery flow, redirect directly to the reset-password page
   if (type === 'recovery') {
-    const target = new URL('/auth/reset-password', origin);
+    const target = new URL('/auth/reset-password', activeOrigin);
     if (recoveryEmail) target.searchParams.set('email', recoveryEmail);
     searchParams.forEach((val, key) => {
       if (key !== 'next' && key !== 'type' && !target.searchParams.has(key)) {
@@ -31,5 +40,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(target);
   }
 
-  return NextResponse.redirect(new URL(next, origin));
+  return NextResponse.redirect(new URL(next, activeOrigin));
 }

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { Logo } from '@/components/Brand/Logo';
 
 interface GlassHeaderProps {
   currentView: 'home' | 'chat';
@@ -98,22 +99,9 @@ export const GlassHeader: React.FC<GlassHeaderProps> = ({
               setMobileMenuOpen(false);
               onExploreToggle?.(false);
             }}
-            className="flex items-center gap-2 text-left"
+            className="flex items-center text-left group cursor-pointer"
           >
-            <svg
-              viewBox="0 0 16 16"
-              aria-hidden="true"
-              className="h-[18px] w-[18px] text-zinc-900 dark:text-[#f7f8f8]"
-            >
-              <path
-                fill="currentColor"
-                d="M8 0a8 8 0 1 0 8 8h-2.4A5.6 5.6 0 1 1 8 2.4V0Z"
-              />
-              <circle cx="8" cy="8" r="2.6" fill="currentColor" />
-            </svg>
-            <span className="text-[14px] font-semibold tracking-tight text-zinc-900 dark:text-[#f7f8f8]">
-              CareerBot
-            </span>
+            <Logo size="md" />
           </button>
 
           <nav className="hidden items-center gap-1 md:flex">

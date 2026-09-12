@@ -28,12 +28,29 @@ export async function POST(req: NextRequest) {
     // Generate secure token (raw goes to email, only hash stored in DB)
     const rawToken = await createPasswordResetToken(normalizedEmail);
 
-    // 1. Try sending via Resend
+    // Resolve current active site URL from request headers (guarantees link matches active site)
+    const originHeader = req.headers.get('origin');
+    const forwardedHost = req.headers.get('x-forwarded-host');
+    const forwardedProto = req.headers.get('x-forwarded-proto') || 'https';
+    const hostHeader = req.headers.get('host');
+
+    let siteUrl = 'https://careerbot-ai-seven.vercel.app';
+    if (originHeader && !originHeader.includes('localhost') && originHeader.startsWith('http')) {
+      siteUrl = originHeader.replace(/\/$/, '');
+    } else if (forwardedHost && !forwardedHost.includes('localhost')) {
+      siteUrl = `${forwardedProto}://${forwardedHost}`.replace(/\/$/, '');
+    } else if (hostHeader && !hostHeader.includes('localhost')) {
+      siteUrl = `${forwardedProto}://${hostHeader}`.replace(/\/$/, '');
+    } else if (process.env.NEXT_PUBLIC_SITE_URL && !process.env.NEXT_PUBLIC_SITE_URL.includes('localhost')) {
+      siteUrl = process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
+    }
+
+    // 1. Try sending via Resend (direct link to active domain)
     let resendSent = false;
     let resendErrorMsg = '';
 
     try {
-      const emailResult = await sendPasswordResetEmail(normalizedEmail, user.name, rawToken);
+      const emailResult = await sendPasswordResetEmail(normalizedEmail, user.name, rawToken, siteUrl);
       if (emailResult.success) {
         resendSent = true;
       } else {
@@ -45,26 +62,24 @@ export async function POST(req: NextRequest) {
       console.warn('[ForgotPassword] Resend exception:', resendErrorMsg);
     }
 
-    // 2. Dual fallback: Also dispatch via Supabase Auth email service if available
+    // 2. Fallback: ONLY dispatch via Supabase Auth if Resend was NOT sent
     let supabaseSent = false;
-    const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
-    if (isSupabaseConfigured && supabase) {
-      try {
-        const origin =
-          req.headers.get('origin') ||
-          process.env.NEXT_PUBLIC_SITE_URL ||
-          'https://careerbot-ai-seven.vercel.app';
-        const redirectTo = `${origin.replace(/\/$/, '')}/auth/reset-password?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
-        const { error: supErr } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-          redirectTo,
-        });
-        if (!supErr) {
-          supabaseSent = true;
-        } else {
-          console.warn('[ForgotPassword] Supabase reset notice:', supErr.message);
+    if (!resendSent) {
+      const { supabase, isSupabaseConfigured } = await import('@/lib/supabase');
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const redirectTo = `${siteUrl}/auth/reset-password?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`;
+          const { error: supErr } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+            redirectTo,
+          });
+          if (!supErr) {
+            supabaseSent = true;
+          } else {
+            console.warn('[ForgotPassword] Supabase reset notice:', supErr.message);
+          }
+        } catch (supErr) {
+          console.warn('[ForgotPassword] Supabase dispatch exception:', supErr);
         }
-      } catch (supErr) {
-        console.warn('[ForgotPassword] Supabase dispatch exception:', supErr);
       }
     }
 

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Lock, Eye, EyeOff, ShieldCheck, AlertCircle, CheckCircle2, Loader2, Mail } from 'lucide-react';
 import Link from 'next/link';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
+import { Logo } from '@/components/Brand/Logo';
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -143,8 +144,8 @@ function ResetPasswordForm() {
   return (
     <>
       <div className="mb-6 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-900 text-white dark:bg-white dark:text-black mx-auto mb-4">
-          <ShieldCheck className="h-6 w-6" />
+        <div className="flex justify-center mb-5">
+          <Logo size="lg" />
         </div>
         <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Set New Password</h2>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Choose a strong password for your account.</p>

@@ -14,6 +14,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { SavedJob } from '@/types/job';
+import { Logo } from '@/components/Brand/Logo';
 
 interface LinearNavbarProps {
   currentView: 'home' | 'chat';
@@ -44,19 +45,9 @@ export const LinearNavbar: React.FC<LinearNavbarProps> = ({
           <button
             type="button"
             onClick={() => onViewChange('home')}
-            className="flex items-center gap-2.5 text-left group"
+            className="flex items-center text-left group cursor-pointer"
           >
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-tr from-[#5e6ad2] to-[#8a99f8] shadow-[0_0_12px_rgba(94,106,210,0.4)] transition-transform group-hover:scale-105">
-              <Sparkles className="h-4 w-4 text-white" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold tracking-tight text-white font-mono">
-                CareerBot
-              </span>
-              <span className="hidden sm:inline-block rounded-full bg-white/[0.06] border border-white/[0.08] px-2 py-0.5 text-[10px] font-mono text-zinc-400">
-                v2.0
-              </span>
-            </div>
+            <Logo size="md" />
           </button>
 
           {/* Navigation Links */}
