@@ -892,6 +892,10 @@ async function runVerification() {
   assert.strictEqual(mergedCanonical.password_hash, 'hash_old_secret', 'Credentials must be preserved');
   assert.strictEqual(mergedCanonical.credits, 50, 'Max credits must be preserved');
 
+  // Clean up ephemeral test users to avoid polluting persistent db.json
+  dbAfter.users = dbAfter.users.filter((u) => u.id !== canonicalIdToMerge && u.id !== oldIdToMerge);
+  fs.writeFileSync(dbDataPath, JSON.stringify(dbAfter, null, 2));
+
   ok('remapUserId seamlessly merges duplicate records and preserves credentials and balances.');
 
   // ----------------------------------------------------

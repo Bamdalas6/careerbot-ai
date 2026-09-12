@@ -2416,95 +2416,8 @@ export async function getNextFreeClaimInfo(
   daysRemaining: number;
   nextClaimAt: string | null;
 }> {
-  const COOLDOWN_DAYS = 7;
-  const COOLDOWN_MS = COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
-  const now = Date.now();
-
-  const user = cachedUser !== undefined ? cachedUser : await getUserById(userId);
-
-  // Collect all possible claim timestamps across sources
-  const claimTimestamps: number[] = [];
-
-  // 0. In-memory recent claim cache
-  if (userLastClaimInMemory.has(userId)) {
-    claimTimestamps.push(userLastClaimInMemory.get(userId)!);
-  }
-  if (user?.email && userLastClaimInMemory.has(user.email.toLowerCase())) {
-    claimTimestamps.push(userLastClaimInMemory.get(user.email.toLowerCase())!);
-  }
-
-  // 1. Client-reported claim timestamp (from client localStorage / cookie)
-  if (clientReportedClaimAt) {
-    const ts = new Date(clientReportedClaimAt).getTime();
-    if (!isNaN(ts) && ts > 0 && ts <= now + 60000) {
-      claimTimestamps.push(ts);
-    }
-  }
-
-  // 2. Direct user record field
-  if (user?.last_free_credit_claim_at) {
-    const ts = new Date(user.last_free_credit_claim_at).getTime();
-    if (!isNaN(ts) && ts > 0) claimTimestamps.push(ts);
-  }
-
-  // 3. User transaction history
-  const txs = await getUserTransactions(userId);
-  for (const t of txs) {
-    const isFreeClaim =
-      t.description === 'Free weekly credit refill' ||
-      t.type === 'free_claim' ||
-      (t.type === 'initial_bonus' && t.description?.toLowerCase().includes('refill'));
-
-    if (isFreeClaim) {
-      const ts = new Date(t.created_at).getTime();
-      if (!isNaN(ts) && ts > 0) claimTimestamps.push(ts);
-    }
-  }
-
-  // 4. Local database fallback
-  try {
-    const db = ensureLocalDb();
-    const localUser = db.users.find(
-      (u) => u.id === userId || (user?.email && u.email.toLowerCase() === user.email.toLowerCase())
-    );
-    if (localUser?.last_free_credit_claim_at) {
-      const ts = new Date(localUser.last_free_credit_claim_at).getTime();
-      if (!isNaN(ts) && ts > 0) claimTimestamps.push(ts);
-    }
-    for (const t of db.transactions || []) {
-      const matchesUser =
-        t.user_id === userId ||
-        (user?.email && db.users.find((u) => u.id === t.user_id)?.email.toLowerCase() === user.email.toLowerCase());
-      if (
-        matchesUser &&
-        (t.description === 'Free weekly credit refill' || t.type === 'free_claim')
-      ) {
-        const ts = new Date(t.created_at).getTime();
-        if (!isNaN(ts) && ts > 0) claimTimestamps.push(ts);
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-
-  // If no previous claims found, user can claim immediately
-  if (claimTimestamps.length === 0) {
-    return { canClaim: true, hoursRemaining: 0, daysRemaining: 0, nextClaimAt: null };
-  }
-
-  const latestClaimTime = Math.max(...claimTimestamps);
-  const elapsed = now - latestClaimTime;
-
-  if (elapsed >= COOLDOWN_MS) {
-    return { canClaim: true, hoursRemaining: 0, daysRemaining: 0, nextClaimAt: null };
-  }
-
-  const msRemaining = COOLDOWN_MS - elapsed;
-  const hoursRemaining = Math.max(1, Math.ceil(msRemaining / (1000 * 60 * 60)));
-  const daysRemaining = Math.max(1, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)));
-  const nextClaimAt = new Date(latestClaimTime + COOLDOWN_MS).toISOString();
-
-  return { canClaim: false, hoursRemaining, daysRemaining, nextClaimAt };
+  // Free recurring refills are discontinued to strictly promote payments
+  return { canClaim: false, hoursRemaining: 0, daysRemaining: 0, nextClaimAt: null };
 }
 
 export async function claimFreeCredits(
@@ -2521,92 +2434,14 @@ export async function claimFreeCredits(
   claimTimeIso?: string;
   error?: string;
 }> {
-  if (!userId) {
-    return { success: false, error: 'User ID is required' };
-  }
-
-  // Concurrency mutex lock to prevent rapid repeated clicks from bypassing cooldown
-  if (activeClaimLocks.has(userId)) {
-    return {
-      success: false,
-      error: 'A claim request is already processing. Please wait a moment.',
-    };
-  }
-
-  activeClaimLocks.add(userId);
-
-  try {
-    const user = await getUserById(userId);
-    if (!user) {
-      return { success: false, error: 'User not found' };
-    }
-
-    const FREE_CREDITS = 5;
-    const COOLDOWN_DAYS = 7;
-    const COOLDOWN_MS = COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
-    const now = Date.now();
-
-    const claimInfo = await getNextFreeClaimInfo(userId, user, clientReportedClaimAt);
-    if (!claimInfo.canClaim) {
-      const days = claimInfo.daysRemaining;
-      const hours = claimInfo.hoursRemaining;
-      const formattedTime = days > 1 ? `${days} days` : `${hours} hour${hours === 1 ? '' : 's'}`;
-      return {
-        success: false,
-        canClaim: false,
-        hoursRemaining: claimInfo.hoursRemaining,
-        daysRemaining: claimInfo.daysRemaining,
-        nextClaimAt: claimInfo.nextClaimAt || undefined,
-        error: `Free credits can only be claimed once every 7 days. Next claim available in ${formattedTime}.`,
-      };
-    }
-
-    const claimTimeIso = new Date(now).toISOString();
-    const nextClaimAtIso = new Date(now + COOLDOWN_MS).toISOString();
-
-    // Cache claim in memory immediately
-    userLastClaimInMemory.set(userId, now);
-    if (user.email) userLastClaimInMemory.set(user.email.toLowerCase(), now);
-
-    const res = await updateUserCredits(
-      userId,
-      FREE_CREDITS,
-      'free_claim',
-      'Free weekly credit refill'
-    );
-
-    if (!res.success) {
-      return { success: false, error: res.error || 'Failed to update credit balance.' };
-    }
-
-    // Persist last_free_credit_claim_at across Supabase table, Auth admin metadata, and local DB
-    await recordFreeCreditClaim(userId, user.email, claimTimeIso, res.credits);
-
-    // Resign session token with new credits and last_free_credit_claim_at
-    const exp = Math.floor((Date.now() + 30 * 24 * 60 * 60 * 1000) / 1000);
-    const newToken = signSessionToken({
-      userId,
-      email: user.email || '',
-      exp,
-      name: user.name,
-      credits: res.credits,
-      last_free_credit_claim_at: claimTimeIso,
-      referral_code: user.referral_code,
-    });
-
-    return {
-      success: true,
-      credits: res.credits,
-      canClaim: false,
-      hoursRemaining: 168,
-      daysRemaining: 7,
-      nextClaimAt: nextClaimAtIso,
-      claimTimeIso,
-      newToken,
-    };
-  } finally {
-    activeClaimLocks.delete(userId);
-  }
+  // Free recurring refills are discontinued to strictly promote payments
+  return {
+    success: false,
+    canClaim: false,
+    hoursRemaining: 0,
+    daysRemaining: 0,
+    error: 'Free recurring refills are discontinued. All registered accounts receive 5 starter credits; additional credits can be purchased via our Paystack packages.',
+  };
 }
 
 export async function saveCrawledJobs(

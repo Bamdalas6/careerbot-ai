@@ -380,10 +380,10 @@ export default function PricingPage() {
               </div>
               <div>
                 <h4 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-white mb-1">
-                  100% Free Weekly Credits
+                  5 Free Welcome Credits
                 </h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                  Every registered account automatically receives <strong>5 free credits every 7 days</strong> directly from the credit top-up menu. No credit card or purchase is required.
+                  Every newly registered account automatically receives <strong>5 free starter credits</strong> upon sign-up to test live AI job matching and ATS CV reviews before purchasing.
                 </p>
               </div>
             </div>
@@ -606,10 +606,10 @@ export default function PricingPage() {
 
             <div className="rounded-2xl border border-black/10 bg-white p-4 sm:p-5 dark:border-white/10 dark:bg-zinc-900/60 shadow-xs">
               <h4 className="text-sm font-bold text-zinc-900 dark:text-white mb-1">
-                Can I search jobs for free before purchasing?
+                Can I test CareerBot before purchasing?
               </h4>
               <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                Yes! Every registered account receives 5 free credits upon sign-up and 5 free credits every week from the top-up menu. Free accounts can search, filter, and inspect verified job cards from 20+ sources without adding a credit card.
+                Yes! Every registered account receives 5 free starter credits upon sign-up so you can test our AI job search and CV scoring tools. Additional credits can be purchased at any time via Paystack starting at ₦5,000.
               </p>
             </div>
           </div>

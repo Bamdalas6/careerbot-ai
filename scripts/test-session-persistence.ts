@@ -15,6 +15,9 @@ import { createSession, getSessionByToken, createUser, getUserByEmail, getUserBy
 async function runTests() {
   console.log('=== RUNNING SESSION PERSISTENCE TEST SUITE ===\n');
 
+  const dbDataPath = path.join(process.cwd(), '.data/db.json');
+  const dbSnapshot = fs.existsSync(dbDataPath) ? fs.readFileSync(dbDataPath, 'utf-8') : null;
+
   const nowSec = Math.floor(Date.now() / 1000);
 
   // Test 1: HMAC Token Sign & Verify
@@ -350,6 +353,11 @@ async function runTests() {
   assert(logoutSrc.includes('bearerToken'), 'Logout route must extract bearerToken');
   assert(logoutSrc.includes('cookieToken'), 'Logout route must extract cookieToken');
   console.log('  PASSED: Logout route cleanly cleans up both bearer header and cookie sessions\n');
+
+  // Restore local db.json snapshot to eliminate test artifacts
+  if (dbSnapshot !== null && fs.existsSync(dbDataPath)) {
+    fs.writeFileSync(dbDataPath, dbSnapshot, 'utf-8');
+  }
 
   console.log('=== ALL 20 VERIFICATION TESTS PASSED SUCCESSFULLY! ===');
 }

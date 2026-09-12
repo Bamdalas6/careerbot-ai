@@ -46,51 +46,27 @@ export async function POST(req: NextRequest) {
     const { action, clientLastClaimAt } = body;
     const clientClaimAt = extractClientClaimAt(req, clientLastClaimAt);
 
-    // 7-day free credit claim
+    // Free recurring credit refills are discontinued to promote paid packages
     if (action === 'claim_free') {
-      const result = await claimFreeCredits(auth.user.id, clientClaimAt);
-      if (!result.success) {
-        return NextResponse.json({
+      return NextResponse.json(
+        {
           success: false,
           canClaim: false,
-          error: result.error,
-          hoursRemaining: result.hoursRemaining,
-          daysRemaining: result.daysRemaining,
-          nextClaimAt: result.nextClaimAt,
-        }, { status: 429 });
-      }
-
-      const response = NextResponse.json({
-        success: true,
-        message: '🎉 5 free credits added to your account! Come back in 7 days for more.',
-        newCredits: result.credits,
-        token: result.newToken,
-        claimTimeIso: result.claimTimeIso,
-        canClaim: false,
-        hoursRemaining: result.hoursRemaining ?? 168,
-        daysRemaining: result.daysRemaining ?? 7,
-        nextClaimAt: result.nextClaimAt,
-      });
-
-      if (result.newToken) {
-        setSessionCookie(response, result.newToken);
-      }
-
-      if (result.claimTimeIso) {
-        response.cookies.set(`careerbot_last_claim_${auth.user.id}`, result.claimTimeIso, {
-          path: '/',
-          maxAge: 7 * 24 * 60 * 60,
-          sameSite: 'lax',
-        });
-      }
-
-      return response;
+          error: 'Free recurring refills are discontinued. All registered accounts receive 5 starter credits; additional credits can be purchased via our Paystack packages.',
+        },
+        { status: 403 }
+      );
     }
 
-    // GET claim status (used on modal open)
+    // GET claim status (used on modal open or legacy clients)
     if (action === 'claim_status') {
-      const info = await getNextFreeClaimInfo(auth.user.id, auth.user, clientClaimAt);
-      return NextResponse.json({ success: true, ...info });
+      return NextResponse.json({
+        success: true,
+        canClaim: false,
+        hoursRemaining: 0,
+        daysRemaining: 0,
+        nextClaimAt: null,
+      });
     }
 
     // Paystack payment package link resolution
