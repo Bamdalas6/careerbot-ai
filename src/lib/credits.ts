@@ -1,5 +1,14 @@
 import crypto from 'crypto';
-import { updateUserCredits, getUserById, getUserByEmail, createUser, ensureLocalDb, writeLocalDb, type TransactionRecord } from './db';
+import {
+  updateUserCredits,
+  getUserById,
+  getUserByEmail,
+  createUser,
+  ensureLocalDb,
+  writeLocalDb,
+  getActualUserCredits,
+  type TransactionRecord,
+} from './db';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { CREDIT_RATES, CREDIT_PACKAGES, CreditActionType, CreditPackage } from '@/types/credits';
 
@@ -95,27 +104,56 @@ export async function addPurchasedCredits(
 
 /**
  * Resolves the matching credit package from payment details.
+ * Supports metadata, title, plan/slug, and new live Paystack Shop prices:
+ * - Starter Pack: 50 coins, 1,500 NGN
+ * - Pro Job Hunter: 150 coins, 3,500 NGN
+ * - Career Accelerator: 500 coins, 7,500 NGN
  */
 export function resolvePackageFromPayment(
   amountInSmallestUnit: number,
   currency: string = 'NGN',
-  metadataPackageId?: string
+  metadataPackageId?: string,
+  extraContext?: string
 ): (typeof CREDIT_PACKAGES)[number] {
-  if (metadataPackageId) {
-    const matched = CREDIT_PACKAGES.find((p) => p.id === metadataPackageId.toLowerCase());
-    if (matched) return matched;
+  const combinedContext = `${metadataPackageId || ''} ${extraContext || ''}`.toLowerCase();
+
+  // 1. Context / slug / title match
+  if (
+    combinedContext.includes('accelerator') ||
+    combinedContext.includes('career-accelerator') ||
+    combinedContext.includes('power user') ||
+    combinedContext.includes('500')
+  ) {
+    return CREDIT_PACKAGES[2]; // Career Accelerator (500 coins, 7,500 NGN)
+  }
+  if (
+    combinedContext.includes('pro') ||
+    combinedContext.includes('pro-job-hunter') ||
+    combinedContext.includes('job hunter') ||
+    combinedContext.includes('150')
+  ) {
+    return CREDIT_PACKAGES[1]; // Pro Job Hunter (150 coins, 3,500 NGN)
+  }
+  if (
+    combinedContext.includes('starter') ||
+    combinedContext.includes('starterpack') ||
+    combinedContext.includes('-starterpack') ||
+    combinedContext.includes('50')
+  ) {
+    return CREDIT_PACKAGES[0]; // Starter Pack (50 coins, 1,500 NGN)
   }
 
   const isNgn = currency.toUpperCase() === 'NGN';
   const majorAmount = Math.round(amountInSmallestUnit / 100);
 
+  // 2. Amount-based matching with resilient thresholds
   if (isNgn) {
-    if (majorAmount >= 25000) return CREDIT_PACKAGES[2]; // Career Accelerator (29,000 NGN)
-    if (majorAmount >= 10000) return CREDIT_PACKAGES[1]; // Pro Job Hunter (12,000 NGN)
-    return CREDIT_PACKAGES[0]; // Starter Pack (5,000 NGN)
+    if (majorAmount >= 6000) return CREDIT_PACKAGES[2]; // Career Accelerator (7,500 NGN)
+    if (majorAmount >= 2500) return CREDIT_PACKAGES[1]; // Pro Job Hunter (3,500 NGN)
+    return CREDIT_PACKAGES[0]; // Starter Pack (1,500 NGN)
   } else {
-    if (majorAmount >= 25) return CREDIT_PACKAGES[2]; // $29
-    if (majorAmount >= 10) return CREDIT_PACKAGES[1]; // $12
+    if (majorAmount >= 20) return CREDIT_PACKAGES[2]; // $29
+    if (majorAmount >= 8) return CREDIT_PACKAGES[1]; // $12
     return CREDIT_PACKAGES[0]; // $5
   }
 }
@@ -130,6 +168,8 @@ export async function fulfillPaystackPurchase(params: {
   currency: string;
   reference: string;
   packageId?: string;
+  extraContext?: string;
+  targetUserId?: string;
 }): Promise<{
   success: boolean;
   credited: boolean;
@@ -139,29 +179,29 @@ export async function fulfillPaystackPurchase(params: {
   package: CreditPackage;
   message: string;
 }> {
-  const { email, amountInSmallestUnit, currency, reference, packageId } = params;
+  const { email, amountInSmallestUnit, currency, reference, packageId, extraContext, targetUserId } = params;
   const normalizedEmail = email.trim().toLowerCase();
-  const pkg = resolvePackageFromPayment(amountInSmallestUnit, currency, packageId);
+  const pkg = resolvePackageFromPayment(amountInSmallestUnit, currency, packageId, extraContext);
   const majorAmount = Math.round(amountInSmallestUnit / 100);
-  const cleanRef = reference.trim();
+  const cleanRef = reference.trim().replace(/^#+/, '');
   const description = `Paystack ${pkg.name} purchase (+${pkg.credits} credits) [Ref: ${cleanRef}]`;
 
   // 1. Check idempotency in local database
   const db = ensureLocalDb();
-  const alreadyFulfilledLocal = (db.transactions || []).some(
+  const existingLocalTx = (db.transactions || []).find(
     (t: TransactionRecord) => t.description && t.description.includes(cleanRef)
   );
 
-  if (alreadyFulfilledLocal) {
-    const existingTx = db.transactions.find((t: TransactionRecord) => t.description && t.description.includes(cleanRef));
+  if (existingLocalTx) {
+    const currentCredits = await getActualUserCredits(existingLocalTx.user_id, normalizedEmail);
     return {
       success: true,
       credited: false,
-      userId: existingTx?.user_id,
+      userId: existingLocalTx.user_id,
       creditsAdded: 0,
-      newBalance: existingTx?.balance_after ?? 0,
+      newBalance: currentCredits,
       package: pkg,
-      message: 'Payment was already processed and credited.',
+      message: 'Payment was already processed and credited to your account.',
     };
   }
 
@@ -170,19 +210,20 @@ export async function fulfillPaystackPurchase(params: {
     try {
       const { data: existingTx } = await supabase
         .from('transactions')
-        .select('id, balance_after, user_id')
+        .select('id, balance_after, user_id, description')
         .ilike('description', `%${cleanRef}%`)
         .maybeSingle();
 
       if (existingTx) {
+        const currentCredits = await getActualUserCredits(existingTx.user_id, normalizedEmail);
         return {
           success: true,
           credited: false,
           userId: existingTx.user_id,
           creditsAdded: 0,
-          newBalance: existingTx.balance_after,
+          newBalance: currentCredits,
           package: pkg,
-          message: 'Payment was already processed and credited.',
+          message: 'Payment was already processed and credited to your account.',
         };
       }
     } catch {
@@ -191,7 +232,11 @@ export async function fulfillPaystackPurchase(params: {
   }
 
   // 3. Find user or provision account
-  let user = await getUserByEmail(normalizedEmail);
+  let user = targetUserId ? await getUserById(targetUserId) : null;
+  if (!user) {
+    user = await getUserByEmail(normalizedEmail);
+  }
+
   if (!user) {
     // User paid before registering: pre-create account with bonus so their coins are ready upon registration
     const initialCoins = 5 + pkg.credits;
@@ -214,9 +259,10 @@ export async function fulfillPaystackPurchase(params: {
       description,
       created_at: new Date().toISOString(),
     };
-    if (!db.transactions) db.transactions = [];
-    db.transactions.push(tx);
-    writeLocalDb(db);
+    const currentDb = ensureLocalDb();
+    if (!currentDb.transactions) currentDb.transactions = [];
+    currentDb.transactions.push(tx);
+    writeLocalDb(currentDb);
 
     if (isSupabaseConfigured && supabase) {
       try {

@@ -189,6 +189,9 @@ function isUuid(str?: string | null): boolean {
 export async function getActualUserCredits(userId: string, email?: string): Promise<number> {
   const normalizedEmail = email ? email.trim().toLowerCase() : undefined;
 
+  let remoteBalance: number | null = null;
+  let remoteTimestamp: number = 0;
+
   // 1. Check Supabase transactions table for most recent balance_after
   if (isSupabaseConfigured && supabase) {
     try {
@@ -201,46 +204,64 @@ export async function getActualUserCredits(userId: string, email?: string): Prom
           .limit(1);
 
         if (!txErr && txData && txData.length > 0 && typeof txData[0].balance_after === 'number') {
-          return txData[0].balance_after;
+          remoteBalance = txData[0].balance_after;
+          remoteTimestamp = new Date(txData[0].created_at || 0).getTime();
         }
       }
-    } catch {
-      /* fallback */
-    }
 
-    // 2. Check Supabase users table
-    try {
-      if (userId) {
+      // If no transaction by userId, try finding user by email in Supabase to check transactions
+      if (remoteBalance === null && normalizedEmail) {
         const { data: userRow } = await supabase
           .from('users')
-          .select('credits')
+          .select('id, credits, updated_at')
+          .ilike('email', normalizedEmail)
+          .maybeSingle();
+
+        if (userRow?.id) {
+          const { data: txData } = await supabase
+            .from('transactions')
+            .select('balance_after, created_at')
+            .eq('user_id', userRow.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (txData && txData.length > 0 && typeof txData[0].balance_after === 'number') {
+            remoteBalance = txData[0].balance_after;
+            remoteTimestamp = new Date(txData[0].created_at || 0).getTime();
+          } else if (typeof userRow.credits === 'number' && Number.isFinite(userRow.credits) && userRow.credits >= 0) {
+            remoteBalance = userRow.credits;
+            remoteTimestamp = new Date(userRow.updated_at || 0).getTime();
+          }
+        } else if (userRow && typeof userRow.credits === 'number' && Number.isFinite(userRow.credits) && userRow.credits >= 0) {
+          remoteBalance = userRow.credits;
+          remoteTimestamp = new Date(userRow.updated_at || 0).getTime();
+        }
+      }
+
+      // Check Supabase users table directly if still no transaction balance
+      if (remoteBalance === null && userId) {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('credits, updated_at')
           .eq('id', userId)
           .maybeSingle();
 
         if (userRow && typeof userRow.credits === 'number' && Number.isFinite(userRow.credits) && userRow.credits >= 0) {
-          return userRow.credits;
-        }
-      }
-      if (normalizedEmail) {
-        const { data: userRow } = await supabase
-          .from('users')
-          .select('credits')
-          .ilike('email', normalizedEmail)
-          .maybeSingle();
-
-        if (userRow && typeof userRow.credits === 'number' && Number.isFinite(userRow.credits) && userRow.credits >= 0) {
-          return userRow.credits;
+          remoteBalance = userRow.credits;
+          remoteTimestamp = new Date(userRow.updated_at || 0).getTime();
         }
       }
     } catch {
-      /* fallback */
+      /* fallback to local database */
     }
   }
 
-  // 3. Check local database
+  // 2. Check local database
   const db = ensureLocalDb();
+  let localBalance: number | null = null;
+  let localTimestamp: number = 0;
 
-  // 3a. Check local transactions (sorted newest first)
+  // 2a. Check local transactions (sorted newest first)
   const matchingTxs = (db.transactions || [])
     .filter((t) => {
       if (userId && t.user_id === userId) return true;
@@ -253,16 +274,38 @@ export async function getActualUserCredits(userId: string, email?: string): Prom
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   if (matchingTxs.length > 0 && typeof matchingTxs[0].balance_after === 'number' && Number.isFinite(matchingTxs[0].balance_after)) {
-    return matchingTxs[0].balance_after;
+    localBalance = matchingTxs[0].balance_after;
+    localTimestamp = new Date(matchingTxs[0].created_at || 0).getTime();
   }
 
-  // 3b. Check local user record
+  // 2b. Check local user record
   const localUser = db.users.find(
     (u) => (userId && u.id === userId) || (normalizedEmail && u.email.toLowerCase() === normalizedEmail)
   );
-  if (localUser && typeof localUser.credits === 'number' && Number.isFinite(localUser.credits) && localUser.credits >= 0) {
-    return localUser.credits;
+  if (localBalance === null && localUser && typeof localUser.credits === 'number' && Number.isFinite(localUser.credits) && localUser.credits >= 0) {
+    localBalance = localUser.credits;
+    localTimestamp = new Date(localUser.updated_at || localUser.created_at || 0).getTime();
   }
+
+  // 3. Reconcile between Supabase and Local: return the most recently updated balance
+  if (remoteBalance !== null && localBalance !== null) {
+    if (localTimestamp > remoteTimestamp) {
+      return localBalance;
+    }
+    if (remoteTimestamp > localTimestamp) {
+      // Sync local user record with remote balance
+      if (localUser && localUser.credits !== remoteBalance) {
+        localUser.credits = remoteBalance;
+        writeLocalDb(db);
+      }
+      return remoteBalance;
+    }
+    // Equal timestamps: safely return the higher balance to prevent credit loss
+    return Math.max(remoteBalance, localBalance);
+  }
+
+  if (remoteBalance !== null) return remoteBalance;
+  if (localBalance !== null) return localBalance;
 
   return 5;
 }
@@ -1637,6 +1680,7 @@ export async function updateUserCredits(
   }
 
   const db = ensureLocalDb();
+  if (!db.transactions) db.transactions = [];
   const localUser = db.users.find(
     (u) => u.id === userId || (user.email && u.email.toLowerCase() === user.email.toLowerCase())
   );
@@ -1646,6 +1690,20 @@ export async function updateUserCredits(
       localUser.last_free_credit_claim_at = now;
     }
     localUser.updated_at = now;
+  } else {
+    // Keep local users list complete and in sync
+    db.users.push({
+      id: userId,
+      name: user.name || (user.email ? user.email.split('@')[0] : 'User'),
+      email: user.email || '',
+      password_hash: user.password_hash || '',
+      salt: user.salt || '',
+      credits: newCredits,
+      last_free_credit_claim_at: type === 'free_claim' ? now : user.last_free_credit_claim_at,
+      referral_code: user.referral_code,
+      created_at: user.created_at || now,
+      updated_at: now,
+    });
   }
   db.transactions.push(tx);
   writeLocalDb(db);

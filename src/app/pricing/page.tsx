@@ -40,18 +40,43 @@ export default function PricingPage() {
     newBalance?: number;
     packageName?: string;
   } | null>(null);
+  const [manualRef, setManualRef] = useState('');
+  const [manualLoading, setManualLoading] = useState(false);
+
+  // Auto-refresh user coins whenever page is refocused after Paystack checkout tab
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshUser();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshUser();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [refreshUser]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    const ref = params.get('reference') || params.get('trxref');
+    const ref = params.get('reference') || params.get('trxref') || params.get('order_code');
     if (!ref) return;
 
     const verifiedKey = `careerbot_verified_${ref}`;
     if (sessionStorage.getItem(verifiedKey)) return;
 
     setVerifying(true);
-    fetch(`/api/credits/verify?reference=${encodeURIComponent(ref)}`)
+    fetch(`/api/credits/verify?reference=${encodeURIComponent(ref)}`, {
+      headers: {
+        ...(user ? { Authorization: `Bearer ${localStorage.getItem('careerbot_token') || ''}` } : {}),
+      },
+    })
       .then((res) => res.json())
       .then((data) => {
         sessionStorage.setItem(verifiedKey, 'true');
@@ -91,7 +116,61 @@ export default function PricingPage() {
         const newUrl = window.location.pathname;
         window.history.replaceState({}, '', newUrl);
       });
-  }, [refreshUser]);
+  }, [refreshUser, user]);
+
+  const handleManualVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = manualRef.trim();
+    if (!clean) return;
+
+    setManualLoading(true);
+    setVerificationResult(null);
+
+    try {
+      const res = await fetch('/api/credits/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(user ? { Authorization: `Bearer ${localStorage.getItem('careerbot_token') || ''}` } : {}),
+        },
+        body: JSON.stringify({ reference: clean }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (data.success) {
+        setVerificationResult({
+          success: true,
+          message: data.message || 'Payment confirmed and coins credited!',
+          creditsAdded: data.creditsAdded,
+          newBalance: data.newBalance,
+          packageName: data.package?.name,
+        });
+        setManualRef('');
+        import('canvas-confetti').then((m) => {
+          const confetti = m.default || m;
+          confetti({
+            particleCount: 120,
+            spread: 100,
+            origin: { y: 0.4 },
+            colors: ['#f59e0b', '#10b981', '#6366f1', '#ec4899'],
+          });
+        }).catch(() => {});
+        await refreshUser();
+      } else {
+        setVerificationResult({
+          success: false,
+          message: data.error || 'Could not verify payment reference.',
+        });
+      }
+    } catch {
+      setVerificationResult({
+        success: false,
+        message: 'Network notice: Check your connection or verify that the payment succeeded on Paystack.',
+      });
+    } finally {
+      setManualLoading(false);
+    }
+  };
 
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -253,6 +332,43 @@ export default function PricingPage() {
           </div>
         )}
 
+        {/* Manual Payment Verification Box */}
+        <div className="mb-10 max-w-xl mx-auto rounded-3xl border border-black/10 bg-white p-4 sm:p-5 shadow-xs dark:border-white/10 dark:bg-zinc-900/60">
+          <div className="flex items-center gap-2 mb-1.5">
+            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+            <h3 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white">
+              Already Completed a Paystack Payment?
+            </h3>
+          </div>
+          <p className="text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400 mb-3 leading-relaxed">
+            If you completed checkout on Paystack Shop and want to credit your coins right away, enter your Transaction Reference or Order Code below:
+          </p>
+          <form onSubmit={handleManualVerify} className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={manualRef}
+              onChange={(e) => setManualRef(e.target.value)}
+              placeholder="e.g. T123456789 or ORD_..."
+              disabled={manualLoading}
+              className="flex-1 rounded-xl border border-black/10 bg-zinc-50 px-3.5 py-2 text-xs font-medium text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-white/10 dark:bg-black dark:text-white dark:focus:ring-white"
+            />
+            <button
+              type="submit"
+              disabled={manualLoading || !manualRef.trim()}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed dark:bg-white dark:text-black dark:hover:bg-zinc-100 cursor-pointer shrink-0"
+            >
+              {manualLoading ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Verifying...</span>
+                </>
+              ) : (
+                <span>Verify Reference</span>
+              )}
+            </button>
+          </form>
+        </div>
+
         {/* Hero Section */}
         <div className="text-center max-w-3xl mx-auto mb-12 sm:mb-16">
           <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-zinc-100 px-3.5 py-1.5 text-xs font-semibold text-zinc-700 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 mb-6">
@@ -294,6 +410,10 @@ export default function PricingPage() {
               currency === 'NGN'
                 ? `₦${pkg.price_ngn.toLocaleString('en-NG')}`
                 : `$${pkg.price_usd}`;
+
+            const checkoutUrl = user?.email
+              ? `${pkg.payment_link}?email=${encodeURIComponent(user.email)}`
+              : pkg.payment_link;
 
             return (
               <div
@@ -609,7 +729,7 @@ export default function PricingPage() {
                 Can I test CareerBot before purchasing?
               </h4>
               <p className="text-xs text-zinc-600 dark:text-zinc-400">
-                Yes! Every registered account receives 5 free starter credits upon sign-up so you can test our AI job search and CV scoring tools. Additional credits can be purchased at any time via Paystack starting at ₦5,000.
+                Yes! Every registered account receives 5 free starter credits upon sign-up so you can test our AI job search and CV scoring tools. Additional credits can be purchased at any time via Paystack starting at ₦1,500.
               </p>
             </div>
           </div>

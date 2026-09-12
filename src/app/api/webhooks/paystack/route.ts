@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
 
     if (!secretKey) {
-      console.error('Paystack webhook error: PAYSTACK_SECRET_KEY is not configured in environment.');
+      console.error('[Paystack Webhook] PAYSTACK_SECRET_KEY is not configured in environment.');
       return NextResponse.json(
         { error: 'PAYSTACK_SECRET_KEY is not configured on server.' },
         { status: 500 }
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!signature) {
-      console.warn('Paystack webhook request missing x-paystack-signature header.');
+      console.warn('[Paystack Webhook] Request missing x-paystack-signature header.');
       return NextResponse.json(
         { error: 'Missing x-paystack-signature header.' },
         { status: 400 }
@@ -41,8 +41,11 @@ export async function POST(req: NextRequest) {
       .update(rawBody)
       .digest('hex');
 
-    if (computedSignature !== signature) {
-      console.warn('Paystack webhook signature mismatch.');
+    const signatureMatch =
+      computedSignature.trim().toLowerCase() === signature.trim().toLowerCase();
+
+    if (!signatureMatch) {
+      console.warn('[Paystack Webhook] Signature mismatch.');
       return NextResponse.json(
         { error: 'Invalid webhook signature.' },
         { status: 401 }
@@ -52,23 +55,78 @@ export async function POST(req: NextRequest) {
     const payload = JSON.parse(rawBody);
     const { event, data } = payload;
 
-    // Only process charge.success events
-    if (event === 'charge.success' && data && data.status === 'success') {
-      const email = data.customer?.email;
-      const amount = data.amount; // In kobo or cents
-      const currency = data.currency || 'NGN';
-      const reference = data.reference;
-      const packageId = data.metadata?.packageId || data.metadata?.package_id;
+    // Check if event indicates a completed payment or shop order
+    const isChargeSuccess = event === 'charge.success' && (data?.status === 'success' || !data?.status);
+    const isOrderSuccess =
+      (event === 'order.created' || event === 'order.success') &&
+      (data?.status === 'success' || data?.status === 'paid' || data?.paid === true);
+    const isPaymentSuccess =
+      event === 'paymentrequest.success' && (data?.status === 'success' || data?.status === 'paid');
 
-      if (!email || !reference || typeof amount !== 'number') {
-        console.warn('Paystack charge.success missing required fields:', { email, reference, amount });
+    if (isChargeSuccess || isOrderSuccess || isPaymentSuccess || data?.status === 'success') {
+      // Flexibly extract customer email across Paystack Shop / Standard Charge payloads
+      const customFieldEmail = Array.isArray(data?.metadata?.custom_fields)
+        ? data.metadata.custom_fields.find(
+            (f: any) =>
+              f?.variable_name?.toLowerCase() === 'email' ||
+              f?.name?.toLowerCase() === 'email'
+          )?.value
+        : undefined;
+
+      const email =
+        data?.customer?.email ||
+        data?.customer_email ||
+        data?.email ||
+        data?.metadata?.email ||
+        data?.metadata?.customer_email ||
+        data?.order?.customer?.email ||
+        customFieldEmail;
+
+      const rawAmount = data?.amount ?? data?.total_amount ?? data?.order?.amount;
+      const amount = typeof rawAmount === 'number' ? rawAmount : Number(rawAmount);
+      const currency = data?.currency || 'NGN';
+
+      const reference =
+        data?.reference ||
+        data?.order_code ||
+        data?.trans_id ||
+        (data?.id ? String(data.id) : undefined) ||
+        data?.metadata?.reference;
+
+      const packageId =
+        data?.metadata?.packageId ||
+        data?.metadata?.package_id ||
+        data?.metadata?.plan ||
+        data?.plan;
+
+      const extraContext = [
+        data?.description,
+        data?.metadata?.product_name,
+        data?.metadata?.page_name,
+        data?.metadata?.referrer,
+        data?.plan_object?.name,
+        Array.isArray(data?.line_items) ? data.line_items.map((i: any) => i?.name).join(' ') : '',
+        Array.isArray(data?.order?.line_items) ? data.order.line_items.map((i: any) => i?.name).join(' ') : '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+      if (!email || !reference || typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+        console.warn('[Paystack Webhook] Incomplete transaction payload:', {
+          event,
+          email,
+          reference,
+          amount,
+        });
         return NextResponse.json(
           { error: 'Incomplete transaction payload.' },
           { status: 400 }
         );
       }
 
-      console.log(`[Paystack Webhook] Processing payment for ${email}, amount: ${amount} ${currency}, ref: ${reference}`);
+      console.log(
+        `[Paystack Webhook] Fulfilling payment event "${event}" for ${email}, amount: ${amount} ${currency}, ref: ${reference}`
+      );
 
       const result = await fulfillPaystackPurchase({
         email,
@@ -76,6 +134,7 @@ export async function POST(req: NextRequest) {
         currency,
         reference,
         packageId,
+        extraContext,
       });
 
       console.log('[Paystack Webhook] Fulfillment result:', result);
@@ -90,14 +149,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // For other Paystack events, respond 200 OK so Paystack knows the event was received
+    // For other acknowledged Paystack events, respond 200 OK
     return NextResponse.json({
       received: true,
       event,
       note: 'Event acknowledged.',
     });
   } catch (error: any) {
-    console.error('Paystack webhook internal error:', error);
+    console.error('[Paystack Webhook] Internal processing error:', error);
     return NextResponse.json(
       { error: error?.message || 'Webhook processing failed.' },
       { status: 500 }

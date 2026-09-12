@@ -1,26 +1,91 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fulfillPaystackPurchase } from '@/lib/credits';
-import { ensureLocalDb, type TransactionRecord } from '@/lib/db';
+import { ensureLocalDb, getActualUserCredits, type TransactionRecord } from '@/lib/db';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { authenticateRequest } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-async function handleVerification(referenceInput?: string | null) {
-  const reference = referenceInput?.trim();
-  if (!reference) {
+async function handleVerification(req: NextRequest, referenceInput?: string | null) {
+  const rawReference = referenceInput?.trim();
+  if (!rawReference) {
     return NextResponse.json(
       { success: false, error: 'Transaction reference is required for verification.' },
       { status: 400 }
     );
   }
 
+  // Sanitize common user prefixes e.g. "Ref: #T123...", "Order #123...", "#123..."
+  const cleanReference = rawReference
+    .replace(/^(reference|ref|order|trxref|payment)[:#\s-]+/i, '')
+    .replace(/^#+/, '')
+    .trim();
+
+  // Resolve currently authenticated user session if available
+  const auth = await authenticateRequest(req).catch(() => null);
+  const activeUserId = auth?.user?.id;
+  const activeUserEmail = auth?.user?.email;
+
   const secretKey = process.env.PAYSTACK_SECRET_KEY;
 
-  // 1. If Paystack Secret Key is configured, verify directly with Paystack API
+  // 1. Check if transaction has already been fulfilled in local DB or Supabase
+  const db = ensureLocalDb();
+  const existingLocalTx = (db.transactions || []).find(
+    (t: TransactionRecord) =>
+      t.description &&
+      (t.description.includes(cleanReference) || (rawReference && t.description.includes(rawReference)))
+  );
+
+  if (existingLocalTx) {
+    const currentBalance = await getActualUserCredits(
+      activeUserId || existingLocalTx.user_id,
+      activeUserEmail
+    );
+    return NextResponse.json({
+      success: true,
+      verified: true,
+      credited: false,
+      alreadyCredited: true,
+      newBalance: currentBalance,
+      creditsAdded: existingLocalTx.credits_delta,
+      message: 'Transaction was already verified and credited to your account.',
+    });
+  }
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: supaTx } = await supabase
+        .from('transactions')
+        .select('id, balance_after, credits_delta, user_id, description')
+        .or(`description.ilike.%${cleanReference}%,description.ilike.%${rawReference}%`)
+        .maybeSingle();
+
+      if (supaTx) {
+        const currentBalance = await getActualUserCredits(
+          activeUserId || supaTx.user_id,
+          activeUserEmail
+        );
+        return NextResponse.json({
+          success: true,
+          verified: true,
+          credited: false,
+          alreadyCredited: true,
+          newBalance: currentBalance,
+          creditsAdded: supaTx.credits_delta,
+          message: 'Transaction was already verified and credited to your account.',
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // 2. If Paystack Secret Key is configured, verify directly via Paystack API
   if (secretKey) {
     try {
-      const paystackRes = await fetch(
-        `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      let paystackData: any = null;
+      let paystackRes = await fetch(
+        `https://api.paystack.co/transaction/verify/${encodeURIComponent(cleanReference)}`,
         {
           headers: {
             Authorization: `Bearer ${secretKey.trim()}`,
@@ -30,16 +95,76 @@ async function handleVerification(referenceInput?: string | null) {
         }
       );
 
-      const paystackData = await paystackRes.json().catch(() => null);
+      if (paystackRes.ok) {
+        paystackData = await paystackRes.json().catch(() => null);
+      }
 
-      if (paystackRes.ok && paystackData?.status && paystackData?.data?.status === 'success') {
+      // If not found with clean reference and raw differs, retry with raw
+      if ((!paystackData || !paystackData.status) && rawReference !== cleanReference) {
+        const retryRes = await fetch(
+          `https://api.paystack.co/transaction/verify/${encodeURIComponent(rawReference)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${secretKey.trim()}`,
+              'Content-Type': 'application/json',
+            },
+            cache: 'no-store',
+          }
+        );
+        if (retryRes.ok) {
+          paystackData = await retryRes.json().catch(() => null);
+        }
+      }
+
+      // If still not found and reference looks like an Order code, try Paystack order endpoint
+      if ((!paystackData || !paystackData.status) && (cleanReference.toLowerCase().includes('ord') || cleanReference.startsWith('ORD_'))) {
+        try {
+          const orderRes = await fetch(
+            `https://api.paystack.co/order/${encodeURIComponent(cleanReference)}`,
+            {
+              headers: {
+                Authorization: `Bearer ${secretKey.trim()}`,
+                'Content-Type': 'application/json',
+              },
+              cache: 'no-store',
+            }
+          );
+          if (orderRes.ok) {
+            const orderData = await orderRes.json().catch(() => null);
+            if (orderData?.status && (orderData.data?.status === 'success' || orderData.data?.status === 'paid')) {
+              paystackData = orderData;
+            }
+          }
+        } catch {
+          /* ignore order check fallback */
+        }
+      }
+
+      if (paystackData?.status && (paystackData.data?.status === 'success' || paystackData.data?.status === 'paid')) {
         const tx = paystackData.data;
-        const email = tx.customer?.email;
-        const amount = tx.amount;
-        const currency = tx.currency || 'NGN';
-        const packageId = tx.metadata?.packageId || tx.metadata?.package_id;
+        const customerEmail =
+          tx.customer?.email ||
+          tx.customer_email ||
+          tx.email ||
+          tx.metadata?.email ||
+          tx.order?.customer?.email;
 
-        if (!email || typeof amount !== 'number') {
+        // Prefer active logged-in user's email if available so coins are credited directly to their active session
+        const email = activeUserEmail || customerEmail;
+        const amount = typeof tx.amount === 'number' ? tx.amount : Number(tx.amount || tx.total_amount);
+        const currency = tx.currency || 'NGN';
+        const packageId = tx.metadata?.packageId || tx.metadata?.package_id || tx.metadata?.plan;
+
+        const extraContext = [
+          tx.description,
+          tx.metadata?.product_name,
+          tx.metadata?.page_name,
+          Array.isArray(tx.line_items) ? tx.line_items.map((i: any) => i?.name).join(' ') : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        if (!email || typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
           return NextResponse.json(
             { success: false, error: 'Transaction data from Paystack is missing customer email or amount.' },
             { status: 400 }
@@ -50,8 +175,10 @@ async function handleVerification(referenceInput?: string | null) {
           email,
           amountInSmallestUnit: amount,
           currency,
-          reference: tx.reference || reference,
+          reference: tx.reference || cleanReference,
           packageId,
+          extraContext,
+          targetUserId: activeUserId,
         });
 
         return NextResponse.json({
@@ -66,12 +193,12 @@ async function handleVerification(referenceInput?: string | null) {
         });
       }
 
-      // If status from Paystack is not success (e.g. abandoned, failed)
-      if (paystackData?.data?.status) {
+      // If status from Paystack is failed or abandoned
+      if (paystackData?.data?.status && paystackData.data.status !== 'success' && paystackData.data.status !== 'paid') {
         return NextResponse.json(
           {
             success: false,
-            error: `Payment status is "${paystackData.data.status}". Only successful payments can be credited.`,
+            error: `Payment status is "${paystackData.data.status}". Only completed, successful payments can be credited.`,
           },
           { status: 400 }
         );
@@ -86,47 +213,6 @@ async function handleVerification(referenceInput?: string | null) {
       );
     } catch (err: any) {
       console.error('Paystack transaction verify API error:', err);
-      // Fall through to database check below
-    }
-  }
-
-  // 2. Fallback check: If already processed via Webhook in database
-  const db = ensureLocalDb();
-  const existingLocalTx = (db.transactions || []).find(
-    (t: TransactionRecord) => t.description && t.description.includes(reference)
-  );
-
-  if (existingLocalTx) {
-    return NextResponse.json({
-      success: true,
-      verified: true,
-      credited: false,
-      newBalance: existingLocalTx.balance_after,
-      creditsAdded: existingLocalTx.credits_delta,
-      message: 'Transaction was already verified and credited to your account.',
-    });
-  }
-
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data: supaTx } = await supabase
-        .from('transactions')
-        .select('id, balance_after, credits_delta, user_id')
-        .ilike('description', `%${reference}%`)
-        .maybeSingle();
-
-      if (supaTx) {
-        return NextResponse.json({
-          success: true,
-          verified: true,
-          credited: false,
-          newBalance: supaTx.balance_after,
-          creditsAdded: supaTx.credits_delta,
-          message: 'Transaction was already verified and credited to your account.',
-        });
-      }
-    } catch {
-      /* ignore */
     }
   }
 
@@ -134,7 +220,8 @@ async function handleVerification(referenceInput?: string | null) {
     return NextResponse.json(
       {
         success: false,
-        error: 'PAYSTACK_SECRET_KEY is not configured yet on the server, and this transaction has not yet been processed by webhook.',
+        error:
+          'PAYSTACK_SECRET_KEY is not configured yet on the server, and this transaction has not yet been processed by the live webhook.',
       },
       { status: 503 }
     );
@@ -147,15 +234,18 @@ async function handleVerification(referenceInput?: string | null) {
 }
 
 export async function GET(req: NextRequest) {
-  const reference = req.nextUrl.searchParams.get('reference') || req.nextUrl.searchParams.get('trxref');
-  return handleVerification(reference);
+  const reference =
+    req.nextUrl.searchParams.get('reference') ||
+    req.nextUrl.searchParams.get('trxref') ||
+    req.nextUrl.searchParams.get('order_code');
+  return handleVerification(req, reference);
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const reference = body.reference || body.trxref;
-    return handleVerification(reference);
+    const reference = body.reference || body.trxref || body.order_code;
+    return handleVerification(req, reference);
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err?.message || 'Invalid request body.' }, { status: 400 });
   }
