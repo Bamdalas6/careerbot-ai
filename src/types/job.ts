@@ -44,6 +44,7 @@ export interface JobListing {
     | 'Curated'
     | 'Twitter'
     | 'Community'
+    | 'Direct Apply'
     | string;
   posted_at: string;
   /**
