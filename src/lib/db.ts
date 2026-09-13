@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import type { SavedJob, ApplicationEvent, JobListing } from '@/types/job';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { isCompanyExcluded, isJobicyExcluded } from './ats-boards';
+import { COMMUNITY_JOBS } from '@/data/community-jobs';
 import {
   signSessionToken,
   verifySessionToken,
@@ -2873,6 +2874,11 @@ export async function saveCrawledJobs(
 }
 
 export async function getCrawledJobs(limit = 150): Promise<JobListing[]> {
+  const communityList = (COMMUNITY_JOBS || []).filter(
+    (j) => !isCompanyExcluded(j.company) && !isJobicyExcluded(j) && (!j.age_days || j.age_days <= 150)
+  );
+
+  let remoteJobs: JobListing[] = [];
   if (isSupabaseConfigured && supabase) {
     try {
       const { data, error } = await supabase
@@ -2882,7 +2888,7 @@ export async function getCrawledJobs(limit = 150): Promise<JobListing[]> {
         .limit(limit);
 
       if (!error && Array.isArray(data) && data.length > 0) {
-        return (data as JobListing[]).filter(
+        remoteJobs = (data as JobListing[]).filter(
           (j) => !isCompanyExcluded(j.company) && !isJobicyExcluded(j) && (!j.age_days || j.age_days <= 150)
         );
       }
@@ -2890,28 +2896,45 @@ export async function getCrawledJobs(limit = 150): Promise<JobListing[]> {
       /* try fallback to jobs */
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit);
+    if (remoteJobs.length === 0) {
+      try {
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(limit);
 
-      if (!error && Array.isArray(data) && data.length > 0) {
-        return (data as JobListing[]).filter(
-          (j) => !isCompanyExcluded(j.company) && !isJobicyExcluded(j) && (!j.age_days || j.age_days <= 150)
-        );
+        if (!error && Array.isArray(data) && data.length > 0) {
+          remoteJobs = (data as JobListing[]).filter(
+            (j) => !isCompanyExcluded(j.company) && !isJobicyExcluded(j) && (!j.age_days || j.age_days <= 150)
+          );
+        }
+      } catch {
+        /* fallback to local */
       }
-    } catch {
-      /* fallback to local */
     }
   }
 
   const db = ensureLocalDb();
-  const valid = (db.crawled_jobs || []).filter(
+  const localJobs = (db.crawled_jobs || []).filter(
     (j) => !isCompanyExcluded(j.company) && !isJobicyExcluded(j) && (!j.age_days || j.age_days <= 150)
   );
-  return valid.slice(-limit);
+
+  // Merge and deduplicate across community, remote, and local jobs
+  const combined: JobListing[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const j of [...communityList, ...remoteJobs, ...localJobs]) {
+    const key = `${(j.company || '').toLowerCase().trim()}|${(j.title || '').toLowerCase().trim()}`;
+    const urlKey = (j.apply_url || '').toLowerCase().trim();
+    if (!seenKeys.has(key) && (!urlKey || !seenKeys.has(urlKey))) {
+      seenKeys.add(key);
+      if (urlKey) seenKeys.add(urlKey);
+      combined.push(j);
+    }
+  }
+
+  return combined.slice(-limit);
 }
 
 /**
