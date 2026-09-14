@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   X, FileText, Sparkles, Loader2, CheckCircle2, ArrowRight, UploadCloud,
   AlertTriangle, Copy, Check, RotateCcw, Target, Download, TrendingUp, Wand2,
-  FileType2, Zap, PenLine, Send, FileCode, MapPin, Building2,
+  FileType2, Zap, PenLine, Send, FileCode, MapPin, Building2, Search,
 } from 'lucide-react';
 import { CVReview, ResumeProfile, UpgradedCV, AhaMomentData } from '@/types/job';
 import { useAuth } from '@/context/AuthContext';
@@ -493,19 +493,40 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
   if (!isOpen) return null;
 
   const handleApplyMatch = () => {
-    if (!extractedProfile) return;
-    const query = `Find ${extractedProfile.extracted_title || 'Software Engineer'} ${extractedProfile.skills
-      .slice(0, 3)
-      .join(' ')} roles matching my resume skills`;
+    const role = ahaMoment?.target_role || extractedProfile?.extracted_title || 'Software Engineer';
+    const skills = extractedProfile?.skills?.slice(0, 3).join(' ') || '';
+    const query = `Find ${role} ${skills} roles matching my resume skills`.trim();
 
     if (!requireAuth()) {
       if (typeof window !== 'undefined') {
         localStorage.setItem('careerbot_pending_search', query);
       }
+      handleClose();
       return;
     }
 
-    onParsedSkills(extractedProfile, query);
+    onParsedSkills(
+      extractedProfile || { name: '', skills: [], extracted_title: role, summary: '' },
+      query
+    );
+    handleClose();
+  };
+
+  const handleSearchRole = (roleTitle: string) => {
+    const query = `Find ${roleTitle} jobs matching my experience and skills`;
+
+    if (!requireAuth()) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('careerbot_pending_search', query);
+      }
+      handleClose();
+      return;
+    }
+
+    onParsedSkills(
+      extractedProfile || { name: '', skills: [], extracted_title: roleTitle, summary: '' },
+      query
+    );
     handleClose();
   };
 
@@ -932,12 +953,24 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
                     </div>
                   </div>
 
+                  {/* Search for roles like strongest match */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleSearchRole(ahaMoment.strongest_match.title)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50/80 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50 transition cursor-pointer"
+                    >
+                      <Search className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span>Search &ldquo;{ahaMoment.strongest_match.title}&rdquo; roles</span>
+                    </button>
+                  </div>
+
                   {/* Teaser of remaining matches */}
                   {ahaMoment.other_matches_sample.length > 0 && (
                     <div className="pt-1">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[11px] font-medium text-zinc-500 dark:text-[#8a8f98]">
-                          Also qualified for:
+                          Also qualified for (click to search):
                         </span>
                         <span className="text-[10px] font-semibold text-zinc-400 dark:text-[#62666d]">
                           +{ahaMoment.realistic_jobs_count - 1} more waiting in pipeline
@@ -945,18 +978,24 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {ahaMoment.other_matches_sample.map((job, idx) => (
-                          <div
+                          <button
                             key={idx}
-                            className="flex items-center justify-between gap-2 rounded-lg border border-zinc-100 bg-zinc-50/70 p-2.5 text-xs dark:border-white/[0.05] dark:bg-white/[0.02]"
+                            type="button"
+                            onClick={() => handleSearchRole(job.title)}
+                            className="flex items-center justify-between gap-2 rounded-lg border border-zinc-100 bg-zinc-50/70 p-2.5 text-xs hover:border-zinc-300 hover:bg-zinc-100/80 dark:border-white/[0.05] dark:bg-white/[0.02] dark:hover:border-white/20 transition cursor-pointer text-left w-full group"
+                            title={`Click to search for "${job.title}" roles`}
                           >
                             <div className="min-w-0">
-                              <p className="font-medium text-zinc-900 dark:text-[#f7f8f8] truncate">{job.title}</p>
+                              <p className="font-medium text-zinc-900 dark:text-[#f7f8f8] truncate group-hover:underline">{job.title}</p>
                               <p className="text-[11px] text-zinc-500 dark:text-[#8a8f98] truncate">{job.company}</p>
                             </div>
-                            <span className="shrink-0 rounded-md bg-zinc-200/60 px-1.5 py-0.5 text-[10px] font-bold text-zinc-700 dark:bg-white/[0.08] dark:text-[#c9ccd1]">
-                              {job.match_score}%
-                            </span>
-                          </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="rounded-md bg-zinc-200/60 px-1.5 py-0.5 text-[10px] font-bold text-zinc-700 dark:bg-white/[0.08] dark:text-[#c9ccd1]">
+                                {job.match_score}%
+                              </span>
+                              <Search className="h-3 w-3 text-zinc-400 group-hover:text-zinc-700 dark:group-hover:text-white transition" />
+                            </div>
+                          </button>
                         ))}
                       </div>
                     </div>

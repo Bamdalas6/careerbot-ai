@@ -6,16 +6,25 @@ import { deductUserCredits } from '@/lib/credits';
 export async function POST(req: NextRequest) {
   try {
     const auth = await authenticateRequest(req);
+    if (!auth) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'AUTHENTICATION_REQUIRED',
+          message: 'Please sign up or sign in to search live jobs.',
+        },
+        { status: 401 }
+      );
+    }
+
+    const { user } = auth;
     let remainingCredits: number | undefined = undefined;
 
-    if (auth) {
-      const { user } = auth;
-      // Deduct 1 credit if available, but don't hard-crash the discovery if 0 credits
-      if (user.credits > 0) {
-        const deduction = await deductUserCredits(user.id, user.credits, 'CHAT_SEARCH', 'AI Job Search & Live Query');
-        if (deduction.success) {
-          remainingCredits = deduction.newCredits;
-        }
+    // Deduct 1 credit if available, but don't hard-crash the discovery if 0 credits
+    if (user.credits > 0) {
+      const deduction = await deductUserCredits(user.id, user.credits, 'CHAT_SEARCH', 'AI Job Search & Live Query');
+      if (deduction.success) {
+        remainingCredits = deduction.newCredits;
       }
     }
 

@@ -241,6 +241,14 @@ export default function Home() {
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
+    if (!user) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('careerbot_pending_search', text.trim());
+      }
+      requireAuth();
+      return;
+    }
+
     // Switch to chat view if not already there
     setCurrentView('chat');
 
@@ -341,6 +349,13 @@ export default function Home() {
   }, [user]);
 
   const handleParsedSkills = (profile: ResumeProfile, autoSearchQuery: string) => {
+    if (!user) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('careerbot_pending_search', autoSearchQuery);
+      }
+      requireAuth();
+      return;
+    }
     handleSendMessage(autoSearchQuery);
   };
 

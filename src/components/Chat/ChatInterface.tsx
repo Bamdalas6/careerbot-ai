@@ -192,6 +192,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                           isSaved={isJobSaved(job.id)}
                           onToggleSave={onToggleSave}
                           onOpenTailor={onOpenTailor}
+                          onSearch={onSendMessage}
                         />
                       ))}
                     </div>

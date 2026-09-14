@@ -239,7 +239,67 @@ CREATE POLICY "Allow public read-only access for anon on crawled_jobs" ON crawle
 CREATE POLICY "Allow authenticated read-only access on crawled_jobs" ON crawled_jobs FOR SELECT TO authenticated USING (true);
 
 -- ==========================================================
--- 9. Promotional Grant Migration: +20 Additional Credits
+-- 9. Atomic Credit Operations for Supabase Edge Functions & Webhooks
+-- ==========================================================
+CREATE OR REPLACE FUNCTION add_user_credits_atomic(
+  p_user_id TEXT,
+  p_credits_delta INTEGER,
+  p_description TEXT,
+  p_amount NUMERIC,
+  p_currency TEXT,
+  p_tx_id TEXT
+)
+RETURNS TABLE (
+  new_balance INTEGER,
+  success BOOLEAN
+) 
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_new_balance INTEGER;
+BEGIN
+  -- 1. Atomically increment user's credits
+  UPDATE users 
+  SET credits = COALESCE(credits, 0) + p_credits_delta,
+      updated_at = timezone('utc'::text, now())
+  WHERE id = p_user_id
+  RETURNING credits INTO v_new_balance;
+
+  IF NOT FOUND THEN
+    RETURN QUERY SELECT 0, false;
+    RETURN;
+  END IF;
+
+  -- 2. Insert transaction record atomically
+  INSERT INTO transactions (
+    id,
+    user_id,
+    type,
+    amount,
+    currency,
+    credits_delta,
+    balance_after,
+    description,
+    created_at
+  ) VALUES (
+    p_tx_id,
+    p_user_id,
+    'purchase',
+    p_amount,
+    p_currency,
+    p_credits_delta,
+    v_new_balance,
+    p_description,
+    timezone('utc'::text, now())
+  );
+
+  RETURN QUERY SELECT v_new_balance, true;
+END;
+$$;
+
+-- ==========================================================
+-- 10. Promotional Grant Migration: +20 Additional Credits
 -- Run this if granting +20 credits to all existing users:
 -- UPDATE users SET credits = credits + 20, updated_at = now();
 -- ==========================================================

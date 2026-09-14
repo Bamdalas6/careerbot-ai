@@ -10,16 +10,19 @@ import {
   Bookmark, 
   BookmarkCheck, 
   Briefcase, 
-  Share2
+  Share2,
+  Search
 } from 'lucide-react';
 import { JobListing } from '@/types/job';
 import confetti from 'canvas-confetti';
+import { useAuth } from '@/context/AuthContext';
 
 interface JobCardProps {
   job: JobListing;
   isSaved: boolean;
   onToggleSave: (job: JobListing) => void;
   onOpenTailor: (job: JobListing) => void;
+  onSearch?: (query: string) => void;
 }
 
 export const JobCard: React.FC<JobCardProps> = ({
@@ -27,8 +30,22 @@ export const JobCard: React.FC<JobCardProps> = ({
   isSaved,
   onToggleSave,
   onOpenTailor,
+  onSearch,
 }) => {
   const router = useRouter();
+  const { user, requireAuth } = useAuth();
+
+  const handleSearchJob = (e: React.MouseEvent, query: string) => {
+    e.stopPropagation();
+    if (!user) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('careerbot_pending_search', query);
+      }
+      requireAuth();
+      return;
+    }
+    onSearch?.(query);
+  };
   const handleSaveClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isSaved) {
@@ -93,6 +110,14 @@ export const JobCard: React.FC<JobCardProps> = ({
           <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
+              onClick={(e) => handleSearchJob(e, job.title)}
+              className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition"
+              title={`Search for "${job.title}" roles`}
+            >
+              <Search className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
               onClick={handleShare}
               className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition"
               title="Share job link"
@@ -114,8 +139,12 @@ export const JobCard: React.FC<JobCardProps> = ({
           </div>
         </div>
 
-        {/* Job Title */}
-        <h3 className="mt-3.5 text-base font-bold text-zinc-900 group-hover:text-black dark:text-white dark:group-hover:text-[#f7f8f8] transition line-clamp-2 leading-snug">
+        {/* Job Title - click to search */}
+        <h3
+          onClick={(e) => handleSearchJob(e, job.title)}
+          className="mt-3.5 text-base font-bold text-zinc-900 group-hover:text-black dark:text-white dark:group-hover:text-[#f7f8f8] transition line-clamp-2 leading-snug cursor-pointer hover:underline"
+          title={`Click to search roles for "${job.title}"`}
+        >
           {job.title}
         </h3>
 
@@ -180,12 +209,15 @@ export const JobCard: React.FC<JobCardProps> = ({
         {Array.isArray(job.tags) && job.tags.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {job.tags.slice(0, 4).map((tag, idx) => (
-              <span
+              <button
                 key={idx}
-                className="rounded-md border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700 dark:border-zinc-700/40 dark:bg-zinc-800/60 dark:text-zinc-400"
+                type="button"
+                onClick={(e) => handleSearchJob(e, tag)}
+                className="rounded-md border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700 hover:border-zinc-400 hover:bg-zinc-200 dark:border-zinc-700/40 dark:bg-zinc-800/60 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:bg-zinc-700/60 transition cursor-pointer"
+                title={`Search for "${tag}" jobs`}
               >
                 {tag}
-              </span>
+              </button>
             ))}
           </div>
         )}
@@ -198,6 +230,7 @@ export const JobCard: React.FC<JobCardProps> = ({
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            if (!requireAuth()) return;
             try {
               localStorage.setItem('career_bot_active_tailor_job', JSON.stringify(job));
             } catch {}

@@ -4,6 +4,7 @@ import React, { useCallback, useState } from 'react';
 import { DraggableOrb } from '@/components/Orb/DraggableOrb';
 import { FunnyHeadline } from './FunnyHeadline';
 import { RoleSearch } from './RoleSearch';
+import { useAuth } from '@/context/AuthContext';
 
 interface OrbHeroProps {
   onSearch: (query: string) => void;
@@ -12,6 +13,7 @@ interface OrbHeroProps {
 }
 
 export const OrbHero: React.FC<OrbHeroProps> = ({ onSearch, isLoading = false, onOpenResume }) => {
+  const { user } = useAuth();
   const [excitement, setExcitement] = useState(0);
 
   // Stable identity so RoleSearch's effect doesn't fire on every parent render.
@@ -42,7 +44,9 @@ export const OrbHero: React.FC<OrbHeroProps> = ({ onSearch, isLoading = false, o
         />
         <div className="flex flex-col items-center gap-1.5 text-center">
           <p className="text-[13px] font-medium text-zinc-700 dark:text-[#8a8f98]">
-            Search jobs instantly. Create an account only when you want to save your progress, use AI tools or buy credits.
+            {user
+              ? 'Search jobs instantly across real-time feeds, match your CV, and tailor 1-click pitches.'
+              : 'Sign up or sign in to search live roles, match your CV, and tailor your applications.'}
           </p>
           <p className="text-[11.5px] text-zinc-400 dark:text-[#62666d]">
             Grab the orb and pull it — it stretches. Nothing happens, it just feels nice.
