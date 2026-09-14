@@ -154,3 +154,32 @@ export interface UpgradedCV {
   /** Plain-language list of what was changed, so the rewrite is auditable. */
   changes: string[];
 }
+
+export interface AhaStrongestMatch {
+  id?: string;
+  title: string;
+  company: string;
+  location: string;
+  is_remote?: boolean;
+  match_score: number; // e.g. 91
+  salary_formatted?: string;
+  matching_highlights: string[];
+  apply_url?: string;
+}
+
+export interface AhaMomentData {
+  realistic_jobs_count: number;
+  strongest_match: AhaStrongestMatch;
+  other_matches_sample: {
+    title: string;
+    company: string;
+    match_score: number;
+    location: string;
+  }[];
+  missing_keywords: string[];
+  missing_keywords_message: string;
+  aha_headline: string;
+  current_cv_score: number;
+  target_role: string;
+}
+

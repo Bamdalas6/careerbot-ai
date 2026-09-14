@@ -91,6 +91,11 @@ const SKILLS: Record<string, string> = {
   tailwind: 'Tailwind CSS', css: 'CSS', html: 'HTML', flutter: 'Flutter',
   'react native': 'React Native', android: 'Android', ios: 'iOS', salesforce: 'Salesforce',
   sap: 'SAP', seo: 'SEO', accounting: 'Accounting', ifrs: 'IFRS', acca: 'ACCA',
+  capcut: 'CapCut', canva: 'Canva', 'video editing': 'Video Editing', 'content creation': 'Content Creation',
+  copywriting: 'Copywriting', 'social media': 'Social Media', storytelling: 'Storytelling',
+  'visual storytelling': 'Visual Storytelling', scriptwriting: 'Scriptwriting',
+  'premiere pro': 'Premiere Pro', 'davinci resolve': 'DaVinci Resolve',
+  reels: 'Reels', tiktok: 'TikTok', youtube: 'YouTube',
 };
 
 /**
@@ -120,7 +125,8 @@ const FAMILIES: Record<string, string[]> = {
   ],
   marketing: [
     'marketing', 'marketer', 'content', 'social', 'seo', 'communications', 'copywriter',
-    'pr', 'campaign', 'community',
+    'pr', 'campaign', 'community', 'video', 'editor', 'creator', 'storytelling', 'videographer',
+    'media', 'scriptwriter', 'capcut', 'youtube', 'reels', 'tiktok',
   ],
   finance: [
     'finance', 'financial', 'accountant', 'accounting', 'audit', 'auditor', 'treasury',

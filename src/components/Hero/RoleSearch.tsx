@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Loader2, Search, Mic, MicOff } from 'lucide-react';
-import { useVoiceSpeech } from '@/hooks/useVoiceSpeech';
+import { ArrowUp, Loader2, Search, UploadCloud } from 'lucide-react';
 
 const PLACEHOLDERS = [
   'Senior React developer, remote, $150k+…',
@@ -26,54 +25,35 @@ interface RoleSearchProps {
   onSearch: (query: string) => void;
   onExcitementChange?: (value: number) => void;
   isLoading?: boolean;
+  onOpenResume?: () => void;
 }
 
 export const RoleSearch: React.FC<RoleSearchProps> = ({
   onSearch,
   onExcitementChange,
   isLoading = false,
+  onOpenResume,
 }) => {
   const [value, setValue] = useState('');
   const [focused, setFocused] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const baseValueRef = useRef('');
 
-  const { isListening, isSupported, errorMessage, toggleListening, stopListening } = useVoiceSpeech({
-    onTranscript: (spokenText) => {
-      const prefix = baseValueRef.current ? `${baseValueRef.current.trim()} ` : '';
-      setValue(`${prefix}${spokenText}`);
-      if (onExcitementChange) onExcitementChange(0.95);
-    },
-  });
-
-  const handleVoiceToggle = () => {
-    if (!isListening) {
-      baseValueRef.current = value;
-      inputRef.current?.focus();
-    }
-    toggleListening();
-  };
-
-  // Rotate the placeholder only while the field is empty, unfocused, and not listening.
+  // Rotate the placeholder only while the field is empty and unfocused.
   useEffect(() => {
-    if (focused || value || isListening) return;
+    if (focused || value) return;
     const id = window.setInterval(() => {
       setPlaceholderIndex((i) => (i + 1) % PLACEHOLDERS.length);
     }, 3400);
     return () => window.clearInterval(id);
-  }, [focused, value, isListening]);
+  }, [focused, value]);
 
   // Wake the orb up as the visitor engages with the field.
   useEffect(() => {
     if (!onExcitementChange) return;
-    if (isListening) {
-      onExcitementChange(0.95);
-      return;
-    }
     const typed = Math.min(1, value.trim().length / 24);
     onExcitementChange(focused ? 0.45 + 0.55 * typed : typed * 0.3);
-  }, [focused, value, isListening, onExcitementChange]);
+  }, [focused, value, onExcitementChange]);
 
   // ⌘K / Ctrl+K focuses the field instead of jumping straight to chat.
   useEffect(() => {
@@ -90,10 +70,8 @@ export const RoleSearch: React.FC<RoleSearchProps> = ({
   const submit = (query: string) => {
     const trimmed = query.trim();
     if (!trimmed || isLoading) return;
-    if (isListening) stopListening();
     onSearch(trimmed);
     setValue('');
-    baseValueRef.current = '';
   };
 
   return (
@@ -126,40 +104,26 @@ export const RoleSearch: React.FC<RoleSearchProps> = ({
           />
           {!value && (
             <span
-              key={isListening ? 'listening' : placeholderIndex}
+              key={placeholderIndex}
               aria-hidden="true"
-              className={`pointer-events-none absolute inset-0 flex items-center truncate text-[15px] ${
-                isListening
-                  ? 'text-rose-500 dark:text-rose-400 animate-pulse font-medium'
-                  : 'placeholder-fade text-zinc-400 dark:text-[#62666d]'
-              }`}
+              className="placeholder-fade pointer-events-none absolute inset-0 flex items-center truncate text-[15px] text-zinc-400 dark:text-[#62666d]"
             >
-              {isListening ? 'Listening to your voice... Speak your role or skills' : PLACEHOLDERS[placeholderIndex]}
+              {PLACEHOLDERS[placeholderIndex]}
             </span>
           )}
         </div>
 
-        {/* Voice Speech Microphone Button */}
-        {isSupported && (
+        {/* Upload CV / Resume Builder Button */}
+        {onOpenResume && (
           <button
             type="button"
-            onClick={handleVoiceToggle}
-            aria-label={isListening ? 'Stop voice speech' : 'Speak to search'}
-            title={isListening ? 'Listening to your voice... Click to stop' : 'Search using your voice'}
-            className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all select-none cursor-pointer active:scale-95 ${
-              isListening
-                ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 scale-105 ring-2 ring-rose-400/50 animate-pulse'
-                : 'text-zinc-500 hover:text-zinc-900 hover:bg-black/[0.04] dark:text-[#8a8f98] dark:hover:text-[#f7f8f8] dark:hover:bg-white/[0.06]'
-            }`}
+            onClick={onOpenResume}
+            aria-label="Upload CV"
+            title="Upload your CV to match roles and build your resume"
+            className="flex h-8 items-center gap-1.5 rounded-lg border border-black/10 bg-black/[0.03] px-2.5 text-xs font-semibold text-zinc-700 transition-all hover:bg-black/[0.06] hover:text-zinc-900 active:scale-95 cursor-pointer shrink-0 dark:border-white/10 dark:bg-white/[0.05] dark:text-[#c9ccd1] dark:hover:bg-white/[0.09] dark:hover:text-white"
           >
-            {isListening ? (
-              <span className="relative flex h-3.5 w-3.5 items-center justify-center">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-200 opacity-75" />
-                <Mic className="h-3.5 w-3.5 text-white" />
-              </span>
-            ) : (
-              <Mic className="h-4 w-4" />
-            )}
+            <UploadCloud className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400" />
+            <span className="text-[12px] font-medium">Upload CV</span>
           </button>
         )}
 
@@ -180,19 +144,6 @@ export const RoleSearch: React.FC<RoleSearchProps> = ({
           )}
         </button>
       </form>
-
-      {errorMessage && (
-        <div className="w-full max-w-2xl px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
-          <span>{errorMessage}</span>
-          <button
-            type="button"
-            onClick={() => stopListening()}
-            className="text-[10px] font-bold uppercase underline"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
 
       <div className="flex flex-wrap items-center justify-center gap-1.5">
         {CHIPS.map((chip) => (

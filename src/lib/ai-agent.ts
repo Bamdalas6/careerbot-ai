@@ -405,6 +405,13 @@ const SKILL_DICTIONARY: string[] = [
   'WCAG AA', 'Micro-Interactions', 'Adobe XD', 'Adobe Photoshop', 'Adobe Illustrator',
   'Adobe Creative Cloud', 'InDesign', 'After Effects', 'Canva', 'Webflow', 'Framer', 'Sketch',
 
+  // Content Creation, Video Editing & Media
+  'CapCut', 'Video Editing', 'Content Creation', 'Storytelling', 'Visual Storytelling',
+  'Scriptwriting', 'Social Media Strategy', 'Social Media Management', 'YouTube', 'Reels',
+  'TikTok', 'Canva', 'Copywriting', 'Content Strategy', 'B-Roll Sourcing',
+  'DaVinci Resolve', 'Adobe Premiere Pro', 'Short-form Video', 'Audience Retention',
+  'Thumbnail Design', 'Content Calendar', 'Audio Editing', 'Sound Design', 'Brand Storytelling',
+
   // Data, Analytics & AI
   'SQL', 'PostgreSQL', 'Python', 'Pandas', 'NumPy', 'Scikit-learn', 'PyTorch', 'TensorFlow',
   'Machine Learning', 'Deep Learning', 'Computer Vision', 'Generative AI',
@@ -622,7 +629,9 @@ export function parseResumeText(rawText: string): ResumeProfile {
   // 8. Fallback title if not detected from header
   if (!extractedTitle) {
     const skillsLower = skills.map((s) => s.toLowerCase());
-    if (skillsLower.some((s) => ['culinary arts', 'food preparation', 'kitchen operations', 'menu planning', 'cooking', 'haccp food safety', 'food safety & sanitation'].includes(s))) {
+    if (skillsLower.some((s) => ['video editing', 'capcut', 'content creation', 'visual storytelling', 'storytelling', 'scriptwriting', 'reels', 'tiktok', 'social media management', 'canva', 'copywriting', 'youtube'].includes(s))) {
+      extractedTitle = 'Content Creator & Video Specialist';
+    } else if (skillsLower.some((s) => ['culinary arts', 'food preparation', 'kitchen operations', 'menu planning', 'cooking', 'haccp food safety', 'food safety & sanitation'].includes(s))) {
       extractedTitle = 'Professional Cook & Kitchen Supervisor';
     } else if (skillsLower.some((s) => ['patient care', 'vital signs monitoring', 'medication administration', 'clinical assessment', 'nursing care plans'].includes(s))) {
       extractedTitle = 'Registered Nurse & Healthcare Specialist';

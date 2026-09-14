@@ -8,9 +8,10 @@ import { RoleSearch } from './RoleSearch';
 interface OrbHeroProps {
   onSearch: (query: string) => void;
   isLoading?: boolean;
+  onOpenResume?: () => void;
 }
 
-export const OrbHero: React.FC<OrbHeroProps> = ({ onSearch, isLoading = false }) => {
+export const OrbHero: React.FC<OrbHeroProps> = ({ onSearch, isLoading = false, onOpenResume }) => {
   const [excitement, setExcitement] = useState(0);
 
   // Stable identity so RoleSearch's effect doesn't fire on every parent render.
@@ -37,6 +38,7 @@ export const OrbHero: React.FC<OrbHeroProps> = ({ onSearch, isLoading = false })
           onSearch={onSearch}
           onExcitementChange={handleExcitement}
           isLoading={isLoading}
+          onOpenResume={onOpenResume}
         />
         <div className="flex flex-col items-center gap-1.5 text-center">
           <p className="text-[13px] font-medium text-zinc-700 dark:text-[#8a8f98]">

@@ -241,14 +241,6 @@ export default function Home() {
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
 
-    if (!user) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('careerbot_pending_search', text.trim());
-      }
-      requireAuth();
-      return;
-    }
-
     // Switch to chat view if not already there
     setCurrentView('chat');
 
@@ -378,10 +370,6 @@ export default function Home() {
       <GlassHeader
         currentView={currentView}
         onViewChange={(view) => {
-          if (view === 'chat' && !user) {
-            requireAuth();
-            return;
-          }
           setCurrentView(view);
         }}
         savedCount={savedJobs.length}
@@ -433,19 +421,15 @@ export default function Home() {
             isExploreOpen && "filter blur-sm md:filter-none pointer-events-none select-none"
           )}
         >
-          <OrbHero onSearch={handleSendMessage} isLoading={isLoading} />
+          <OrbHero onSearch={handleSendMessage} isLoading={isLoading} onOpenResume={handleOpenResume} />
           <FactsSection />
           <CapabilitiesSection />
           <ClosingCTA
-            onStartSearch={() => {
-              if (requireAuth()) setCurrentView('chat');
-            }}
+            onStartSearch={() => setCurrentView('chat')}
             onOpenResume={handleOpenResume}
           />
           <SiteFooter
-            onStartSearch={() => {
-              if (requireAuth()) setCurrentView('chat');
-            }}
+            onStartSearch={() => setCurrentView('chat')}
             onOpenResume={handleOpenResume}
             onOpenSaved={() => setIsSavedOpen(true)}
           />

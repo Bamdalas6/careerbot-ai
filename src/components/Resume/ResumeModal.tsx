@@ -4,9 +4,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   X, FileText, Sparkles, Loader2, CheckCircle2, ArrowRight, UploadCloud,
   AlertTriangle, Copy, Check, RotateCcw, Target, Download, TrendingUp, Wand2,
-  FileType2, Zap, PenLine, Send, FileCode,
+  FileType2, Zap, PenLine, Send, FileCode, MapPin, Building2,
 } from 'lucide-react';
-import { CVReview, ResumeProfile, UpgradedCV } from '@/types/job';
+import { CVReview, ResumeProfile, UpgradedCV, AhaMomentData } from '@/types/job';
 import { useAuth } from '@/context/AuthContext';
 import { ExecutiveResumePreview } from './ExecutiveResumePreview';
 import { renderExecutiveResumeHtml } from '@/lib/resume-template';
@@ -20,6 +20,10 @@ interface ResumeModalProps {
 
 const SAMPLE_RESUMES = [
   {
+    label: 'Product Designer (Figma + UI/UX)',
+    text: `Product Designer with 4+ years experience designing consumer mobile and web applications. Expert in Figma, wireframing, high-fidelity interactive prototyping, and cross-functional handoff. Collaborated with product and engineering teams to launch fintech checkout flows, improving conversion by 35%.`,
+  },
+  {
     label: 'Senior Full Stack (React + Node + AWS)',
     text: `Senior Full Stack Software Engineer with 6+ years experience. Built microservices with TypeScript, Node.js, Next.js, and React. Architected cloud pipelines on AWS and Docker, utilizing PostgreSQL databases with GraphQL APIs. Led team of 4 engineers and improved dashboard performance by 40%.`,
   },
@@ -30,6 +34,10 @@ const SAMPLE_RESUMES = [
   {
     label: 'Frontend Developer (React + Tailwind)',
     text: `Frontend Developer with 3 years building responsive web apps with React, Next.js, TypeScript, and Tailwind CSS. Strong eye for UI/UX design, Figma prototypes, and web accessibility standards.`,
+  },
+  {
+    label: 'Content Creator (CapCut + Video Storytelling)',
+    text: `Content Creator & Video Editor with 3+ years experience producing high-engagement videos for YouTube, TikTok, and Instagram Reels. Highly skilled in CapCut, Canva, B-roll sourcing, viral scriptwriting, and audience retention optimization.`,
   },
 ];
 
@@ -48,9 +56,10 @@ const STATUS_LABEL: Record<string, string> = {
   weak: 'Weak',
 };
 
-type TabId = 'match' | 'upgrade' | 'rebuilt';
+type TabId = 'aha' | 'match' | 'upgrade' | 'rebuilt';
 
 const TABS: { id: TabId; label: string }[] = [
+  { id: 'aha', label: 'Match discovery & gaps' },
   { id: 'match', label: 'Extracted profile' },
   { id: 'upgrade', label: 'CV review' },
   { id: 'rebuilt', label: 'Upgraded CV' },
@@ -216,9 +225,10 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [extractedProfile, setExtractedProfile] = useState<ResumeProfile | null>(null);
+  const [ahaMoment, setAhaMoment] = useState<AhaMomentData | null>(null);
   const [review, setReview] = useState<CVReview | null>(null);
   const [copied, setCopied] = useState(false);
-  const [tab, setTab] = useState<'match' | 'upgrade' | 'rebuilt'>('match');
+  const [tab, setTab] = useState<TabId>('aha');
 
   // The rebuilt document, restored from the last session if there was one.
   const [upgraded, setUpgraded] = useState<StoredCV | null>(readStoredCV);
@@ -249,6 +259,12 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
       const data = await res.json();
       if (data.success && data.profile) {
         setExtractedProfile(data.profile);
+        if (data.ahaMoment) {
+          setAhaMoment(data.ahaMoment);
+          setTab('aha');
+        } else {
+          setTab('match');
+        }
       } else {
         setError(data.error || 'Could not read a profile out of that text.');
       }
@@ -265,6 +281,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
       setError(null);
       setReview(null);
       setExtractedProfile(null);
+      setAhaMoment(null);
       setFileName(file.name);
       setLoading(true);
 
@@ -477,30 +494,49 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
 
   const handleApplyMatch = () => {
     if (!extractedProfile) return;
-    const query = `${extractedProfile.extracted_title || 'Software Engineer'} ${extractedProfile.skills
+    const query = `Find ${extractedProfile.extracted_title || 'Software Engineer'} ${extractedProfile.skills
       .slice(0, 3)
-      .join(' ')}`;
-    onParsedSkills(extractedProfile, `Find ${query} roles matching my resume skills`);
+      .join(' ')} roles matching my resume skills`;
+
+    if (!requireAuth()) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('careerbot_pending_search', query);
+      }
+      return;
+    }
+
+    onParsedSkills(extractedProfile, query);
     handleClose();
+  };
+
+  const handleUpgradeCta = async () => {
+    if (!requireAuth()) return;
+    if (!review) {
+      await handleUpgrade();
+    } else {
+      await handleRebuild();
+    }
   };
 
   const handleSelectSample = (sampleText: string) => {
     setResumeText(sampleText);
     setExtractedProfile(null);
+    setAhaMoment(null);
     setReview(null);
     setFileName(null);
     setError(null);
-    setTab(upgraded ? 'rebuilt' : 'match');
+    parseText(sampleText);
   };
 
   const handleReset = () => {
     setResumeText('');
     setFileName(null);
     setExtractedProfile(null);
+    setAhaMoment(null);
     setReview(null);
     setError(null);
     // Clearing the working text doesn't throw away a CV they had built.
-    setTab(upgraded ? 'rebuilt' : 'match');
+    setTab(upgraded ? 'rebuilt' : 'aha');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -645,10 +681,10 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
         </div>
 
         {/* Tabs — only meaningful once there is something to show */}
-        {(extractedProfile || review || upgraded) && (
+        {(ahaMoment || extractedProfile || review || upgraded) && (
           <div className="flex gap-1 border-b border-black/10 bg-zinc-50/50 px-4 sm:px-6 overflow-x-auto flex-nowrap dark:border-white/[0.08] dark:bg-white/[0.02]">
             {TABS.filter((t) =>
-              t.id === 'match' ? !!extractedProfile : t.id === 'upgrade' ? !!review : !!upgraded
+              t.id === 'aha' ? !!ahaMoment : t.id === 'match' ? !!extractedProfile : t.id === 'upgrade' ? !!review : !!upgraded
             ).map((t) => (
               <button
                 key={t.id}
@@ -810,6 +846,180 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
               </button>
             )}
           </div>
+
+          {/* ------------------------------------------------ AHA MOMENT DISCOVERY */}
+          {tab === 'aha' && ahaMoment && (
+            <div className="space-y-4">
+              {/* 1. CareerBot Realistic Roles Announcement */}
+              <div className="relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/[0.08] via-emerald-500/[0.03] to-transparent p-5 sm:p-6 dark:border-emerald-500/20 dark:from-emerald-500/[0.07] dark:via-transparent">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1.5">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>CareerBot Talent Intelligence</span>
+                    </div>
+                    <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-[#f7f8f8]">
+                      {ahaMoment.aha_headline}
+                    </h3>
+                    <p className="text-xs text-zinc-600 dark:text-[#8a8f98]">
+                      Screened against live employer boards & direct feeds for{' '}
+                      <strong className="text-zinc-900 dark:text-white">{ahaMoment.target_role}</strong>.
+                    </p>
+                  </div>
+                  <div className="flex items-baseline sm:flex-col sm:items-end gap-1.5 shrink-0 bg-white/70 dark:bg-white/[0.04] p-3 rounded-xl border border-black/5 dark:border-white/5">
+                    <span className="text-3xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400 leading-none">
+                      {ahaMoment.realistic_jobs_count}
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-[#8a8f98]">
+                      Realistic roles
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Your Strongest Match Spotlight */}
+              <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs transition dark:border-white/[0.1] dark:bg-[#0f0f11]">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-[#8a8f98]">
+                    Your strongest match
+                  </span>
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/40 dark:border-emerald-500/30 dark:text-emerald-300">
+                    <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>{ahaMoment.strongest_match.match_score}% Match</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-[#f7f8f8]">
+                      {ahaMoment.strongest_match.title}{' '}
+                      <span className="text-zinc-400 dark:text-zinc-500 font-normal">—</span>{' '}
+                      <span className="text-zinc-700 dark:text-[#c9ccd1]">{ahaMoment.strongest_match.company}</span>
+                    </h4>
+                    <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-zinc-500 dark:text-[#8a8f98]">
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {ahaMoment.strongest_match.location}
+                      </span>
+                      <span>•</span>
+                      <span>{ahaMoment.strongest_match.is_remote ? 'Remote' : 'Hybrid / On-site'}</span>
+                      {ahaMoment.strongest_match.salary_formatted && (
+                        <>
+                          <span>•</span>
+                          <span className="font-medium text-zinc-700 dark:text-zinc-300">
+                            {ahaMoment.strongest_match.salary_formatted}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Why it matches */}
+                  <div className="rounded-xl bg-zinc-50 border border-zinc-100 p-3 dark:bg-white/[0.02] dark:border-white/[0.06]">
+                    <p className="text-[11px] font-semibold text-zinc-500 dark:text-[#8a8f98] mb-1.5">
+                      Why you qualify:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ahaMoment.strongest_match.matching_highlights.map((h, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1 rounded-md bg-white border border-zinc-200 px-2 py-0.5 text-[11px] font-semibold text-zinc-800 dark:bg-white/[0.05] dark:border-white/[0.1] dark:text-[#f7f8f8]"
+                        >
+                          <Check className="h-3 w-3 text-emerald-600" />
+                          {h}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Teaser of remaining matches */}
+                  {ahaMoment.other_matches_sample.length > 0 && (
+                    <div className="pt-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-medium text-zinc-500 dark:text-[#8a8f98]">
+                          Also qualified for:
+                        </span>
+                        <span className="text-[10px] font-semibold text-zinc-400 dark:text-[#62666d]">
+                          +{ahaMoment.realistic_jobs_count - 1} more waiting in pipeline
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {ahaMoment.other_matches_sample.map((job, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between gap-2 rounded-lg border border-zinc-100 bg-zinc-50/70 p-2.5 text-xs dark:border-white/[0.05] dark:bg-white/[0.02]"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-medium text-zinc-900 dark:text-[#f7f8f8] truncate">{job.title}</p>
+                              <p className="text-[11px] text-zinc-500 dark:text-[#8a8f98] truncate">{job.company}</p>
+                            </div>
+                            <span className="shrink-0 rounded-md bg-zinc-200/60 px-1.5 py-0.5 text-[10px] font-bold text-zinc-700 dark:bg-white/[0.08] dark:text-[#c9ccd1]">
+                              {job.match_score}%
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. The Value Hook / Aha realization: Missing Keywords */}
+              <div className="rounded-2xl border border-amber-300/80 bg-gradient-to-br from-amber-500/[0.08] via-amber-500/[0.02] to-transparent p-5 dark:border-amber-500/30 dark:from-amber-500/[0.07] dark:via-transparent">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
+                    <Target className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 space-y-2 flex-1">
+                    <p className="text-sm font-bold text-zinc-900 dark:text-[#f7f8f8]">
+                      &ldquo;{ahaMoment.missing_keywords_message}&rdquo;
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {ahaMoment.missing_keywords.map((k, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-bold text-amber-900 shadow-xs dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
+                        >
+                          <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                          {k}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-[11.5px] leading-relaxed text-zinc-600 dark:text-[#8a8f98]">
+                      Recruiters and automated ATS screeners filter for these exact terms. Adding them and quantifying your achievements can elevate your match score into the top 5% of applicants.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Upgrade CTA */}
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleUpgradeCta}
+                  disabled={reviewing || rebuilding}
+                  className="btn-primary group flex w-full items-center justify-center gap-2 rounded-xl py-3 px-4 text-xs sm:text-sm font-bold shadow-md transition hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  {reviewing || rebuilding ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="h-4 w-4 text-indigo-300 transition group-hover:rotate-12" />
+                  )}
+                  <span>Improve your CV and unlock your top matches</span>
+                  <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleApplyMatch}
+                  className="flex w-full items-center justify-center gap-1.5 py-1.5 text-xs text-zinc-500 transition hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
+                >
+                  <span>Search all {ahaMoment.realistic_jobs_count} realistic roles as-is</span>
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ------------------------------------------------ extracted profile */}
           {tab === 'match' && extractedProfile && (
