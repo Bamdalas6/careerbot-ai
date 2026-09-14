@@ -200,26 +200,42 @@ export function verifySessionToken(token: string): SessionTokenPayload | null {
   }
 }
 
+const PBKDF2_ITERATIONS = 210000;
+const LEGACY_PBKDF2_ITERATIONS = 1000;
+
 /**
- * Hashes a plaintext password using crypto.pbkdf2Sync.
+ * Hashes a plaintext password using crypto.pbkdf2Sync with 210,000 iterations (OWASP standard).
  */
 export function hashPassword(password: string): { hash: string; salt: string } {
   const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, 64, 'sha512').toString('hex');
   return { hash, salt };
 }
 
 /**
  * Verifies a password against a stored hash and salt.
+ * Supports both modern 210,000 iteration hashes and legacy 1,000 iteration hashes.
  */
 export function verifyPassword(password: string, hash: string, salt: string): boolean {
   if (!password || !hash || !salt) return false;
   try {
-    const testHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-    const bufA = Buffer.from(testHash, 'hex');
     const bufB = Buffer.from(hash, 'hex');
-    if (bufA.length !== bufB.length) return false;
-    return crypto.timingSafeEqual(bufA, bufB);
+
+    // 1. Try modern 210,000 iteration check
+    const testHash = crypto.pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, 64, 'sha512').toString('hex');
+    const bufA = Buffer.from(testHash, 'hex');
+    if (bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB)) {
+      return true;
+    }
+
+    // 2. Backwards-compatible legacy 1,000 iteration check
+    const legacyHash = crypto.pbkdf2Sync(password, salt, LEGACY_PBKDF2_ITERATIONS, 64, 'sha512').toString('hex');
+    const bufLegacy = Buffer.from(legacyHash, 'hex');
+    if (bufLegacy.length === bufB.length && crypto.timingSafeEqual(bufLegacy, bufB)) {
+      return true;
+    }
+
+    return false;
   } catch {
     return false;
   }

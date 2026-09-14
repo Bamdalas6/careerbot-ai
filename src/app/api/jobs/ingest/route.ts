@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { saveCrawledJobs } from '@/lib/db';
 import { isCompanyExcluded, isJobicyExcluded } from '@/lib/ats-boards';
 import { JobListing } from '@/types/job';
@@ -57,6 +58,28 @@ function parseRawJobPost(rawText: string, sourceUrl?: string, sourceName = 'Comm
 
 export async function POST(req: NextRequest) {
   try {
+    const adminSecret = process.env.ADMIN_API_KEY || process.env.CRON_SECRET;
+    const authHeader = req.headers.get('authorization') || '';
+    const apiKeyHeader = req.headers.get('x-api-key') || '';
+    const providedKey = authHeader.replace(/^Bearer\s+/i, '').trim() || apiKeyHeader.trim();
+
+    if (adminSecret) {
+      const expectedBuf = Buffer.from(adminSecret.trim());
+      const providedBuf = Buffer.from(providedKey);
+      if (
+        providedBuf.length === 0 ||
+        providedBuf.length !== expectedBuf.length ||
+        !crypto.timingSafeEqual(providedBuf, expectedBuf)
+      ) {
+        return NextResponse.json({ success: false, error: 'Unauthorized. Valid admin key required.' }, { status: 401 });
+      }
+    } else if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { success: false, error: 'ADMIN_API_KEY is not configured on server.' },
+        { status: 500 }
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
 
     // Support single job or array of jobs

@@ -11,7 +11,7 @@ import zlib from 'zlib';
  */
 export const runtime = 'nodejs';
 
-const MAX_BYTES = 12 * 1024 * 1024; // 12 MB limit
+const MAX_BYTES = 5 * 1024 * 1024; // 5 MB strict security limit
 
 interface RawPdfItem {
   str?: string;
@@ -308,21 +308,59 @@ export async function POST(req: NextRequest) {
 
     if (file.size > MAX_BYTES) {
       return NextResponse.json(
-        { success: false, error: 'File exceeds 12 MB limit. Please upload a standard text-based CV.' },
+        { success: false, error: 'File exceeds 5 MB limit. Please upload a standard text-based CV under 5 MB.' },
         { status: 413 }
       );
     }
 
     const name = (file.name || '').toLowerCase();
     const buf = Buffer.from(await file.arrayBuffer());
+
+    // Security Check: Guard against binary executables (PE, ELF, Mach-O) disguised as documents
+    const isPE = buf.length >= 2 && buf[0] === 0x4d && buf[1] === 0x5a; // MZ
+    const isELF = buf.length >= 4 && buf[0] === 0x7f && buf[1] === 0x45 && buf[2] === 0x4c && buf[3] === 0x46; // \x7fELF
+    const isMachO =
+      buf.length >= 4 &&
+      ((buf[0] === 0xfe && buf[1] === 0xed && buf[2] === 0xfa && (buf[3] === 0xce || buf[3] === 0xcf)) ||
+        (buf[0] === 0xcf && buf[1] === 0xfa && buf[2] === 0xed && buf[3] === 0xfe) ||
+        (buf[0] === 0xca && buf[1] === 0xfe && buf[2] === 0xba && buf[3] === 0xbe));
+
+    if (isPE || isELF || isMachO) {
+      console.warn('[Security Alert] Executable binary upload blocked in /api/resume/extract:', {
+        name,
+        size: buf.length,
+        type: file.type,
+      });
+      return NextResponse.json(
+        { success: false, error: 'Executable binary files are strictly prohibited. Please upload a valid PDF or Word document.' },
+        { status: 415 }
+      );
+    }
+
+    // Binary Magic Byte Checks
+    const isPdfMagic = buf.length >= 4 && buf.slice(0, 1024).includes(Buffer.from('%PDF-'));
+    const isDocxMagic = buf.length >= 4 && buf[0] === 0x50 && buf[1] === 0x4b && (buf[2] === 0x03 || buf[2] === 0x05); // PK\x03\x04 or PK\x05\x06
+
     let text = '';
 
     if (name.endsWith('.pdf') || file.type === 'application/pdf') {
+      if (!isPdfMagic) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid file format. The uploaded document does not match a valid PDF file structure.' },
+          { status: 415 }
+        );
+      }
       text = await extractPdf(buf);
     } else if (
       name.endsWith('.docx') ||
       file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     ) {
+      if (!isDocxMagic) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid file format. The uploaded document does not match a valid Word (.docx) archive structure.' },
+          { status: 415 }
+        );
+      }
       text = await extractDocx(buf);
     } else if (name.endsWith('.doc')) {
       return NextResponse.json(
@@ -330,6 +368,13 @@ export async function POST(req: NextRequest) {
         { status: 415 }
       );
     } else {
+      // Plain text or Markdown - reject if binary null bytes present
+      if (buf.slice(0, Math.min(buf.length, 1024)).includes(0x00)) {
+        return NextResponse.json(
+          { success: false, error: 'Unsupported binary file type. Please upload a clean PDF, Word (.docx), or text document.' },
+          { status: 415 }
+        );
+      }
       text = buf.toString('utf-8');
     }
 

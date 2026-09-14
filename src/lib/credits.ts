@@ -202,46 +202,15 @@ export async function fulfillPaystackPurchase(params: {
 
   if (existingLocalTx) {
     if (targetUserId && existingLocalTx.user_id !== targetUserId) {
-      // Re-attribute to active logged-in user claiming this reference
-      const prevUser = await getUserById(existingLocalTx.user_id);
-      if (prevUser && (!prevUser.password_hash || prevUser.password_hash.trim() === '')) {
-        prevUser.credits = Math.max(0, (prevUser.credits || 0) - pkg.credits);
-        const curDb = ensureLocalDb();
-        const pU = (curDb.users || []).find((u) => u.id === existingLocalTx.user_id);
-        if (pU) {
-          pU.credits = prevUser.credits;
-          writeLocalDb(curDb);
-        }
-      }
-
-      const creditRes = await updateUserCredits(
-        targetUserId,
-        pkg.credits,
-        'purchase',
-        description,
-        majorAmount,
-        currency.toUpperCase()
-      );
-
-      existingLocalTx.user_id = targetUserId;
-      writeLocalDb(ensureLocalDb());
-
-      if (isSupabaseConfigured && supabase) {
-        try {
-          await supabase.from('transactions').update({ user_id: targetUserId }).eq('id', existingLocalTx.id);
-        } catch {
-          /* ignore */
-        }
-      }
-
+      console.warn(`[Security] Attempted cross-user reference claim for ref ${cleanRef}. Existing user: ${existingLocalTx.user_id}, claimant: ${targetUserId}`);
       return {
-        success: true,
-        credited: true,
+        success: false,
+        credited: false,
         userId: targetUserId,
-        creditsAdded: pkg.credits,
-        newBalance: creditRes.credits,
+        creditsAdded: 0,
+        newBalance: await getActualUserCredits(targetUserId, normalizedEmail),
         package: pkg,
-        message: `${pkg.credits} coins successfully credited to your account!`,
+        message: 'This transaction reference has already been claimed by another account.',
       };
     }
 
@@ -268,29 +237,15 @@ export async function fulfillPaystackPurchase(params: {
 
       if (existingTx) {
         if (targetUserId && existingTx.user_id !== targetUserId) {
-          const creditRes = await updateUserCredits(
-            targetUserId,
-            pkg.credits,
-            'purchase',
-            description,
-            majorAmount,
-            currency.toUpperCase()
-          );
-
-          try {
-            await supabase.from('transactions').update({ user_id: targetUserId }).eq('id', existingTx.id);
-          } catch {
-            /* ignore */
-          }
-
+          console.warn(`[Security] Attempted cross-user reference claim on Supabase for ref ${cleanRef}. Existing user: ${existingTx.user_id}, claimant: ${targetUserId}`);
           return {
-            success: true,
-            credited: true,
+            success: false,
+            credited: false,
             userId: targetUserId,
-            creditsAdded: pkg.credits,
-            newBalance: creditRes.credits,
+            creditsAdded: 0,
+            newBalance: await getActualUserCredits(targetUserId, normalizedEmail),
             package: pkg,
-            message: `${pkg.credits} coins successfully credited to your account!`,
+            message: 'This transaction reference has already been claimed by another account.',
           };
         }
 

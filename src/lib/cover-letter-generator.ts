@@ -17,25 +17,38 @@ export interface CoverLetterParams {
   customStory?: string;
 }
 
+/**
+ * Sanitizes untrusted user inputs to guard against prompt injection, control characters, and tag escapes.
+ */
+export function sanitizeUserInput(input?: string, maxLen = 1000): string {
+  if (!input || typeof input !== 'string') return '';
+  return input
+    .slice(0, maxLen)
+    .replace(/[\u0000-\u0008\u000B-\u000C\u000E-\u001F\u007F-\u009F]/g, '') // remove control chars
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // strip scripts
+    .replace(/<\/?(?:system|instruction|prompt|candidate_context|job_description)\b[^>]*>/gi, '') // strip boundary tags
+    .replace(/(?:ignore previous instructions|system prompt|disregard previous|new instructions:)/gi, '') // defuse prompt override triggers
+    .trim();
+}
+
 export function generateCoverLetter(params: CoverLetterParams): {
   subject: string;
   body: string;
   toneLabel: string;
 } {
-  const {
-    candidateName = 'Candidate Name',
-    jobTitle = 'Position',
-    company = 'Company',
-    hiringManager,
-    tone = 'story',
-    keySkills = [],
-    experienceYears = 5,
-    vibeId,
-    customStory,
-  } = params;
+  const candidateName = sanitizeUserInput(params.candidateName || 'Candidate Name', 100);
+  const jobTitle = sanitizeUserInput(params.jobTitle || 'Position', 120);
+  const company = sanitizeUserInput(params.company || 'Company', 120);
+  const hiringManager = sanitizeUserInput(params.hiringManager, 100);
+  const tone = params.tone || 'story';
+  const customStory = sanitizeUserInput(params.customStory, 2000);
+  const experienceYears = typeof params.experienceYears === 'number' && params.experienceYears > 0 ? params.experienceYears : 5;
+  const vibeId = params.vibeId;
 
   const recipient = hiringManager && hiringManager.trim() ? hiringManager.trim() : 'Hiring Team';
-  const safeKeySkills = Array.isArray(keySkills) ? keySkills.filter(Boolean) : [];
+  const safeKeySkills = Array.isArray(params.keySkills)
+    ? params.keySkills.map((s) => sanitizeUserInput(String(s), 60)).filter(Boolean)
+    : [];
   const topSkillsList = safeKeySkills.length > 0 ? safeKeySkills.slice(0, 4).join(', ') : 'modern industry methodologies';
   const skillsSentence = safeKeySkills.length > 0 ? safeKeySkills.slice(0, 3).join(', ') : 'scalable problem solving';
 

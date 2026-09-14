@@ -131,37 +131,11 @@ const DATA_DIR = path.join(process.cwd(), '.data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 const INITIAL_DB: DatabaseSchema = {
-  users: [
-    {
-      id: 'user_habeeb_mosaku_731',
-      name: 'Habeeb Mosaku',
-      email: 'habeebmosaku731@gmail.com',
-      password_hash: '',
-      salt: '',
-      credits: 62,
-      referral_code: 'habeeb731',
-      referral_count: 0,
-      referral_earnings: 0,
-      created_at: '2026-09-12T15:00:00.000Z',
-      updated_at: '2026-09-12T16:15:00.000Z',
-    },
-  ],
+  users: [],
   sessions: [],
   chats: [],
   resumes: [],
-  transactions: [
-    {
-      id: 'tx_paystack_starter_habeeb_5000',
-      user_id: 'user_habeeb_mosaku_731',
-      type: 'purchase',
-      amount: 5000,
-      currency: 'NGN',
-      credits_delta: 50,
-      balance_after: 62,
-      description: 'Paystack Starter Pack purchase (+50 credits) [Manual confirmation: 12 + 50 = 62 coins]',
-      created_at: '2026-09-12T16:15:00.000Z',
-    },
-  ],
+  transactions: [],
   applications: [],
   password_resets: [],
   used_reset_tokens: [],
@@ -184,40 +158,6 @@ export function ensureLocalDb(): DatabaseSchema {
       const parsed = JSON.parse(raw) as Partial<DatabaseSchema>;
       const users = parsed.users || [];
       const transactions = parsed.transactions || [];
-
-      // Ensure confirmed buyer Habeeb has 62 coins in active db
-      const habeeb = users.find((u) => u.email && u.email.toLowerCase() === 'habeebmosaku731@gmail.com');
-      if (!habeeb) {
-        users.push({
-          id: 'user_habeeb_mosaku_731',
-          name: 'Habeeb Mosaku',
-          email: 'habeebmosaku731@gmail.com',
-          password_hash: '',
-          salt: '',
-          credits: 62,
-          referral_code: 'habeeb731',
-          referral_count: 0,
-          referral_earnings: 0,
-          created_at: '2026-09-12T15:00:00.000Z',
-          updated_at: '2026-09-12T16:15:00.000Z',
-        });
-      } else if (habeeb.credits < 62) {
-        habeeb.credits = 62;
-      }
-
-      if (!transactions.some((t) => t.id === 'tx_paystack_starter_habeeb_5000')) {
-        transactions.push({
-          id: 'tx_paystack_starter_habeeb_5000',
-          user_id: habeeb?.id || 'user_habeeb_mosaku_731',
-          type: 'purchase',
-          amount: 5000,
-          currency: 'NGN',
-          credits_delta: 50,
-          balance_after: 62,
-          description: 'Paystack Starter Pack purchase (+50 credits) [Manual confirmation: 12 + 50 = 62 coins]',
-          created_at: '2026-09-12T16:15:00.000Z',
-        });
-      }
 
       return {
         users,
@@ -2331,6 +2271,60 @@ export async function saveUserResume(
   db.resumes.push(record);
   writeLocalDb(db);
   return record;
+}
+
+/**
+ * Permanently deletes a specific resume for the authenticated user (NDPA compliance).
+ */
+export async function deleteUserResume(resumeId: string, userId: string): Promise<boolean> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('resumes').delete().eq('id', resumeId).eq('user_id', userId);
+    } catch (err) {
+      console.warn('Supabase deleteUserResume notice:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
+  const initialLen = (db.resumes || []).length;
+  db.resumes = (db.resumes || []).filter((r) => !(r.id === resumeId && r.user_id === userId));
+  const changed = db.resumes.length !== initialLen;
+  if (changed) {
+    writeLocalDb(db);
+  }
+  return changed;
+}
+
+/**
+ * Permanently cascades and erases a user's account and all associated PII / data (NDPA right to erasure).
+ */
+export async function deleteUserAccount(userId: string): Promise<boolean> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      // Cascade delete across all tables in Supabase
+      await supabase.from('resumes').delete().eq('user_id', userId);
+      await supabase.from('chats').delete().eq('user_id', userId);
+      await supabase.from('applications').delete().eq('user_id', userId);
+      await supabase.from('sessions').delete().eq('user_id', userId);
+      await supabase.from('transactions').delete().eq('user_id', userId);
+      await supabase.from('users').delete().eq('id', userId);
+    } catch (err) {
+      console.warn('Supabase deleteUserAccount notice:', err);
+    }
+  }
+
+  const db = ensureLocalDb();
+  const initialCount = (db.users || []).length;
+
+  db.users = (db.users || []).filter((u) => u.id !== userId);
+  db.sessions = (db.sessions || []).filter((s) => s.user_id !== userId);
+  db.chats = (db.chats || []).filter((c) => c.user_id !== userId);
+  db.resumes = (db.resumes || []).filter((r) => r.user_id !== userId);
+  db.applications = (db.applications || []).filter((a) => a.user_id !== userId);
+  db.transactions = (db.transactions || []).filter((t) => t.user_id !== userId);
+
+  writeLocalDb(db);
+  return db.users.length !== initialCount;
 }
 
 // ================= TRANSACTION HISTORY ================= //

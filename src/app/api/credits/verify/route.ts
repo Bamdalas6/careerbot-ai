@@ -38,23 +38,10 @@ async function handleVerification(req: NextRequest, referenceInput?: string | nu
 
   if (existingLocalTx) {
     if (activeUserId && existingLocalTx.user_id !== activeUserId) {
-      const fulfillment = await fulfillPaystackPurchase({
-        email: activeUserEmail || 'customer@paystack.com',
-        amountInSmallestUnit: (existingLocalTx.amount ? Math.round(existingLocalTx.amount * 100) : 500000),
-        currency: existingLocalTx.currency || 'NGN',
-        reference: cleanReference,
-        targetUserId: activeUserId,
-      });
-
       return NextResponse.json({
-        success: true,
-        verified: true,
-        credited: fulfillment.credited,
-        creditsAdded: fulfillment.creditsAdded,
-        newBalance: fulfillment.newBalance,
-        package: fulfillment.package,
-        message: fulfillment.message,
-      });
+        success: false,
+        error: 'This transaction reference has already been claimed by another account.',
+      }, { status: 403 });
     }
 
     const currentBalance = await getActualUserCredits(
@@ -82,23 +69,10 @@ async function handleVerification(req: NextRequest, referenceInput?: string | nu
 
       if (supaTx) {
         if (activeUserId && supaTx.user_id !== activeUserId) {
-          const fulfillment = await fulfillPaystackPurchase({
-            email: activeUserEmail || 'customer@paystack.com',
-            amountInSmallestUnit: (supaTx.amount ? Math.round(Number(supaTx.amount) * 100) : 500000),
-            currency: supaTx.currency || 'NGN',
-            reference: cleanReference,
-            targetUserId: activeUserId,
-          });
-
           return NextResponse.json({
-            success: true,
-            verified: true,
-            credited: fulfillment.credited,
-            creditsAdded: fulfillment.creditsAdded,
-            newBalance: fulfillment.newBalance,
-            package: fulfillment.package,
-            message: fulfillment.message,
-          });
+            success: false,
+            error: 'This transaction reference has already been claimed by another account.',
+          }, { status: 403 });
         }
 
         const currentBalance = await getActualUserCredits(
@@ -189,8 +163,29 @@ async function handleVerification(req: NextRequest, referenceInput?: string | nu
           tx.metadata?.email ||
           tx.order?.customer?.email;
 
-        // Prefer active logged-in user's email if available so coins are credited directly to their active session
-        const email = activeUserEmail || customerEmail;
+        // Security check: If a user is signed in, verify this payment belongs to them
+        const normalizedCustomerEmail = (customerEmail || '').trim().toLowerCase();
+        const normalizedActiveEmail = (activeUserEmail || '').trim().toLowerCase();
+        const txMetadataUserId = tx.metadata?.userId || tx.metadata?.user_id;
+
+        if (
+          normalizedActiveEmail &&
+          normalizedCustomerEmail &&
+          normalizedActiveEmail !== normalizedCustomerEmail &&
+          txMetadataUserId !== activeUserId
+        ) {
+          console.warn('[Security] Unauthorized transaction verify attempt: Email mismatch', {
+            activeUserEmail,
+            customerEmail,
+            reference: cleanReference,
+          });
+          return NextResponse.json(
+            { success: false, error: 'The email address on this payment does not match your active account.' },
+            { status: 403 }
+          );
+        }
+
+        const email = normalizedActiveEmail || normalizedCustomerEmail;
         const amount = typeof tx.amount === 'number' ? tx.amount : Number(tx.amount || tx.total_amount);
         const currency = tx.currency || 'NGN';
         const packageId = tx.metadata?.packageId || tx.metadata?.package_id || tx.metadata?.plan;

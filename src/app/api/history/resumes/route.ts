@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/auth';
-import { getUserResumes, saveUserResume } from '@/lib/db';
+import { getUserResumes, saveUserResume, deleteUserResume } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   try {
@@ -42,5 +42,29 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     console.error('Error saving resume history:', err);
     return NextResponse.json({ success: false, error: 'Failed to save resume.' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const auth = await authenticateRequest(req);
+    if (!auth) {
+      return NextResponse.json({ success: false, error: 'Authentication required.' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const idFromQuery = searchParams.get('id');
+    const body = await req.json().catch(() => ({}));
+    const resumeId = idFromQuery || body?.id;
+
+    if (!resumeId) {
+      return NextResponse.json({ success: false, error: 'Resume ID is required.' }, { status: 400 });
+    }
+
+    const deleted = await deleteUserResume(resumeId, auth.user.id);
+    return NextResponse.json({ success: true, deleted, message: 'Resume deleted successfully.' });
+  } catch (err: unknown) {
+    console.error('Error deleting resume:', err);
+    return NextResponse.json({ success: false, error: 'Failed to delete resume.' }, { status: 500 });
   }
 }

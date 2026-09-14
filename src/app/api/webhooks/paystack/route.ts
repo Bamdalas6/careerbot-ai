@@ -19,14 +19,6 @@ export async function POST(req: NextRequest) {
     const signature = req.headers.get('x-paystack-signature');
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
 
-    if (!secretKey) {
-      console.error('[Paystack Webhook] PAYSTACK_SECRET_KEY is not configured in environment.');
-      return NextResponse.json(
-        { error: 'PAYSTACK_SECRET_KEY is not configured on server.' },
-        { status: 500 }
-      );
-    }
-
     if (!signature) {
       console.warn('[Paystack Webhook] Request missing x-paystack-signature header.');
       return NextResponse.json(
@@ -35,16 +27,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify HMAC-SHA512 signature using Paystack Secret Key
+    if (!secretKey) {
+      console.error('[Paystack Webhook] PAYSTACK_SECRET_KEY is not configured in environment.');
+      return NextResponse.json(
+        { error: 'PAYSTACK_SECRET_KEY is not configured on server.' },
+        { status: 500 }
+      );
+    }
+
+    // Verify HMAC-SHA512 signature using Paystack Secret Key with constant-time comparison
     const computedSignature = crypto
       .createHmac('sha512', secretKey.trim())
       .update(rawBody)
       .digest('hex');
 
-    const signatureMatch =
-      computedSignature.trim().toLowerCase() === signature.trim().toLowerCase();
+    const sigBuf = Buffer.from(signature.trim().toLowerCase(), 'hex');
+    const compBuf = Buffer.from(computedSignature.trim().toLowerCase(), 'hex');
 
-    if (!signatureMatch) {
+    if (sigBuf.length === 0 || sigBuf.length !== compBuf.length || !crypto.timingSafeEqual(sigBuf, compBuf)) {
       console.warn('[Paystack Webhook] Signature mismatch.');
       return NextResponse.json(
         { error: 'Invalid webhook signature.' },
