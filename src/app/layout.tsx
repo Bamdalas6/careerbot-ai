@@ -6,8 +6,8 @@ import { AuthModal } from '@/components/Auth/AuthModal';
 import { CreditTopUpModal } from '@/components/Credits/CreditTopUpModal';
 
 export const metadata: Metadata = {
-  title: 'CareerBot AI - AI Job Discovery & Direct Career Links',
-  description: 'Search live tech jobs, get direct links to verified company career pages, score match suitability, and generate 1-click tailored application pitches.',
+  title: 'CareerBot AI — Stop Applying Blindly. Find Jobs You’re Actually Qualified For.',
+  description: 'CareerBot matches your CV to live opportunities, tells you why you’re a fit, and helps you build a stronger application. Search jobs instantly.',
 };
 
 export default function RootLayout({

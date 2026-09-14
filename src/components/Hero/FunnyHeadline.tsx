@@ -41,38 +41,23 @@ export const FunnyHeadline: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center gap-4 text-center">
-      {/* key forces a remount so the word-by-word animation replays each rotation */}
-      <h1
-        key={index}
-        className="max-w-[44rem] text-[30px] font-medium leading-[1.1] tracking-[-0.03em] text-zinc-900 dark:text-[#f7f8f8] sm:text-[40px] lg:max-w-[52rem] lg:text-[52px]"
-      >
-        <span className="block">
-          {leadWords.map((word, i) => (
-            <span
-              key={`${index}-lead-${i}`}
-              className="word-rise inline-block whitespace-pre"
-              style={{ animationDelay: `${i * 50}ms` }}
-            >
-              {word}{' '}
-            </span>
-          ))}
+      {/* Playful rotating status pill */}
+      <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-black/[0.03] px-3.5 py-1 text-xs font-medium text-zinc-700 backdrop-blur-md dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-[#8a8f98]">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        <span key={index} className="word-rise inline-block">
+          {line.lead} {line.punch}
         </span>
+      </div>
+
+      <h1 className="max-w-[44rem] text-[32px] font-medium leading-[1.1] tracking-[-0.03em] text-zinc-900 dark:text-[#f7f8f8] sm:text-[44px] lg:max-w-[54rem] lg:text-[54px]">
+        <span className="block">Stop applying blindly.</span>
         <span className="block text-zinc-500 dark:text-[#8a8f98]">
-          {punchWords.map((word, i) => (
-            <span
-              key={`${index}-punch-${i}`}
-              className="word-rise inline-block whitespace-pre"
-              style={{ animationDelay: `${(leadWords.length + i) * 50 + 60}ms` }}
-            >
-              {word}{' '}
-            </span>
-          ))}
+          Find jobs you’re actually qualified for.
         </span>
       </h1>
 
-      <p className="max-w-[34rem] text-[15px] leading-relaxed text-zinc-600 dark:text-[#8a8f98] sm:text-base">
-        Live roles pulled straight from company career pages. Direct apply links, an
-        honest match score, and exactly zero recruiter spam.
+      <p className="max-w-[36rem] text-[15px] leading-relaxed text-zinc-600 dark:text-[#8a8f98] sm:text-base">
+        CareerBot matches your CV to live opportunities, tells you why you’re a fit, and helps you build a stronger application.
       </p>
     </div>
   );

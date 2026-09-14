@@ -28,7 +28,7 @@ const FACTS: { value: string; label: string; detail: string }[] = [
   {
     value: '4',
     label: 'Pipeline stages',
-    detail: 'Saved → Applied → Interviewing → Offer, tracked in your browser.',
+    detail: 'Saved → Applied → Interviewing → Offer. Track every application step in one place.',
   },
   {
     value: '1',
@@ -36,9 +36,9 @@ const FACTS: { value: string; label: string; detail: string }[] = [
     detail: 'Tailored bullets, a cover note and interview prep, generated per role.',
   },
   {
-    value: 'None',
-    label: 'Sign-up required',
-    detail: 'No account, no email. Saved roles live in local storage on your device.',
+    value: 'Instant',
+    label: 'Search without sign-up',
+    detail: 'Search jobs instantly. Create an account only when you want to save your progress, use AI tools or buy credits.',
   },
 ];
 
@@ -49,8 +49,8 @@ export const FactsSection: React.FC = () => {
         <div className="flex flex-col gap-3">
           <span className="eyebrow">Fig 0.1 — The short version</span>
           <h2 className="max-w-2xl text-[28px] font-medium leading-[1.15] tracking-[-0.03em] text-zinc-900 dark:text-[#f7f8f8] sm:text-[40px]">
-            A job search that behaves like a tool,
-            <span className="text-zinc-500 dark:text-[#8a8f98]"> not a funnel.</span>
+            Stop applying blindly.
+            <span className="text-zinc-500 dark:text-[#8a8f98]"> Find jobs you’re actually qualified for.</span>
           </h2>
         </div>
 

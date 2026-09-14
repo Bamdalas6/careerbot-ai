@@ -121,11 +121,11 @@ const CAPABILITIES: Capability[] = [
     index: '6.0',
     kicker: 'Pipeline',
     title: 'Track every application in one place',
-    body: 'Save a role and it enters your pipeline. Move it through four stages as things progress. Everything stays in your browser — no account, no export wall.',
+    body: 'Search jobs instantly and move roles through four pipeline stages as things progress. Create an account only when you want to save your progress, use AI tools or buy credits.',
     items: [
       { id: '6.1', label: 'Four stages', detail: 'Saved, Applied, Interviewing and Offer, moved with one click.' },
-      { id: '6.2', label: 'Local persistence', detail: 'Kept in local storage on your device, not on a server.' },
-      { id: '6.3', label: 'No account', detail: 'Nothing to sign up for and nothing to cancel later.' },
+      { id: '6.2', label: 'Instant search', detail: 'Search jobs immediately without being forced into an upfront signup flow.' },
+      { id: '6.3', label: 'Account when needed', detail: 'Create an account to sync saved roles across devices, unlock AI tailoring, and top up credits.' },
     ],
     panel: {
       title: 'Pipeline',

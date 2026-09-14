@@ -38,9 +38,14 @@ export const OrbHero: React.FC<OrbHeroProps> = ({ onSearch, isLoading = false })
           onExcitementChange={handleExcitement}
           isLoading={isLoading}
         />
-        <p className="text-[12.5px] text-[#62666d]">
-          Grab the orb and pull it — it stretches. Nothing happens, it just feels nice.
-        </p>
+        <div className="flex flex-col items-center gap-1.5 text-center">
+          <p className="text-[13px] font-medium text-zinc-700 dark:text-[#8a8f98]">
+            Search jobs instantly. Create an account only when you want to save your progress, use AI tools or buy credits.
+          </p>
+          <p className="text-[11.5px] text-zinc-400 dark:text-[#62666d]">
+            Grab the orb and pull it — it stretches. Nothing happens, it just feels nice.
+          </p>
+        </div>
       </div>
     </section>
   );

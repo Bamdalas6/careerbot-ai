@@ -107,8 +107,7 @@ export const SiteFooter: React.FC<SiteFooterProps> = ({
 
         <div className="mt-14 flex flex-col gap-3 border-t border-black/10 dark:border-white/[0.08] pt-6 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-[12.5px] text-zinc-500 dark:text-[#62666d]">
-            Saved roles are stored in your browser. Nothing leaves your device unless you
-            click through to apply.
+            Search jobs instantly. Create an account only when you want to save your progress, use AI tools or buy credits.
           </span>
           <span className="text-[12.5px] text-zinc-500 dark:text-[#62666d]">MIT licensed</span>
         </div>
