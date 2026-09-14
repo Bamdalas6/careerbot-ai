@@ -16,8 +16,8 @@ export const ClosingCTA: React.FC<ClosingCTAProps> = ({ onStartSearch, onOpenRes
         <div className="flex flex-col gap-4">
           <span className="eyebrow">Fig 0.3 — Now then</span>
           <h2 className="max-w-2xl text-[30px] font-medium leading-[1.12] tracking-[-0.03em] text-zinc-900 dark:text-[#f7f8f8] sm:text-[46px]">
-            Stop applying blindly.
-            <span className="block text-zinc-500 dark:text-[#8a8f98]">Find jobs you’re actually qualified for.</span>
+            Still unemployed?
+            <span className="block text-zinc-500 dark:text-[#8a8f98]">Let’s ruin that streak.</span>
           </h2>
           <p className="mx-auto max-w-lg text-[15px] leading-relaxed text-zinc-600 dark:text-[#8a8f98]">
             Search jobs instantly. Create an account only when you want to save your progress, use AI tools or buy credits.

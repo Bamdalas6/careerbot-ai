@@ -49,8 +49,8 @@ export const FactsSection: React.FC = () => {
         <div className="flex flex-col gap-3">
           <span className="eyebrow">Fig 0.1 — The short version</span>
           <h2 className="max-w-2xl text-[28px] font-medium leading-[1.15] tracking-[-0.03em] text-zinc-900 dark:text-[#f7f8f8] sm:text-[40px]">
-            Stop applying blindly.
-            <span className="text-zinc-500 dark:text-[#8a8f98]"> Find jobs you’re actually qualified for.</span>
+            A job search that behaves like a tool,
+            <span className="text-zinc-500 dark:text-[#8a8f98]"> not a funnel.</span>
           </h2>
         </div>
 
