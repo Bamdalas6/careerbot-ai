@@ -217,7 +217,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
   onClose,
   onParsedSkills,
 }) => {
-  const { requireAuth, updateCredits, openCreditModal } = useAuth();
+  const { user, credits, requireAuth, updateCredits, openCreditModal } = useAuth();
   const [resumeText, setResumeText] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -505,6 +505,12 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
       return;
     }
 
+    if (credits <= 0) {
+      handleClose();
+      openCreditModal();
+      return;
+    }
+
     onParsedSkills(
       extractedProfile || { name: '', skills: [], extracted_title: role, summary: '' },
       query
@@ -523,6 +529,12 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
       return;
     }
 
+    if (credits <= 0) {
+      handleClose();
+      openCreditModal();
+      return;
+    }
+
     onParsedSkills(
       extractedProfile || { name: '', skills: [], extracted_title: roleTitle, summary: '' },
       query
@@ -532,6 +544,10 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
 
   const handleUpgradeCta = async () => {
     if (!requireAuth()) return;
+    if (credits <= 0) {
+      openCreditModal();
+      return;
+    }
     if (!review) {
       await handleUpgrade();
     } else {

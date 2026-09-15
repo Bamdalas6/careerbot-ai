@@ -249,6 +249,11 @@ export default function Home() {
       return;
     }
 
+    if (credits <= 0) {
+      openCreditModal();
+      return;
+    }
+
     // Switch to chat view if not already there
     setCurrentView('chat');
 
@@ -343,10 +348,14 @@ export default function Home() {
       const pending = localStorage.getItem('careerbot_pending_search');
       if (pending) {
         localStorage.removeItem('careerbot_pending_search');
-        handleSendMessage(pending);
+        if (credits <= 0) {
+          openCreditModal();
+        } else {
+          handleSendMessage(pending);
+        }
       }
     }
-  }, [user]);
+  }, [user, credits]);
 
   const handleParsedSkills = (profile: ResumeProfile, autoSearchQuery: string) => {
     if (!user) {
@@ -354,6 +363,10 @@ export default function Home() {
         localStorage.setItem('careerbot_pending_search', autoSearchQuery);
       }
       requireAuth();
+      return;
+    }
+    if (credits <= 0) {
+      openCreditModal();
       return;
     }
     handleSendMessage(autoSearchQuery);

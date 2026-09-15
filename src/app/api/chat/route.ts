@@ -18,15 +18,21 @@ export async function POST(req: NextRequest) {
     }
 
     const { user } = auth;
-    let remainingCredits: number | undefined = undefined;
 
-    // Deduct 1 credit if available, but don't hard-crash the discovery if 0 credits
-    if (user.credits > 0) {
-      const deduction = await deductUserCredits(user.id, user.credits, 'CHAT_SEARCH', 'AI Job Search & Live Query');
-      if (deduction.success) {
-        remainingCredits = deduction.newCredits;
-      }
+    // Deduct 1 credit for search query - users with 0 coins must purchase coins before searching
+    const deduction = await deductUserCredits(user.id, user.credits, 'CHAT_SEARCH', 'AI Job Search & Live Query');
+    if (!deduction.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'INSUFFICIENT_CREDITS',
+          message: deduction.error || 'You have 0 coins left. Please purchase coins to search and discover matching jobs.',
+          remainingCredits: deduction.newCredits,
+        },
+        { status: 402 }
+      );
     }
+    const remainingCredits = deduction.newCredits;
 
     const body = await req.json();
     const { message, history } = body;
