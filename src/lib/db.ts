@@ -356,6 +356,17 @@ export async function getActualUserCredits(userId: string, email?: string): Prom
     }
   }
 
+  // Admin manual grant: 5 coins for olamidedavid1111@gmail.com
+  if (normalizedEmail === 'olamidedavid1111@gmail.com') {
+    if (finalBalance < 5) {
+      finalBalance = 5;
+      if (localUser && localUser.credits < 5) {
+        localUser.credits = 5;
+        writeLocalDb(db);
+      }
+    }
+  }
+
   return finalBalance;
 }
 
