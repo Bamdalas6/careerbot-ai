@@ -49,6 +49,16 @@ export default function Home() {
     }
   });
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [activeNavTab, setActiveNavTab] = useState<AppNavTab>('home');
+  const [userCvProfile, setUserCvProfile] = useState<ResumeProfile | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const saved = localStorage.getItem('careerbot_user_cv');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // Modals & Drawers state
   const [selectedJobForDetails, setSelectedJobForDetails] = useState<JobListing | null>(null);
@@ -366,18 +376,14 @@ export default function Home() {
   }, [user, credits]);
 
   const handleParsedSkills = (profile: ResumeProfile, autoSearchQuery: string) => {
-    if (!user) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('careerbot_pending_search', autoSearchQuery);
-      }
-      requireAuth();
-      return;
+    setUserCvProfile(profile);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('careerbot_user_cv', JSON.stringify(profile));
     }
-    if (credits <= 0) {
-      openCreditModal();
-      return;
-    }
-    handleSendMessage(autoSearchQuery);
+    setActiveNavTab('jobs');
+    setCurrentView('feed');
+    setIsResumeOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleStartFromWelcome = () => {
@@ -388,6 +394,7 @@ export default function Home() {
   };
 
   const handleTabChange = (tab: AppNavTab) => {
+    setActiveNavTab(tab);
     if (tab === 'home') {
       setCurrentView('feed');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -397,7 +404,7 @@ export default function Home() {
       if (jobListElem) {
         jobListElem.scrollIntoView({ behavior: 'smooth' });
       } else {
-        window.scrollTo({ top: 380, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } else if (tab === 'request') {
       if (!requireAuth()) return;
@@ -488,6 +495,18 @@ export default function Home() {
           <DiscoveryFeed
             jobs={COMMUNITY_JOBS}
             currentLocation={currentLocation}
+            isJobsMode={activeNavTab === 'jobs'}
+            cvProfile={userCvProfile}
+            onClearCvFilter={() => {
+              setUserCvProfile(null);
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('careerbot_user_cv');
+              }
+            }}
+            onOpenUploadCv={() => {
+              if (!requireAuth()) return;
+              setIsResumeOpen(true);
+            }}
             onSearchSubmit={(q) => handleSendMessage(q)}
             onOpenFilterDrawer={() => {
               if (!requireAuth()) return;
@@ -498,6 +517,7 @@ export default function Home() {
             onOpenTailor={handleOpenTailor}
             onViewJob={handleViewJob}
             onViewAllSuggested={() => {
+              setActiveNavTab('jobs');
               const jobListElem = document.getElementById('job-list-section');
               if (jobListElem) {
                 jobListElem.scrollIntoView({ behavior: 'smooth' });
@@ -543,7 +563,7 @@ export default function Home() {
       {/* Floating Bottom Navigation Dock (Matching Mockup Screen 2) */}
       {currentView !== 'welcome' && (
         <BottomNavDock
-          activeTab={isJobRequestOpen ? 'request' : currentView === 'chat' ? 'chat' : 'home'}
+          activeTab={isJobRequestOpen ? 'request' : currentView === 'chat' ? 'chat' : activeNavTab}
           onTabChange={handleTabChange}
           onCenterPlusClick={() => {
             if (!requireAuth()) return;

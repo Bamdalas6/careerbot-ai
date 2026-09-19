@@ -16,7 +16,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark h-full antialiased" suppressHydrationWarning>
+    <html lang="en" className="light h-full antialiased" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -24,9 +24,7 @@ export default function RootLayout({
               (function() {
                 try {
                   var stored = localStorage.getItem('careerbot_theme');
-                  var theme = (stored === 'light' || stored === 'dark')
-                    ? stored
-                    : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+                  var theme = (stored === 'light' || stored === 'dark') ? stored : 'light';
                   var root = document.documentElement;
                   root.setAttribute('data-theme', theme);
                   if (theme === 'light') {

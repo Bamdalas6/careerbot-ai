@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MapPin, ChevronDown, Bell, User, LogOut, Settings, Coins } from 'lucide-react';
+import { MapPin, ChevronDown, Bookmark, BookmarkCheck, User, LogOut, Settings, Coins } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 interface AppHeaderProps {
@@ -223,7 +223,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             <span>{credits ?? 5}</span>
           </button>
 
-          {/* Circular Bell Icon matching screenshot */}
+          {/* Circular Saved Jobs Icon */}
           <button
             type="button"
             onClick={() => {
@@ -233,16 +233,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               }
               onOpenSaved?.();
             }}
-            className="relative w-10 h-10 rounded-full bg-white border border-slate-200/90 flex items-center justify-center text-slate-700 hover:text-blue-600 transition-colors shadow-2xs cursor-pointer"
-            title="Saved Opportunities"
+            className="relative w-10 h-10 rounded-full bg-white border border-slate-200/90 flex items-center justify-center text-slate-700 hover:text-blue-600 transition-colors shadow-2xs cursor-pointer active:scale-95"
+            title={savedCount > 0 ? `Saved Jobs (${savedCount})` : 'Saved Jobs'}
           >
-            <Bell className="w-4.5 h-4.5" />
             {savedCount > 0 ? (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 text-white rounded-full text-[10px] font-bold flex items-center justify-center">
+              <BookmarkCheck className="w-4.5 h-4.5 text-blue-600 fill-blue-600/15" />
+            ) : (
+              <Bookmark className="w-4.5 h-4.5 text-slate-600" />
+            )}
+            {savedCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow-xs">
                 {savedCount}
               </span>
-            ) : (
-              <span className="absolute top-2 right-2 w-2 h-2 bg-blue-600 rounded-full" />
             )}
           </button>
         </div>

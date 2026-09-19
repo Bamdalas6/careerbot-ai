@@ -1,14 +1,18 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search, SlidersHorizontal, X, Sparkles } from 'lucide-react';
-import { JobListing } from '@/types/job';
+import { Search, SlidersHorizontal, X, Sparkles, FileText, CheckCircle2 } from 'lucide-react';
+import { JobListing, ResumeProfile } from '@/types/job';
 import { SuggestedWorkCard } from './SuggestedWorkCard';
 import { JobFeedCard } from './JobFeedCard';
 
 interface DiscoveryFeedProps {
   jobs: JobListing[];
   currentLocation?: string;
+  isJobsMode?: boolean;
+  cvProfile?: ResumeProfile | null;
+  onClearCvFilter?: () => void;
+  onOpenUploadCv?: () => void;
   onSearchSubmit: (query: string) => void;
   onOpenFilterDrawer: () => void;
   onToggleSave: (job: JobListing) => void;
@@ -253,9 +257,60 @@ function matchJobBySearchQuery(job: JobListing, query: string): boolean {
   });
 }
 
+function matchJobToCv(job: JobListing, cv: ResumeProfile): { matches: boolean; score: number } {
+  let score = 0;
+  const title = (job.title || '').toLowerCase();
+  const tags = (job.tags || []).map((t) => t.toLowerCase());
+  const desc = (job.description || '').toLowerCase();
+
+  // 1. Check extracted title
+  if (cv.extracted_title) {
+    const et = cv.extracted_title.toLowerCase().trim();
+    if (title.includes(et) || tags.some((t) => t.includes(et))) {
+      score += 5;
+    } else {
+      const words = et.split(/\s+/).filter((w) => w.length > 2 && !/senior|junior|lead|intern|staff|head|specialist|officer/i.test(w));
+      if (words.some((w) => hasWholeWord(title, w) || tags.some((t) => hasWholeWord(t, w)))) {
+        score += 3;
+      }
+    }
+  }
+
+  // 2. Check preferred roles
+  if (cv.preferred_roles && cv.preferred_roles.length > 0) {
+    for (const pr of cv.preferred_roles) {
+      const r = pr.toLowerCase().trim();
+      if (title.includes(r) || tags.some((t) => t.includes(r))) {
+        score += 4;
+      }
+    }
+  }
+
+  // 3. Check skills
+  if (cv.skills && cv.skills.length > 0) {
+    for (const s of cv.skills) {
+      const skill = s.toLowerCase().trim();
+      if (skill.length < 2) continue;
+      if (hasWholeWord(title, skill)) {
+        score += 3;
+      } else if (tags.some((t) => hasWholeWord(t, skill))) {
+        score += 2;
+      } else if (hasWholeWord(desc, skill)) {
+        score += 1;
+      }
+    }
+  }
+
+  return { matches: score > 0, score };
+}
+
 export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
   jobs,
   currentLocation = 'All Locations',
+  isJobsMode = false,
+  cvProfile = null,
+  onClearCvFilter,
+  onOpenUploadCv,
   onSearchSubmit,
   onOpenFilterDrawer,
   onToggleSave,
@@ -267,7 +322,7 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
   const [searchInput, setSearchInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Jobs');
 
-  // Live intelligent filtering by category, search keywords, and territory
+  // Live intelligent filtering by category, search keywords, territory, and CV profile
   const filteredJobs = useMemo(() => {
     let list = jobs;
 
@@ -304,8 +359,21 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
       list = list.filter((j) => matchJobBySearchQuery(j, searchInput));
     }
 
+    // 4. CV Profile Filter: When a CV profile is active, show only roles related to the user's CV
+    if (cvProfile && (cvProfile.skills?.length || cvProfile.extracted_title || cvProfile.preferred_roles?.length)) {
+      const matched = list
+        .map((j) => ({ job: j, result: matchJobToCv(j, cvProfile) }))
+        .filter((item) => item.result.matches)
+        .sort((a, b) => b.result.score - a.result.score)
+        .map((item) => item.job);
+
+      if (matched.length > 0) {
+        list = matched;
+      }
+    }
+
     return list;
-  }, [jobs, selectedCategory, searchInput, currentLocation]);
+  }, [jobs, selectedCategory, searchInput, currentLocation, cvProfile]);
 
   const handleClearSearch = () => {
     setSearchInput('');
@@ -424,8 +492,51 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
         </div>
       )}
 
-      {/* Suggested Works Section (Clean Hero Card matching mockup) */}
-      {filteredJobs.length > 0 && (
+      {/* CV Tailored Matching Banner */}
+      {cvProfile && (
+        <div className="my-3 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-sky-500/10 border border-blue-200/80 flex items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#0080ff] text-white flex items-center justify-center shrink-0 shadow-xs">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-bold text-slate-900">Filtered by your CV</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                  {filteredJobs.length} matches
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">
+                {cvProfile.extracted_title ? `Role: ${cvProfile.extracted_title}` : `${cvProfile.skills?.length || 0} skills matched`}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {onOpenUploadCv && (
+              <button
+                type="button"
+                onClick={onOpenUploadCv}
+                className="px-2.5 py-1 rounded-lg bg-white border border-blue-200 text-[11px] font-bold text-blue-600 hover:bg-blue-50 transition shadow-2xs"
+              >
+                Change CV
+              </button>
+            )}
+            {onClearCvFilter && (
+              <button
+                type="button"
+                onClick={onClearCvFilter}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                title="Clear CV filter"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Suggested Works Section (Shown on Home tab; hidden in Jobs mode per user spec) */}
+      {!isJobsMode && filteredJobs.length > 0 && (
         <SuggestedWorkCard
           jobs={filteredJobs}
           isSaved={false}
@@ -440,8 +551,11 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
       <div id="job-list-section" className="mt-7 mb-3 flex items-center justify-between px-1 scroll-mt-20">
         <div className="flex items-center gap-2">
           <h2 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
-            Job List
+            {isJobsMode ? 'All Job Openings' : 'Job List'}
           </h2>
+          {isJobsMode && (
+            <span className="text-xs text-slate-400 font-medium">({filteredJobs.length} available)</span>
+          )}
         </div>
       </div>
 

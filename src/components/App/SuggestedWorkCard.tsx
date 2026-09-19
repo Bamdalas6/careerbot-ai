@@ -83,23 +83,52 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
 
   const cardList = jobs.slice(0, 12);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [animatingCard, setAnimatingCard] = useState<{
+    job: JobListing;
+    theme: SegmentTheme;
+    isExit: boolean;
+  } | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
 
   const safeIndex = currentIndex % cardList.length;
   const currentJob = cardList[safeIndex] || cardList[0];
   const nextJob = cardList[(safeIndex + 1) % cardList.length];
+  const thirdJob = cardList[(safeIndex + 2) % cardList.length];
 
   const currentTheme = SEGMENT_THEMES[safeIndex % SEGMENT_THEMES.length];
   const nextTheme = SEGMENT_THEMES[(safeIndex + 1) % SEGMENT_THEMES.length];
+  const thirdTheme = SEGMENT_THEMES[(safeIndex + 2) % SEGMENT_THEMES.length];
 
-  // Tap-to-swipe handler: user taps the card to animate and swipe to the next card in the deck
+  // Tap or swipe-to-reveal: smoothly animates the active card away while bringing the next card up
   const handleCardTap = () => {
-    if (cardList.length <= 1 || isAnimating) return;
-    setIsAnimating(true);
+    if (cardList.length <= 1 || animatingCard) return;
+
+    const exiting = { job: currentJob, theme: currentTheme, isExit: false };
+    setAnimatingCard(exiting);
+
+    requestAnimationFrame(() => {
+      setAnimatingCard({ job: currentJob, theme: currentTheme, isExit: true });
+    });
+
+    setCurrentIndex((prev) => (prev + 1) % cardList.length);
+
     setTimeout(() => {
-      setCurrentIndex((prev) => (prev + 1) % cardList.length);
-      setIsAnimating(false);
-    }, 360);
+      setAnimatingCard(null);
+    }, 420);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartY(e.touches[0].clientY);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartY === null) return;
+    const diff = touchStartY - e.changedTouches[0].clientY;
+    // Swipe up detected (swiped up by > 25px)
+    if (diff > 25) {
+      handleCardTap();
+    }
+    setTouchStartY(null);
   };
 
   // Format salary cleanly without awkward duplicates or collisions
@@ -263,59 +292,73 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
         )}
       </div>
 
-      {/* Main Stacked Deck Container: Users tap directly on the card to animate and swipe to the next card in the stack */}
+      {/* Main Stacked Deck Container: Users tap directly on the card or swipe up to reveal next job */}
       <div
         onClick={handleCardTap}
-        className={`relative w-full ${
-          cardList.length > 1 ? 'cursor-pointer active:scale-[0.99] transition-transform duration-150' : ''
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className={`relative w-full h-[200px] sm:h-[210px] ${
+          cardList.length > 1 ? 'cursor-pointer select-none' : ''
         }`}
-        title={cardList.length > 1 ? 'Tap card to swipe to next job' : undefined}
+        title={cardList.length > 1 ? 'Tap or swipe up to reveal next suggested job' : undefined}
       >
-        {/* Layer 3: Farthest top curved stack layer */}
-        {cardList.length > 2 && (
+        {/* Layer 3: Farthest back stack card (Card 2) */}
+        {cardList.length > 2 && thirdJob && (
           <div
-            className={`mx-8 h-2.5 rounded-t-2xl transition-all duration-300 ${currentTheme.stackLayer2} ${
-              isAnimating ? 'opacity-90 -translate-y-1' : 'opacity-80'
-            }`}
-          />
+            className={`absolute inset-x-0 top-0 h-[190px] sm:h-[200px] rounded-3xl bg-gradient-to-br ${thirdTheme.gradient} p-5 sm:p-6 text-white shadow-sm overflow-hidden pointer-events-none transition-all duration-300 ease-out`}
+            style={{
+              zIndex: 10,
+              transform: 'translateY(10px) scale(0.92)',
+              opacity: 0.65,
+            }}
+          >
+            {renderCardContent(thirdJob)}
+          </div>
         )}
 
-        {/* Layer 2: Middle top curved stack layer */}
-        {cardList.length > 1 && (
-          <div
-            className={`mx-4 h-2.5 rounded-t-2xl transition-all duration-300 ${currentTheme.stackLayer1} ${
-              cardList.length > 2 ? '-mt-1' : ''
-            } ${isAnimating ? 'opacity-100 -translate-y-1' : 'opacity-90'}`}
-          />
-        )}
-
-        {/* Layer Beneath: Pre-renders nextJob with nextTheme so it seamlessly surfaces when the top card swipes away */}
+        {/* Layer 2: Middle stack card (Card 1, right underneath active) */}
         {cardList.length > 1 && nextJob && (
           <div
-            className={`absolute inset-x-0 bottom-0 rounded-3xl bg-gradient-to-br ${nextTheme.gradient} p-5 sm:p-6 text-white shadow-md overflow-hidden pointer-events-none transition-all duration-350 ease-out ${
-              isAnimating
-                ? 'opacity-100 scale-100 translate-y-0'
-                : 'opacity-90 scale-[0.97] -translate-y-1'
-            }`}
-            style={{ zIndex: 10 }}
+            className={`absolute inset-x-0 top-0 h-[190px] sm:h-[200px] rounded-3xl bg-gradient-to-br ${nextTheme.gradient} p-5 sm:p-6 text-white shadow-md overflow-hidden pointer-events-none transition-all duration-300 ease-out`}
+            style={{
+              zIndex: 20,
+              transform: 'translateY(5px) scale(0.96)',
+              opacity: 0.88,
+            }}
           >
             {renderCardContent(nextJob)}
           </div>
         )}
 
-        {/* Front Active Card: Styled with currentTheme and swipes away when tapped */}
-        <div
-          className={`relative rounded-3xl bg-gradient-to-br ${currentTheme.gradient} ${currentTheme.shadow} p-5 sm:p-6 text-white overflow-hidden transition-all duration-360 ease-out ${
-            cardList.length > 1 ? '-mt-1' : ''
-          } ${
-            isAnimating
-              ? '-translate-y-20 -rotate-3 opacity-0 scale-95 pointer-events-none'
-              : 'translate-y-0 rotate-0 opacity-100 scale-100'
-          }`}
-          style={{ zIndex: 20 }}
-        >
-          {renderCardContent(currentJob)}
-        </div>
+        {/* Layer 1: Front Active Card (Card 0) */}
+        {currentJob && (
+          <div
+            className={`absolute inset-x-0 top-0 h-[190px] sm:h-[200px] rounded-3xl bg-gradient-to-br ${currentTheme.gradient} ${currentTheme.shadow} p-5 sm:p-6 text-white overflow-hidden transition-all duration-300 ease-out`}
+            style={{
+              zIndex: 30,
+              transform: 'translateY(0px) scale(1)',
+              opacity: 1,
+            }}
+          >
+            {renderCardContent(currentJob)}
+          </div>
+        )}
+
+        {/* Exiting Card Overlay: Smoothly floats up and fades out when card is swiped or tapped */}
+        {animatingCard && (
+          <div
+            className={`absolute inset-x-0 top-0 h-[190px] sm:h-[200px] rounded-3xl bg-gradient-to-br ${animatingCard.theme.gradient} ${animatingCard.theme.shadow} p-5 sm:p-6 text-white overflow-hidden pointer-events-none transition-all duration-400 ease-out`}
+            style={{
+              zIndex: 40,
+              transform: animatingCard.isExit
+                ? 'translateY(-130%) rotate(-4deg) scale(0.94)'
+                : 'translateY(0px) rotate(0deg) scale(1)',
+              opacity: animatingCard.isExit ? 0 : 1,
+            }}
+          >
+            {renderCardContent(animatingCard.job)}
+          </div>
+        )}
       </div>
     </div>
   );

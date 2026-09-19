@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  X,
   User,
   Lock,
   ShieldCheck,
@@ -19,11 +18,12 @@ import {
   Gift,
   Copy,
   Check,
-  Share2,
   Users,
-  LogOut,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
 import confetti from 'canvas-confetti';
 
@@ -33,7 +33,8 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const { user, credits, updateProfile, logout } = useAuth();
+  const { user, credits, updateProfile } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'referrals'>('profile');
 
@@ -63,6 +64,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [referredFriends, setReferredFriends] = useState<Array<{ name: string; created_at: string }>>([]);
   const [copied, setCopied] = useState(false);
   const [referralsLoading, setReferralsLoading] = useState(false);
+
+  // Close on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   // Fetch live referral stats
   const loadReferrals = async () => {
@@ -98,45 +110,44 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       if (user.referral_code) setReferralCode(user.referral_code);
       if (typeof window !== 'undefined') {
         const origin = window.location.origin;
-        setReferralLink(`${origin}?ref=${user.referral_code || user.username || user.id.slice(0, 8)}`);
+        setReferralLink(`${origin}/?ref=${user.referral_code || user.username || user.id}`);
       }
     }
   }, [user, isOpen]);
 
   if (!isOpen || !user) return null;
 
-  // 1. Profile Section Handler (Change Name & Username)
+  // 1. Profile Section Handler
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    setProfileError(null);
+    setProfileSuccess(null);
+
     if (!name.trim()) {
-      setProfileError('Please provide your full name.');
+      setProfileError('Name cannot be empty.');
       return;
     }
 
     setProfileLoading(true);
-    setProfileError(null);
-    setProfileSuccess(null);
-
-    const cleanUsername = username.trim().toLowerCase().replace(/^@/, '');
 
     try {
-      // Step A: Update Supabase Auth user metadata
+      const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+
       const supabase = getSupabaseBrowserClient();
       if (supabase) {
-        const { error: metaErr } = await supabase.auth.updateUser({
+        const { error: supErr } = await supabase.auth.updateUser({
           data: {
             name: name.trim(),
             username: cleanUsername,
           },
         });
-        if (metaErr) {
-          console.warn('Supabase metadata update note:', metaErr.message);
+        if (supErr) {
+          console.warn('Supabase updateUser note:', supErr.message);
         }
       }
 
-      // Step B: Update backend database 'users' table
       const res = await fetch('/api/user/profile', {
-        method: 'PATCH',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
@@ -149,7 +160,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         throw new Error(data.error || 'Failed to update profile.');
       }
 
-      // Step C: Update UI immediately via context
       updateProfile({
         name: name.trim(),
         username: cleanUsername,
@@ -191,7 +201,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     setSecurityLoading(true);
 
     try {
-      // Step A: Update password using Supabase client for active session
       const supabase = getSupabaseBrowserClient();
       if (supabase) {
         const { error: supErr } = await supabase.auth.updateUser({
@@ -202,7 +211,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         }
       }
 
-      // Step B: Update password in backend database (verifying current password)
       const res = await fetch('/api/user/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -237,55 +245,72 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative flex w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-black/10 bg-white text-zinc-900 shadow-2xl dark:border-white/[0.1] dark:bg-[#0c0c0c] dark:text-[#f7f8f8]">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-black/10 bg-zinc-50 px-6 py-4 dark:border-white/[0.08] dark:bg-white/[0.02]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      {/* Click backdrop to dismiss */}
+      <div className="fixed inset-0" onClick={onClose} />
+
+      <div className="relative flex w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-slate-200/80 bg-white text-slate-900 shadow-2xl z-10 animate-in zoom-in-95 duration-150">
+        {/* Header with Account Title and Dark/Light Mode Switcher (No Close Button) */}
+        <div className="flex items-center justify-between border-b border-slate-100 bg-white px-5 sm:px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-black/10 bg-black/[0.04] text-zinc-900 dark:border-white/10 dark:bg-white/[0.06] dark:text-[#f7f8f8]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-200/70 shadow-2xs">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-[#f7f8f8]">Account Settings</h3>
-              <p className="text-[11px] text-zinc-500 dark:text-[#8a8f98]">Manage your profile and security credentials</p>
+              <h3 className="text-sm font-bold text-slate-900">Account & Profile</h3>
+              <p className="text-[11px] text-slate-400">Manage your profile and security credentials</p>
             </div>
           </div>
+
+          {/* Dark Mode / Light Mode Toggle Button */}
           <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-zinc-500 hover:bg-black/[0.06] hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:bg-white/[0.06] dark:hover:text-[#f7f8f8] transition"
+            type="button"
+            onClick={toggleTheme}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all active:scale-95 cursor-pointer border border-slate-200/90 shadow-2xs"
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
           >
-            <X className="h-4 w-4" />
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-500" />
+                <span>Light</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Dark</span>
+              </>
+            )}
           </button>
         </div>
 
         {/* User Card Overview */}
-        <div className="flex items-center justify-between border-b border-black/10 bg-zinc-50/50 px-6 py-3.5 dark:border-white/[0.06] dark:bg-white/[0.01]">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-900 text-sm font-bold text-white shadow-xs dark:bg-white dark:text-black">
+        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-5 sm:px-6 py-3.5">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-sm font-black text-white shadow-xs">
               {(user.name || user.email || 'U').charAt(0).toUpperCase()}
             </div>
-            <div>
-              <p className="text-xs font-bold text-zinc-900 dark:text-[#f7f8f8]">{user.name || user.email || 'User'}</p>
-              <p className="text-[11px] text-zinc-500 dark:text-[#8a8f98]">
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-900 truncate">{user.name || user.email || 'User'}</p>
+              <p className="text-[11px] text-slate-400 truncate">
                 {user.username ? `@${user.username}` : user.email}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
-            <Zap className="h-3.5 w-3.5" />
-            <span>{credits} Credits</span>
+          <div className="flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 shadow-2xs shrink-0">
+            <span className="text-xs">🪙</span>
+            <span>{credits} Coins</span>
           </div>
         </div>
 
-        {/* Section Tabs */}
-        <div className="flex border-b border-black/10 bg-zinc-50/30 dark:border-white/[0.08] dark:bg-white/[0.01]">
+        {/* Section Tabs: Profile, Security, Refer & Earn */}
+        <div className="flex border-b border-slate-100 bg-white">
           <button
             type="button"
             onClick={() => setActiveTab('profile')}
-            className={`flex flex-1 items-center justify-center gap-1.5 sm:gap-2 py-3 text-xs font-semibold transition ${
+            className={`flex flex-1 items-center justify-center gap-1.5 sm:gap-2 py-3 text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'profile'
-                ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-[#f7f8f8]'
-                : 'text-zinc-500 hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]'
+                ? 'border-b-2 border-[#0080ff] text-[#0080ff]'
+                : 'text-slate-400 hover:text-slate-700'
             }`}
           >
             <User className="h-3.5 w-3.5" />
@@ -294,10 +319,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           <button
             type="button"
             onClick={() => setActiveTab('security')}
-            className={`flex flex-1 items-center justify-center gap-1.5 sm:gap-2 py-3 text-xs font-semibold transition ${
+            className={`flex flex-1 items-center justify-center gap-1.5 sm:gap-2 py-3 text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'security'
-                ? 'border-b-2 border-zinc-900 text-zinc-900 dark:border-white dark:text-[#f7f8f8]'
-                : 'text-zinc-500 hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]'
+                ? 'border-b-2 border-[#0080ff] text-[#0080ff]'
+                : 'text-slate-400 hover:text-slate-700'
             }`}
           >
             <Lock className="h-3.5 w-3.5" />
@@ -306,86 +331,86 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           <button
             type="button"
             onClick={() => setActiveTab('referrals')}
-            className={`flex flex-1 items-center justify-center gap-1.5 sm:gap-2 py-3 text-xs font-semibold transition ${
+            className={`flex flex-1 items-center justify-center gap-1.5 sm:gap-2 py-3 text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'referrals'
-                ? 'border-b-2 border-amber-500 text-amber-600 dark:border-amber-400 dark:text-amber-400'
-                : 'text-zinc-500 hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]'
+                ? 'border-b-2 border-[#0080ff] text-[#0080ff]'
+                : 'text-slate-400 hover:text-slate-700'
             }`}
           >
             <Gift className="h-3.5 w-3.5 text-amber-500" />
             <span>Refer & Earn</span>
-            <span className="hidden sm:inline-block rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+            <span className="hidden sm:inline-block rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-extrabold text-amber-700">
               +5
             </span>
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="p-6 space-y-4">
+        <div className="p-5 sm:p-6 space-y-4 max-h-[60vh] overflow-y-auto">
           {/* ================= SECTION 1: PROFILE ================= */}
           {activeTab === 'profile' && (
             <form onSubmit={handleSaveProfile} className="space-y-4">
               {profileError && (
-                <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+                <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
                   <span>{profileError}</span>
                 </div>
               )}
 
               {profileSuccess && (
-                <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                   <span>{profileSuccess}</span>
                 </div>
               )}
 
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                   Full Name
                 </label>
                 <div className="relative flex items-center">
-                  <User className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-[#8a8f98]" />
+                  <User className="absolute left-3.5 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Your Full Name"
-                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-4 text-xs sm:text-sm text-zinc-900 shadow-xs placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:placeholder:text-[#62666d]"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-xs sm:text-sm text-slate-900 shadow-2xs placeholder:text-slate-400 focus:border-[#0080ff] focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                   Username
                 </label>
                 <div className="relative flex items-center">
-                  <AtSign className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-[#8a8f98]" />
+                  <AtSign className="absolute left-3.5 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value.replace(/^@/, ''))}
                     placeholder="your_handle"
-                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-4 text-xs sm:text-sm text-zinc-900 shadow-xs placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:placeholder:text-[#62666d]"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-xs sm:text-sm text-slate-900 shadow-2xs placeholder:text-slate-400 focus:border-[#0080ff] focus:outline-none"
                   />
                 </div>
-                <p className="mt-1 text-[10px] text-zinc-400 dark:text-[#8a8f98]">
-                  Used for unique profile identification and cold outreach handles.
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Used for unique profile identification and referral recognition.
                 </p>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                   Registered Email (Read-Only)
                 </label>
                 <div className="relative flex items-center">
-                  <Mail className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-[#8a8f98]" />
+                  <Mail className="absolute left-3.5 h-4 w-4 text-slate-400" />
                   <input
                     type="email"
                     disabled
                     value={user.email}
-                    className="w-full rounded-xl border border-zinc-200 bg-zinc-100 py-2.5 pl-10 pr-4 text-xs sm:text-sm text-zinc-500 shadow-xs cursor-not-allowed dark:border-white/[0.06] dark:bg-white/[0.02] dark:text-[#8a8f98]"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-100 py-2.5 pl-10 pr-4 text-xs sm:text-sm text-slate-500 shadow-2xs cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -393,7 +418,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <button
                 type="submit"
                 disabled={profileLoading}
-                className="btn-primary mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold disabled:opacity-40"
+                className="w-full py-3 px-4 rounded-xl bg-[#0080ff] hover:bg-blue-600 text-white font-extrabold text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
               >
                 {profileLoading ? (
                   <>
@@ -414,37 +439,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {activeTab === 'security' && (
             <form onSubmit={handleSavePassword} className="space-y-4">
               {securityError && (
-                <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+                <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
                   <span>{securityError}</span>
                 </div>
               )}
 
               {securitySuccess && (
-                <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                   <span>{securitySuccess}</span>
                 </div>
               )}
 
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                   Current Password
                 </label>
                 <div className="relative flex items-center">
-                  <Lock className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-[#8a8f98]" />
+                  <Lock className="absolute left-3.5 h-4 w-4 text-slate-400" />
                   <input
                     type={showCurrentPassword ? 'text' : 'password'}
                     required
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="Enter current password"
-                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-10 text-xs sm:text-sm text-zinc-900 shadow-xs placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:placeholder:text-[#62666d]"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-xs sm:text-sm text-slate-900 shadow-2xs placeholder:text-slate-400 focus:border-[#0080ff] focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-3 text-zinc-400 hover:text-zinc-700 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
+                    className="absolute right-3 text-slate-400 hover:text-slate-700"
                   >
                     {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -452,23 +477,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </div>
 
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                   New Password
                 </label>
                 <div className="relative flex items-center">
-                  <Lock className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-[#8a8f98]" />
+                  <Lock className="absolute left-3.5 h-4 w-4 text-slate-400" />
                   <input
                     type={showNewPassword ? 'text' : 'password'}
                     required
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
-                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-10 text-xs sm:text-sm text-zinc-900 shadow-xs placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:placeholder:text-[#62666d]"
+                    placeholder="At least 6 characters"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-xs sm:text-sm text-slate-900 shadow-2xs placeholder:text-slate-400 focus:border-[#0080ff] focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 text-zinc-400 hover:text-zinc-700 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
+                    className="absolute right-3 text-slate-400 hover:text-slate-700"
                   >
                     {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -476,23 +501,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </div>
 
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                   Confirm New Password
                 </label>
                 <div className="relative flex items-center">
-                  <Lock className="absolute left-3.5 h-4 w-4 text-zinc-400 dark:text-[#8a8f98]" />
+                  <Lock className="absolute left-3.5 h-4 w-4 text-slate-400" />
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-enter new password"
-                    className="w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-10 text-xs sm:text-sm text-zinc-900 shadow-xs placeholder:text-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8] dark:placeholder:text-[#62666d]"
+                    placeholder="Repeat new password"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-xs sm:text-sm text-slate-900 shadow-2xs placeholder:text-slate-400 focus:border-[#0080ff] focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 text-zinc-400 hover:text-zinc-700 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8]"
+                    className="absolute right-3 text-slate-400 hover:text-slate-700"
                   >
                     {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -502,7 +527,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <button
                 type="submit"
                 disabled={securityLoading}
-                className="btn-primary mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold disabled:opacity-40"
+                className="w-full py-3 px-4 rounded-xl bg-[#0080ff] hover:bg-blue-600 text-white font-extrabold text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
               >
                 {securityLoading ? (
                   <>
@@ -511,8 +536,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </>
                 ) : (
                   <>
-                    <ShieldCheck className="h-4 w-4" />
-                    <span>Change Password</span>
+                    <Lock className="h-4 w-4" />
+                    <span>Update Password</span>
                   </>
                 )}
               </button>
@@ -522,18 +547,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {/* ================= SECTION 3: REFER & EARN ================= */}
           {activeTab === 'referrals' && (
             <div className="space-y-4">
-              {/* Promo Banner */}
-              <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-4 dark:border-amber-500/15">
+              {/* Promo Banner with New Vibrant Gradient */}
+              <div className="relative overflow-hidden rounded-2xl border border-blue-200/80 bg-gradient-to-r from-blue-50/80 via-indigo-50/70 to-blue-50/50 p-4 shadow-2xs">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-xs">
                     <Gift className="h-5 w-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-zinc-900 dark:text-white">
-                      Get 10 Free Tokens Per Friend! 🎁
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                      Earn 5 Free Coins Per Friend! 🎁
                     </h4>
-                    <p className="mt-1 text-[11px] text-zinc-600 dark:text-[#8a8f98] leading-relaxed">
-                      Share your personal referral link with job seekers and colleagues. Whenever someone signs up using your link, you instantly get <b>10 free tokens</b> added to your account!
+                    <p className="mt-1 text-[11px] text-slate-600 leading-relaxed">
+                      Share your personal link with job seekers and teammates. When they sign up, you instantly get <b>5 free coins</b> added to your account!
                     </p>
                   </div>
                 </div>
@@ -541,7 +566,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
               {/* Referral Link & Copy */}
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                   Your Personal Referral Link
                 </label>
                 <div className="flex items-center gap-2">
@@ -549,7 +574,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     type="text"
                     readOnly
                     value={referralLink}
-                    className="w-full rounded-xl border border-zinc-300 bg-zinc-50 py-2.5 px-3.5 font-mono text-xs text-zinc-700 select-all dark:border-white/10 dark:bg-white/[0.04] dark:text-[#f7f8f8]"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 font-mono text-xs text-slate-800 select-all"
                   />
                   <button
                     type="button"
@@ -561,11 +586,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         setTimeout(() => setCopied(false), 2000);
                       }
                     }}
-                    className="btn-primary flex shrink-0 items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-semibold"
+                    className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#0080ff] hover:bg-blue-600 text-white px-4 py-2.5 text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer"
                   >
                     {copied ? (
                       <>
-                        <Check className="h-3.5 w-3.5 text-emerald-400" />
+                        <Check className="h-3.5 w-3.5 text-emerald-300" />
                         <span>Copied!</span>
                       </>
                     ) : (
@@ -580,27 +605,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
               {/* Share on Socials */}
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98]">
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                   1-Click Share
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <a
                     href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                      `Hey! Check out CareerBot AI for discovering top tech jobs, CV review & ATS tailoring in Nigeria & globally. Sign up with my link to claim your bonus: ${referralLink}`
+                      `Hey! Check out CareerBot AI for discovering top tech jobs, CV review & ATS tailoring. Sign up with my link to claim free search coins: ${referralLink}`
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/10 transition"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition"
                   >
                     <span>WhatsApp</span>
                   </a>
                   <a
                     href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
-                      `Discover top tech & remote jobs with AI. Join CareerBot AI: ${referralLink}`
+                      `Discover top remote and tech jobs with AI. Join CareerBot AI: ${referralLink}`
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-sky-500/20 bg-sky-500/5 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-500/10 dark:text-sky-400 dark:hover:bg-sky-500/10 transition"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 py-2 text-xs font-bold text-sky-700 hover:bg-sky-100 transition"
                   >
                     <span>𝕏 (Twitter)</span>
                   </a>
@@ -608,7 +633,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(referralLink)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/10 transition"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition"
                   >
                     <span>LinkedIn</span>
                   </a>
@@ -617,36 +642,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
               {/* Stats Counters */}
               <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="rounded-xl border border-black/10 bg-zinc-50/70 p-3 text-center dark:border-white/[0.08] dark:bg-white/[0.02]">
-                  <div className="flex items-center justify-center gap-1 text-zinc-500 dark:text-[#8a8f98] mb-1">
-                    <Users className="h-3.5 w-3.5" />
-                    <span className="text-[11px] font-medium">Friends Joined</span>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 text-center shadow-2xs">
+                  <div className="flex items-center justify-center gap-1 text-slate-500 mb-1">
+                    <Users className="h-3.5 w-3.5 text-blue-600" />
+                    <span className="text-[11px] font-bold">Friends Joined</span>
                   </div>
-                  <p className="text-xl font-bold text-zinc-900 dark:text-white">{totalReferred}</p>
+                  <p className="text-xl font-black text-slate-900">{totalReferred}</p>
                 </div>
-                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-center dark:border-amber-500/10">
-                  <div className="flex items-center justify-center gap-1 text-amber-600 dark:text-amber-400 mb-1">
-                    <Zap className="h-3.5 w-3.5" />
-                    <span className="text-[11px] font-medium">Tokens Earned</span>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3.5 text-center shadow-2xs">
+                  <div className="flex items-center justify-center gap-1 text-amber-700 mb-1">
+                    <Zap className="h-3.5 w-3.5 text-amber-600" />
+                    <span className="text-[11px] font-bold">Coins Earned</span>
                   </div>
-                  <p className="text-xl font-bold text-amber-600 dark:text-amber-400">+{totalEarned}</p>
+                  <p className="text-xl font-black text-amber-700">+{totalEarned}</p>
                 </div>
               </div>
 
               {/* Recent Friends List */}
               {referredFriends.length > 0 && (
                 <div className="pt-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-[#8a8f98] mb-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 mb-2">
                     Recent Friends Joined ({referredFriends.length})
                   </p>
                   <div className="max-h-28 space-y-1.5 overflow-y-auto pr-1">
                     {referredFriends.map((friend, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between rounded-lg border border-black/5 bg-zinc-50/50 px-3 py-1.5 text-xs dark:border-white/[0.05] dark:bg-white/[0.02]"
+                        className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs"
                       >
-                        <span className="font-medium text-zinc-900 dark:text-zinc-200">{friend.name}</span>
-                        <span className="text-[10px] text-zinc-400">
+                        <span className="font-semibold text-slate-800">{friend.name}</span>
+                        <span className="text-[10px] text-slate-400">
                           {new Date(friend.created_at).toLocaleDateString()}
                         </span>
                       </div>
@@ -656,33 +681,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               )}
             </div>
           )}
-        </div>
-
-        {/* Modal Footer with Prominent Log Out */}
-        <div className="border-t border-slate-100 bg-slate-50 px-6 py-3 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                await logout();
-                onClose();
-              } catch (e) {
-                console.error('Logout error:', e);
-              }
-            }}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold transition-all active:scale-95"
-            title="Log out of your account"
-          >
-            <LogOut className="w-3.5 h-3.5 text-red-600" />
-            <span>Sign Out</span>
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-all active:scale-95 shadow-2xs"
-          >
-            Close
-          </button>
         </div>
       </div>
     </div>

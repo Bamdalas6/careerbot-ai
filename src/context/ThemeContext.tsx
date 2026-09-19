@@ -14,20 +14,16 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === 'undefined') return 'light';
   try {
     const stored = localStorage.getItem('careerbot_theme') as Theme | null;
     if (stored === 'light' || stored === 'dark') {
       return stored;
     }
-    // System preference fallback
-    if (window.matchMedia('(prefers-color-scheme: light)').matches) {
-      return 'light';
-    }
   } catch {
     // Storage access error
   }
-  return 'dark';
+  return 'light';
 }
 
 function applyThemeToDOM(t: Theme) {
