@@ -15,6 +15,7 @@ interface DiscoveryFeedProps {
   savedJobIds: Set<string>;
   onOpenTailor: (job: JobListing) => void;
   onViewAllSuggested?: () => void;
+  onViewJob?: (job: JobListing) => void;
 }
 
 const CATEGORY_PILLS = [
@@ -261,6 +262,7 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
   savedJobIds,
   onOpenTailor,
   onViewAllSuggested,
+  onViewJob,
 }) => {
   const [searchInput, setSearchInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Jobs');
@@ -430,6 +432,7 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
           onToggleSave={onToggleSave}
           onOpenTailor={onOpenTailor}
           onViewAll={onViewAllSuggested}
+          onViewJob={onViewJob}
         />
       )}
 
@@ -451,6 +454,7 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
             isSaved={savedJobIds.has(job.id)}
             onToggleSave={onToggleSave}
             onOpenTailor={onOpenTailor}
+            onViewJob={onViewJob}
           />
         ))}
 

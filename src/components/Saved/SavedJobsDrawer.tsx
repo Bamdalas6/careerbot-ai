@@ -4,6 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Bookmark, ExternalLink, Trash2, MapPin, DollarSign, ArrowRight, Briefcase, Sparkles } from 'lucide-react';
 import { SavedJob, JobListing } from '@/types/job';
+import { useAuth } from '@/context/AuthContext';
 
 interface SavedJobsDrawerProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ interface SavedJobsDrawerProps {
   onUpdateStatus: (id: string, status: SavedJob['status']) => void;
   onOpenTracker?: () => void;
   onOpenTailor?: (job: JobListing) => void;
+  onViewJob?: (job: JobListing) => void;
 }
 
 export const SavedJobsDrawer: React.FC<SavedJobsDrawerProps> = ({
@@ -23,8 +25,10 @@ export const SavedJobsDrawer: React.FC<SavedJobsDrawerProps> = ({
   onUpdateStatus,
   onOpenTracker,
   onOpenTailor,
+  onViewJob,
 }) => {
   const router = useRouter();
+  const { requireAuth } = useAuth();
   if (!isOpen) return null;
 
   return (
@@ -119,27 +123,34 @@ export const SavedJobsDrawer: React.FC<SavedJobsDrawerProps> = ({
                     <button
                       type="button"
                       onClick={() => {
+                        if (!requireAuth()) return;
                         try {
                           localStorage.setItem('career_bot_active_tailor_job', JSON.stringify(job));
                         } catch {}
                         onClose();
                         router.push(`/tailor?id=${encodeURIComponent(job.id)}`);
                       }}
-                      className="flex items-center gap-1 text-xs font-semibold text-indigo-600  hover:text-indigo-800 :text-indigo-300 transition cursor-pointer"
+                      className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition cursor-pointer"
                       title="Tailor pitch for this role"
                     >
                       <Sparkles className="h-3.5 w-3.5" />
                       <span>Tailor Pitch</span>
                     </button>
-                    <a
-                      href={job.apply_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs font-semibold text-zinc-700 #8a8f98] hover:text-zinc-900 :text-[#f7f8f8] transition"
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!requireAuth()) return;
+                        if (onViewJob) {
+                          onViewJob(job);
+                        } else {
+                          window.open(job.apply_url, '_blank');
+                        }
+                      }}
+                      className="flex items-center gap-1 text-xs font-semibold text-zinc-700 hover:text-zinc-900 transition cursor-pointer"
                     >
                       <span>Apply</span>
                       <ExternalLink className="h-3 w-3" />
-                    </a>
+                    </button>
                   </div>
                 </div>
               </div>

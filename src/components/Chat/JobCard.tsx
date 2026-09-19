@@ -23,6 +23,7 @@ interface JobCardProps {
   onToggleSave: (job: JobListing) => void;
   onOpenTailor: (job: JobListing) => void;
   onSearch?: (query: string) => void;
+  onViewJob?: (job: JobListing) => void;
 }
 
 export const JobCard: React.FC<JobCardProps> = ({
@@ -31,6 +32,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   onToggleSave,
   onOpenTailor,
   onSearch,
+  onViewJob,
 }) => {
   const router = useRouter();
   const { user, requireAuth } = useAuth();
@@ -48,6 +50,7 @@ export const JobCard: React.FC<JobCardProps> = ({
   };
   const handleSaveClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!requireAuth()) return;
     if (!isSaved) {
       // Trigger subtle celebratory confetti
       confetti({
@@ -62,6 +65,7 @@ export const JobCard: React.FC<JobCardProps> = ({
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!requireAuth()) return;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -242,16 +246,23 @@ export const JobCard: React.FC<JobCardProps> = ({
           <span className="pointer-events-none">Tailor Pitch</span>
         </button>
 
-        <a
-          href={job.apply_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-black   :bg-zinc-100 shadow-xs cursor-pointer relative z-10 active:scale-[0.98] select-none"
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!requireAuth()) return;
+            if (onViewJob) {
+              onViewJob(job);
+            } else {
+              window.open(job.apply_url, '_blank');
+            }
+          }}
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-black :bg-zinc-100 shadow-xs cursor-pointer relative z-10 active:scale-[0.98] select-none"
         >
-          <span className="pointer-events-none">Direct Apply</span>
-          <ExternalLink className="h-3.5 w-3.5 pointer-events-none" />
-        </a>
+          <span>Apply Now</span>
+          <ExternalLink className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   );

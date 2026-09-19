@@ -209,8 +209,14 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           {/* Coin Balance Chip */}
           <button
             type="button"
-            onClick={openCreditModal}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white border border-slate-200/90 shadow-2xs hover:border-amber-300 active:scale-95 transition-all text-xs font-bold text-slate-800"
+            onClick={() => {
+              if (!user) {
+                openAuthModal('login');
+                return;
+              }
+              openCreditModal();
+            }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white border border-slate-200/90 shadow-2xs hover:border-amber-300 active:scale-95 transition-all text-xs font-bold text-slate-800 cursor-pointer"
             title="Coins Balance - Click to top up"
           >
             <span className="text-amber-500 text-xs">🪙</span>
@@ -220,8 +226,14 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           {/* Circular Bell Icon matching screenshot */}
           <button
             type="button"
-            onClick={onOpenSaved}
-            className="relative w-10 h-10 rounded-full bg-white border border-slate-200/90 flex items-center justify-center text-slate-700 hover:text-blue-600 transition-colors shadow-2xs"
+            onClick={() => {
+              if (!user) {
+                openAuthModal('login');
+                return;
+              }
+              onOpenSaved?.();
+            }}
+            className="relative w-10 h-10 rounded-full bg-white border border-slate-200/90 flex items-center justify-center text-slate-700 hover:text-blue-600 transition-colors shadow-2xs cursor-pointer"
             title="Saved Opportunities"
           >
             <Bell className="w-4.5 h-4.5" />

@@ -6,6 +6,7 @@ import { WelcomeCollageHero } from '@/components/App/WelcomeCollageHero';
 import { DiscoveryFeed } from '@/components/App/DiscoveryFeed';
 import { BottomNavDock, type AppNavTab } from '@/components/App/BottomNavDock';
 import { JobRequestModal } from '@/components/App/JobRequestModal';
+import { JobDetailsModal } from '@/components/App/JobDetailsModal';
 
 import { ChatInterface } from '@/components/Chat/ChatInterface';
 import { TailorPitchModal } from '@/components/Tailor/TailorPitchModal';
@@ -50,6 +51,7 @@ export default function Home() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
 
   // Modals & Drawers state
+  const [selectedJobForDetails, setSelectedJobForDetails] = useState<JobListing | null>(null);
   const [activeTailorJob, setActiveTailorJob] = useState<JobListing | null>(null);
   const [isResumeOpen, setIsResumeOpen] = useState(false);
   const [isSavedOpen, setIsSavedOpen] = useState(false);
@@ -81,6 +83,7 @@ export default function Home() {
       setIsJobRequestOpen(false);
       setIsTrackerOpen(false);
       setActiveTailorJob(null);
+      setSelectedJobForDetails(null);
       setMessages([]);
       setCurrentChatId(null);
       window.scrollTo({ top: 0, behavior: 'instant' });
@@ -106,6 +109,7 @@ export default function Home() {
       setIsJobRequestOpen(false);
       setIsTrackerOpen(false);
       setActiveTailorJob(null);
+      setSelectedJobForDetails(null);
       setMessages([]);
       setCurrentChatId(null);
       window.scrollTo({ top: 0, behavior: 'instant' });
@@ -125,6 +129,7 @@ export default function Home() {
   };
 
   const handleToggleSave = (job: JobListing) => {
+    if (!requireAuth()) return;
     const isSaved = savedJobIds.has(job.id);
     if (isSaved) {
       updateSavedJobs(savedJobs.filter((j) => j.id !== job.id));
@@ -138,6 +143,16 @@ export default function Home() {
       };
       updateSavedJobs([...savedJobs, newSaved]);
     }
+  };
+
+  const handleViewJob = (job: JobListing) => {
+    if (!requireAuth()) return;
+    setSelectedJobForDetails(job);
+  };
+
+  const handleOpenTailor = (job: JobListing) => {
+    if (!requireAuth()) return;
+    setActiveTailorJob(job);
   };
 
   const handleRemoveSaved = (jobId: string) => {
@@ -200,12 +215,12 @@ export default function Home() {
 
   // Unlock background body scroll when modals/drawers close
   useEffect(() => {
-    if (!activeTailorJob && !isResumeOpen && !isSavedOpen && !isFiltersOpen && !isHistoryOpen && !isSettingsOpen && !isTrackerOpen) {
+    if (!selectedJobForDetails && !activeTailorJob && !isResumeOpen && !isSavedOpen && !isFiltersOpen && !isHistoryOpen && !isSettingsOpen && !isTrackerOpen) {
       if (typeof document !== 'undefined') {
         document.body.style.overflow = '';
       }
     }
-  }, [activeTailorJob, isResumeOpen, isSavedOpen, isFiltersOpen, isHistoryOpen, isSettingsOpen, isTrackerOpen]);
+  }, [selectedJobForDetails, activeTailorJob, isResumeOpen, isSavedOpen, isFiltersOpen, isHistoryOpen, isSettingsOpen, isTrackerOpen]);
 
   // Persist chat history
   const persistChatHistory = async (msgs: ChatMessage[], chatId: string | null) => {
@@ -385,6 +400,7 @@ export default function Home() {
         window.scrollTo({ top: 380, behavior: 'smooth' });
       }
     } else if (tab === 'request') {
+      if (!requireAuth()) return;
       setIsJobRequestOpen(true);
     } else if (tab === 'chat') {
       if (!user) {
@@ -457,7 +473,10 @@ export default function Home() {
         <main className="flex-1 flex flex-col justify-center">
           <WelcomeCollageHero
             onStart={handleStartFromWelcome}
-            onOpenResume={() => setIsResumeOpen(true)}
+            onOpenResume={() => {
+              if (!requireAuth()) return;
+              setIsResumeOpen(true);
+            }}
             jobCount={COMMUNITY_JOBS.length || 200}
           />
         </main>
@@ -470,10 +489,14 @@ export default function Home() {
             jobs={COMMUNITY_JOBS}
             currentLocation={currentLocation}
             onSearchSubmit={(q) => handleSendMessage(q)}
-            onOpenFilterDrawer={() => setIsFiltersOpen(true)}
+            onOpenFilterDrawer={() => {
+              if (!requireAuth()) return;
+              setIsFiltersOpen(true);
+            }}
             onToggleSave={handleToggleSave}
             savedJobIds={savedJobIds}
-            onOpenTailor={(job) => setActiveTailorJob(job)}
+            onOpenTailor={handleOpenTailor}
+            onViewJob={handleViewJob}
             onViewAllSuggested={() => {
               const jobListElem = document.getElementById('job-list-section');
               if (jobListElem) {
@@ -511,7 +534,8 @@ export default function Home() {
             onSendMessage={handleSendMessage}
             savedJobs={savedJobs}
             onToggleSave={handleToggleSave}
-            onOpenTailor={(job) => setActiveTailorJob(job)}
+            onOpenTailor={handleOpenTailor}
+            onViewJob={handleViewJob}
           />
         </main>
       )}
@@ -521,9 +545,25 @@ export default function Home() {
         <BottomNavDock
           activeTab={isJobRequestOpen ? 'request' : currentView === 'chat' ? 'chat' : 'home'}
           onTabChange={handleTabChange}
-          onCenterPlusClick={() => setIsResumeOpen(true)}
+          onCenterPlusClick={() => {
+            if (!requireAuth()) return;
+            setIsResumeOpen(true);
+          }}
         />
       )}
+
+      {/* Job Information & Details Modal before applying */}
+      <JobDetailsModal
+        job={selectedJobForDetails}
+        isOpen={!!selectedJobForDetails}
+        onClose={() => setSelectedJobForDetails(null)}
+        isSaved={selectedJobForDetails ? savedJobIds.has(selectedJobForDetails.id) : false}
+        onToggleSave={handleToggleSave}
+        onOpenTailor={(job) => {
+          setSelectedJobForDetails(null);
+          handleOpenTailor(job);
+        }}
+      />
 
       {/* Custom Job Request Modal (Attached to contact email) */}
       <JobRequestModal
@@ -555,7 +595,8 @@ export default function Home() {
         onOpenTracker={() => {
           if (requireAuth()) setIsTrackerOpen(true);
         }}
-        onOpenTailor={(job) => setActiveTailorJob(job)}
+        onOpenTailor={handleOpenTailor}
+        onViewJob={handleViewJob}
       />
 
       {/* Full Application Tracker & Pipeline Kanban */}

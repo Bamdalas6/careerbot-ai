@@ -23,6 +23,7 @@ interface ChatInterfaceProps {
   savedJobs: SavedJob[];
   onToggleSave: (job: JobListing) => void;
   onOpenTailor: (job: JobListing) => void;
+  onViewJob?: (job: JobListing) => void;
 }
 
 function FormattedMessageText({ text, isUser }: { text: string; isUser?: boolean }) {
@@ -72,6 +73,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   savedJobs,
   onToggleSave,
   onOpenTailor,
+  onViewJob,
 }) => {
   const [input, setInput] = useState('');
   const [expandedMessages, setExpandedMessages] = useState<Record<string, boolean>>({});
@@ -193,6 +195,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                           onToggleSave={onToggleSave}
                           onOpenTailor={onOpenTailor}
                           onSearch={onSendMessage}
+                          onViewJob={onViewJob}
                         />
                       ))}
                     </div>

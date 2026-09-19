@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { ExternalLink, Sparkles, MoreHorizontal, ChevronRight } from 'lucide-react';
 import { JobListing } from '@/types/job';
+import { useAuth } from '@/context/AuthContext';
 
 interface SuggestedWorkCardProps {
   jobs: JobListing[];
@@ -10,6 +11,7 @@ interface SuggestedWorkCardProps {
   onToggleSave?: (job: JobListing) => void;
   onOpenTailor?: (job: JobListing) => void;
   onViewAll?: () => void;
+  onViewJob?: (job: JobListing) => void;
 }
 
 interface SegmentTheme {
@@ -23,45 +25,45 @@ interface SegmentTheme {
 const SEGMENT_THEMES: SegmentTheme[] = [
   {
     gradient: 'from-[#0084ff] via-[#0076f5] to-[#0066ee]',
-    shadow: 'shadow-[0_12px_32px_-6px_rgba(0,120,255,0.45)]',
-    stackLayer1: 'bg-[#60a5fa]',
-    stackLayer2: 'bg-[#bfdbfe]',
+    shadow: 'shadow-[0_20px_45px_-12px_rgba(0,120,255,0.45)]',
+    stackLayer1: 'bg-[#1a8cff]/50 border-white/20',
+    stackLayer2: 'bg-[#3399ff]/30 border-white/10',
     dotColor: 'bg-[#0084ff]',
   },
   {
-    gradient: 'from-[#7c3aed] via-[#6d28d9] to-[#5b21b6]',
-    shadow: 'shadow-[0_12px_32px_-6px_rgba(124,58,237,0.45)]',
-    stackLayer1: 'bg-[#a78bfa]',
-    stackLayer2: 'bg-[#ddd6fe]',
-    dotColor: 'bg-[#7c3aed]',
+    gradient: 'from-[#0d9488] via-[#0f766e] to-[#115e59]',
+    shadow: 'shadow-[0_20px_45px_-12px_rgba(13,148,136,0.45)]',
+    stackLayer1: 'bg-[#14b8a6]/50 border-white/20',
+    stackLayer2: 'bg-[#2dd4bf]/30 border-white/10',
+    dotColor: 'bg-[#0d9488]',
   },
   {
-    gradient: 'from-[#059669] via-[#0d9488] to-[#0f766e]',
-    shadow: 'shadow-[0_12px_32px_-6px_rgba(5,150,105,0.45)]',
-    stackLayer1: 'bg-[#34d399]',
-    stackLayer2: 'bg-[#a7f3d0]',
-    dotColor: 'bg-[#059669]',
+    gradient: 'from-[#6366f1] via-[#4f46e5] to-[#4338ca]',
+    shadow: 'shadow-[0_20px_45px_-12px_rgba(99,102,241,0.45)]',
+    stackLayer1: 'bg-[#818cf8]/50 border-white/20',
+    stackLayer2: 'bg-[#a5b4fc]/30 border-white/10',
+    dotColor: 'bg-[#6366f1]',
   },
   {
-    gradient: 'from-[#ea580c] via-[#f97316] to-[#c2410c]',
-    shadow: 'shadow-[0_12px_32px_-6px_rgba(234,88,12,0.45)]',
-    stackLayer1: 'bg-[#fb923c]',
-    stackLayer2: 'bg-[#fed7aa]',
+    gradient: 'from-[#ea580c] via-[#c2410c] to-[#9a3412]',
+    shadow: 'shadow-[0_20px_45px_-12px_rgba(234,88,12,0.45)]',
+    stackLayer1: 'bg-[#f97316]/50 border-white/20',
+    stackLayer2: 'bg-[#fb923c]/30 border-white/10',
     dotColor: 'bg-[#ea580c]',
   },
   {
-    gradient: 'from-[#0284c7] via-[#0369a1] to-[#075985]',
-    shadow: 'shadow-[0_12px_32px_-6px_rgba(2,132,199,0.45)]',
-    stackLayer1: 'bg-[#38bdf8]',
-    stackLayer2: 'bg-[#bae6fd]',
-    dotColor: 'bg-[#0284c7]',
+    gradient: 'from-[#8b5cf6] via-[#7c3aed] to-[#6d28d9]',
+    shadow: 'shadow-[0_20px_45px_-12px_rgba(139,92,246,0.45)]',
+    stackLayer1: 'bg-[#a78bfa]/50 border-white/20',
+    stackLayer2: 'bg-[#c4b5fd]/30 border-white/10',
+    dotColor: 'bg-[#8b5cf6]',
   },
   {
-    gradient: 'from-[#db2777] via-[#be185d] to-[#9d174d]',
-    shadow: 'shadow-[0_12px_32px_-6px_rgba(219,39,119,0.45)]',
-    stackLayer1: 'bg-[#f472b6]',
-    stackLayer2: 'bg-[#fbcfe8]',
-    dotColor: 'bg-[#db2777]',
+    gradient: 'from-[#059669] via-[#047857] to-[#065f46]',
+    shadow: 'shadow-[0_20px_45px_-12px_rgba(5,150,105,0.45)]',
+    stackLayer1: 'bg-[#10b981]/50 border-white/20',
+    stackLayer2: 'bg-[#34d399]/30 border-white/10',
+    dotColor: 'bg-[#059669]',
   },
 ];
 
@@ -71,7 +73,10 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
   onToggleSave,
   onOpenTailor,
   onViewAll,
+  onViewJob,
 }) => {
+  const { requireAuth } = useAuth();
+
   if (!jobs || jobs.length === 0) {
     return null;
   }
@@ -145,9 +150,10 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            if (!requireAuth()) return;
             onOpenTailor?.(job);
           }}
-          className="w-8 h-8 rounded-full hover:bg-white/15 flex items-center justify-center text-white/90 hover:text-white transition-colors shrink-0"
+          className="w-8 h-8 rounded-full hover:bg-white/15 flex items-center justify-center text-white/90 hover:text-white transition-colors shrink-0 cursor-pointer"
           title="Tailor Pitch & Options"
         >
           <MoreHorizontal className="w-5 h-5" />
@@ -181,9 +187,10 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                if (!requireAuth()) return;
                 onOpenTailor(job);
               }}
-              className="px-3.5 py-2 rounded-2xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center gap-1.5 border border-white/20 backdrop-blur-md shadow-xs active:scale-95 transition-all"
+              className="px-3.5 py-2 rounded-2xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center gap-1.5 border border-white/20 backdrop-blur-md shadow-xs active:scale-95 transition-all cursor-pointer"
               title="Tailor Application Pitch"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
@@ -192,16 +199,22 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
           )}
 
           {/* View Job Button: Crisp white pill button */}
-          <a
-            href={job.apply_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="px-4 py-2 rounded-2xl bg-white text-slate-900 hover:bg-slate-50 font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1.5"
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!requireAuth()) return;
+              if (onViewJob) {
+                onViewJob(job);
+              } else {
+                window.open(job.apply_url, '_blank');
+              }
+            }}
+            className="px-4 py-2 rounded-2xl bg-white text-slate-900 hover:bg-slate-50 font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <span>View Job</span>
             <ExternalLink className="w-3.5 h-3.5 stroke-[2.5]" />
-          </a>
+          </button>
         </div>
       </div>
     </>

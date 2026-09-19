@@ -4,12 +4,14 @@ import React from 'react';
 import { Bookmark, BookmarkCheck, Clock, Sparkles } from 'lucide-react';
 import { JobListing } from '@/types/job';
 import confetti from 'canvas-confetti';
+import { useAuth } from '@/context/AuthContext';
 
 interface JobFeedCardProps {
   job: JobListing;
   isSaved?: boolean;
   onToggleSave?: (job: JobListing) => void;
   onOpenTailor?: (job: JobListing) => void;
+  onViewJob?: (job: JobListing) => void;
 }
 
 export const JobFeedCard: React.FC<JobFeedCardProps> = ({
@@ -17,11 +19,14 @@ export const JobFeedCard: React.FC<JobFeedCardProps> = ({
   isSaved = false,
   onToggleSave,
   onOpenTailor,
+  onViewJob,
 }) => {
+  const { requireAuth } = useAuth();
   const companyInitial = (job.company || 'S').charAt(0).toUpperCase();
 
   const handleSave = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!requireAuth()) return;
     if (!isSaved) {
       confetti({
         particleCount: 25,
@@ -41,11 +46,17 @@ export const JobFeedCard: React.FC<JobFeedCardProps> = ({
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-sky-500 text-white font-black text-base flex items-center justify-center shrink-0 shadow-sm">
             {companyInitial}
           </div>
-          <div className="min-w-0 flex-1">
+          <div 
+            className="min-w-0 flex-1 cursor-pointer"
+            onClick={() => {
+              if (!requireAuth()) return;
+              onViewJob?.(job);
+            }}
+          >
             <p className="text-xs font-medium text-slate-400 truncate">
               {job.company}
             </p>
-            <h3 className="text-base font-extrabold text-slate-900 tracking-tight leading-snug line-clamp-1">
+            <h3 className="text-base font-extrabold text-slate-900 tracking-tight leading-snug line-clamp-1 hover:text-blue-600 transition-colors">
               {job.title}
             </h3>
           </div>
@@ -100,8 +111,11 @@ export const JobFeedCard: React.FC<JobFeedCardProps> = ({
           {onOpenTailor && (
             <button
               type="button"
-              onClick={() => onOpenTailor(job)}
-              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all flex items-center gap-1 active:scale-95"
+              onClick={() => {
+                if (!requireAuth()) return;
+                onOpenTailor(job);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
               title="Tailor Cover Letter & Pitch"
             >
               <Sparkles className="w-3 h-3 text-blue-600" />
@@ -109,15 +123,22 @@ export const JobFeedCard: React.FC<JobFeedCardProps> = ({
             </button>
           )}
 
-          {/* Filled Blue Apply Now Button matching screenshot */}
-          <a
-            href={job.apply_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-4 py-1.5 rounded-xl bg-[#0080ff] hover:bg-blue-600 text-white font-extrabold text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1"
+          {/* Filled Blue Apply Now Button - opens job info modal before applying */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!requireAuth()) return;
+              if (onViewJob) {
+                onViewJob(job);
+              } else {
+                window.open(job.apply_url, '_blank');
+              }
+            }}
+            className="px-4 py-1.5 rounded-xl bg-[#0080ff] hover:bg-blue-600 text-white font-extrabold text-xs shadow-xs active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
           >
             <span>Apply Now</span>
-          </a>
+          </button>
         </div>
       </div>
     </div>
