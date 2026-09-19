@@ -3,40 +3,25 @@
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *, .dark, .dark *));
 
 :root {
-  --background: #000000;
-  --surface: #0a0a0a;
-  --surface-2: #101010;
-  --foreground: #f7f8f8;
-  --muted: #8a8f98;
-  --muted-dim: #62666d;
-  --border-hairline: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.16);
-  --glass-bg: rgba(255, 255, 255, 0.03);
-  --accent: #f7f8f8;
-  color-scheme: dark;
-}
-
-[data-theme="light"], .light {
-  --background: #f8f9fa;
+  --background: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f1f3f5;
+  --surface-2: #f8fafc;
   --foreground: #0f172a;
-  --muted: #475569;
+  --muted: #64748b;
   --muted-dim: #94a3b8;
   --border-hairline: rgba(0, 0, 0, 0.08);
   --border-hover: rgba(0, 0, 0, 0.16);
-  --glass-bg: rgba(0, 0, 0, 0.03);
-  --accent: #0f172a;
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --accent: #0284c7;
   color-scheme: light;
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
+  background-color: #ffffff;
+  color: #0f172a;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
-  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 /* Linear-style Light Ray and Conic Spotlight */
@@ -105,91 +90,78 @@ body {
 /* The signature surface: heavy blur, high saturation so whatever sits behind
    bleeds through as colour, and a bright 1px top edge to catch the light. */
 .glass {
-  background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(28px) saturate(190%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
-    0 24px 60px -28px rgba(0, 0, 0, 0.9);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
 }
 
 .glass-strong {
-  background: rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(40px) saturate(220%);
-  -webkit-backdrop-filter: blur(40px) saturate(220%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.35),
-    0 32px 80px -32px rgba(0, 0, 0, 0.95);
+  background: #ffffff;
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.08);
 }
 
 .glass-header {
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border-bottom: 1px solid var(--border-hairline);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .glass-chip {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(16px) saturate(170%);
-  -webkit-backdrop-filter: blur(16px) saturate(170%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
   transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
 }
 
 .glass-chip:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--border-hover);
+  background: #f1f5f9;
+  border-color: #cbd5e1;
 }
 
-/* Card surface for chat/job/modal panels. Frosted rather than flat grey, so
-   the glass reads on pure black instead of looking like a lighter rectangle. */
+/* Card surface for chat/job/modal panels in clean white theme */
 .panel {
-  background: rgba(255, 255, 255, 0.035);
-  backdrop-filter: blur(22px) saturate(180%);
-  -webkit-backdrop-filter: blur(22px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 18px 48px -28px rgba(0, 0, 0, 1);
-  transition: border-color 0.18s ease, background 0.18s ease;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.05);
+  color: #0f172a;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .panel:hover {
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.05);
+  border-color: #cbd5e1;
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.08);
 }
 
-/* Opaque modal/drawer shell — needs to fully occlude the page behind it. */
+/* Opaque modal/drawer shell */
 .panel-solid {
-  background: rgba(10, 10, 10, 0.92);
-  backdrop-filter: blur(32px) saturate(180%);
-  -webkit-backdrop-filter: blur(32px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 1);
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  color: #0f172a;
 }
 
-/* Neutral input field */
+/* Clean light input field */
 .field {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--foreground);
-  transition: border-color 0.18s ease, background 0.18s ease;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .field::placeholder {
-  color: var(--muted-dim);
+  color: #94a3b8;
 }
 
 .field:focus {
   outline: none;
-  border-color: rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: #0080ff;
+  box-shadow: 0 0 0 3px rgba(0, 128, 255, 0.15);
 }
 
 /* --- buttons (flat, monochrome) -------------------------------------------- */
@@ -608,3 +580,35 @@ body {
 .light .hero-wash {
   background: radial-gradient(ellipse 70% 45% at 50% 8%, rgba(99, 102, 241, 0.05), transparent 72%);
 }
+
+/* Mobile App Redesign Atmospheric & Collage Styles */
+.bg-sky-canvas {
+  background: radial-gradient(circle at 50% 0%, rgba(219, 234, 254, 0.75) 0%, rgba(240, 249, 255, 0.5) 35%, #ffffff 80%);
+}
+[data-theme="dark"] .bg-sky-canvas,
+.dark .bg-sky-canvas {
+  background: radial-gradient(circle at 50% 0%, rgba(30, 58, 138, 0.3) 0%, rgba(15, 23, 42, 0.7) 40%, #09090b 85%);
+}
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-float-slow {
+  animation: floatSlow 4s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spinSlow 12s linear infinite;
+}
+
+.animate-spin-very-slow {
+  animation: spinSlow 24s linear infinite;
+}
+

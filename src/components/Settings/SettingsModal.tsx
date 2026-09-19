@@ -21,6 +21,7 @@ import {
   Check,
   Share2,
   Users,
+  LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getSupabaseBrowserClient } from '@/lib/supabase';
@@ -32,7 +33,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const { user, credits, updateProfile } = useAuth();
+  const { user, credits, updateProfile, logout } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'referrals'>('profile');
 
@@ -655,6 +656,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               )}
             </div>
           )}
+        </div>
+
+        {/* Modal Footer with Prominent Log Out */}
+        <div className="border-t border-slate-100 bg-slate-50 px-6 py-3 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await logout();
+                onClose();
+              } catch (e) {
+                console.error('Logout error:', e);
+              }
+            }}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold transition-all active:scale-95"
+            title="Log out of your account"
+          >
+            <LogOut className="w-3.5 h-3.5 text-red-600" />
+            <span>Sign Out</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold transition-all active:scale-95 shadow-2xs"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

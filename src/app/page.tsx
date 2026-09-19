@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { GlassHeader } from '@/components/Hero/GlassHeader';
-import { OrbHero } from '@/components/Hero/OrbHero';
-import { FactsSection } from '@/components/Sections/FactsSection';
-import { CapabilitiesSection } from '@/components/Sections/CapabilitiesSection';
-import { ClosingCTA } from '@/components/Sections/ClosingCTA';
-import { SiteFooter } from '@/components/Sections/SiteFooter';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { AppHeader } from '@/components/App/AppHeader';
+import { WelcomeCollageHero } from '@/components/App/WelcomeCollageHero';
+import { DiscoveryFeed } from '@/components/App/DiscoveryFeed';
+import { BottomNavDock, type AppNavTab } from '@/components/App/BottomNavDock';
+import { JobRequestModal } from '@/components/App/JobRequestModal';
 
 import { ChatInterface } from '@/components/Chat/ChatInterface';
 import { TailorPitchModal } from '@/components/Tailor/TailorPitchModal';
@@ -19,15 +18,24 @@ import { HistoryDrawer } from '@/components/History/HistoryDrawer';
 import { SettingsModal } from '@/components/Settings/SettingsModal';
 import { QuickScrollPill } from '@/components/Navigation/QuickScrollPill';
 import { ChatMessage, JobListing, SavedJob, ResumeProfile } from '@/types/job';
+import { COMMUNITY_JOBS } from '@/data/community-jobs';
 import { useAuth } from '@/context/AuthContext';
 import confetti from 'canvas-confetti';
 import clsx from 'clsx';
 
 export default function Home() {
-  const { user, credits, requireAuth, updateCredits, openCreditModal } = useAuth();
+  const { user, credits, requireAuth, updateCredits, openCreditModal, openAuthModal } = useAuth();
 
-  const [currentView, setCurrentView] = useState<'home' | 'chat'>('home');
-  const [isExploreOpen, setIsExploreOpen] = useState(false);
+  // Primary view state: 'welcome' (Screen 1) | 'feed' (Screen 2) | 'chat' (AI Agent)
+  const [currentView, setCurrentView] = useState<'welcome' | 'feed' | 'chat'>(() => {
+    if (typeof window !== 'undefined') {
+      const hasStarted = localStorage.getItem('careerbot_has_started');
+      if (hasStarted === 'true') return 'feed';
+    }
+    return 'welcome';
+  });
+
+  const [currentLocation, setCurrentLocation] = useState<string>('Lagos, Nigeria');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [savedJobs, setSavedJobs] = useState<SavedJob[]>(() => {
@@ -48,6 +56,7 @@ export default function Home() {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isJobRequestOpen, setIsJobRequestOpen] = useState(false);
   const [isTrackerOpen, setIsTrackerOpen] = useState(false);
   const [dueFollowUps, setDueFollowUps] = useState<Array<{
     id: string;
@@ -56,6 +65,98 @@ export default function Home() {
     daysSince: number;
     followUpCount: number;
   }>>([]);
+
+  // When users sign out, take them directly to the splash screen ('welcome')
+  useEffect(() => {
+    const handleSignOutTransition = () => {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('careerbot_has_started');
+      }
+      setCurrentView('welcome');
+      setIsSettingsOpen(false);
+      setIsResumeOpen(false);
+      setIsSavedOpen(false);
+      setIsFiltersOpen(false);
+      setIsHistoryOpen(false);
+      setIsJobRequestOpen(false);
+      setIsTrackerOpen(false);
+      setActiveTailorJob(null);
+      setMessages([]);
+      setCurrentChatId(null);
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    };
+
+    window.addEventListener('careerbot_logout', handleSignOutTransition);
+    return () => window.removeEventListener('careerbot_logout', handleSignOutTransition);
+  }, []);
+
+  const prevUserRef = React.useRef(user);
+  useEffect(() => {
+    // Transition to splash screen when user transitions from logged in to logged out
+    if (prevUserRef.current && !user) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('careerbot_has_started');
+      }
+      setCurrentView('welcome');
+      setIsSettingsOpen(false);
+      setIsResumeOpen(false);
+      setIsSavedOpen(false);
+      setIsFiltersOpen(false);
+      setIsHistoryOpen(false);
+      setIsJobRequestOpen(false);
+      setIsTrackerOpen(false);
+      setActiveTailorJob(null);
+      setMessages([]);
+      setCurrentChatId(null);
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    prevUserRef.current = user;
+  }, [user]);
+
+  const savedJobIds = useMemo(() => new Set(savedJobs.map((j) => j.id)), [savedJobs]);
+
+  const updateSavedJobs = (newJobs: SavedJob[]) => {
+    setSavedJobs(newJobs);
+    try {
+      localStorage.setItem('career_bot_saved_jobs', JSON.stringify(newJobs));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const handleToggleSave = (job: JobListing) => {
+    const isSaved = savedJobIds.has(job.id);
+    if (isSaved) {
+      updateSavedJobs(savedJobs.filter((j) => j.id !== job.id));
+    } else {
+      const newSaved: SavedJob = {
+        ...job,
+        saved_at: new Date().toISOString(),
+        status: 'saved',
+        notes: '',
+        follow_up_count: 0,
+      };
+      updateSavedJobs([...savedJobs, newSaved]);
+    }
+  };
+
+  const handleRemoveSaved = (jobId: string) => {
+    updateSavedJobs(savedJobs.filter((j) => j.id !== jobId));
+  };
+
+  const handleUpdateStatus = (jobId: string, status: SavedJob['status']) => {
+    updateSavedJobs(
+      savedJobs.map((j) =>
+        j.id === jobId
+          ? {
+              ...j,
+              status,
+              applied_at: status === 'applied' && !j.applied_at ? new Date().toISOString() : j.applied_at,
+            }
+          : j
+      )
+    );
+  };
 
   const fetchDueFollowUps = useCallback(async () => {
     if (!user) {
@@ -94,149 +195,43 @@ export default function Home() {
   }, [user]);
 
   useEffect(() => {
-    let active = true;
-    if (!user) {
-      return;
-    }
-    fetch('/api/applications?due=1')
-      .then((res) => res.json())
-      .then((data) => {
-        if (!active || !data.success || !Array.isArray(data.applications)) return;
-        const nowMs = Date.now();
-        const mapped = data.applications.map(
-          (app: {
-            id: string;
-            applied_at?: string;
-            job?: { company?: string; title?: string };
-            follow_up_count?: number;
-          }) => {
-            const daysSince = app.applied_at
-              ? Math.max(1, Math.floor((nowMs - new Date(app.applied_at).getTime()) / 86400000))
-              : 7;
-            return {
-              id: app.id,
-              company: app.job?.company || 'Company',
-              jobTitle: app.job?.title || 'Role',
-              daysSince,
-              followUpCount: app.follow_up_count || 0,
-            };
-          }
-        );
-        setDueFollowUps(mapped);
-      })
-      .catch(() => {});
+    fetchDueFollowUps();
+  }, [user, fetchDueFollowUps]);
 
-    return () => {
-      active = false;
-    };
-  }, [user]);
-
-  // Ensure background body scroll is never locked when all modals and drawers are closed
+  // Unlock background body scroll when modals/drawers close
   useEffect(() => {
-    if (!activeTailorJob && !isResumeOpen && !isSavedOpen && !isFiltersOpen && !isHistoryOpen && !isSettingsOpen && !isTrackerOpen && !isExploreOpen) {
+    if (!activeTailorJob && !isResumeOpen && !isSavedOpen && !isFiltersOpen && !isHistoryOpen && !isSettingsOpen && !isTrackerOpen) {
       if (typeof document !== 'undefined') {
         document.body.style.overflow = '';
       }
     }
-  }, [activeTailorJob, isResumeOpen, isSavedOpen, isFiltersOpen, isHistoryOpen, isSettingsOpen, isTrackerOpen, isExploreOpen]);
+  }, [activeTailorJob, isResumeOpen, isSavedOpen, isFiltersOpen, isHistoryOpen, isSettingsOpen, isTrackerOpen]);
 
-  // Global keyboard shortcut: ⌘K / Ctrl+K jumps into the chat search from anywhere
-  useEffect(() => {
-    if (currentView === 'home') return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        if (!user) {
-          requireAuth();
-          return;
-        }
-        setCurrentView('chat');
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentView, user, requireAuth]);
-
-  // Sync saved jobs to localStorage
-  const updateSavedJobs = (newJobs: SavedJob[]) => {
-    setSavedJobs(newJobs);
+  // Persist chat history
+  const persistChatHistory = async (msgs: ChatMessage[], chatId: string | null) => {
+    if (!user || msgs.length === 0) return;
     try {
-      localStorage.setItem('career_bot_saved_jobs', JSON.stringify(newJobs));
-    } catch (err) {
-      console.error('Error saving jobs to storage:', err);
-    }
-  };
-
-  const handleToggleSave = (job: JobListing) => {
-    if (!requireAuth()) return;
-
-    const exists = savedJobs.some((j) => j.id === job.id);
-    if (exists) {
-      updateSavedJobs(savedJobs.filter((j) => j.id !== job.id));
-    } else {
-      const newSaved: SavedJob = {
-        ...job,
-        saved_at: new Date().toISOString(),
-        status: 'saved',
-      };
-      updateSavedJobs([newSaved, ...savedJobs]);
-      confetti({
-        particleCount: 40,
-        spread: 60,
-        origin: { y: 0.6 },
-        colors: ['#ffffff', '#f7f8f8', '#8a8f98', '#62666d'],
-      });
-    }
-  };
-
-  const handleRemoveSaved = (jobId: string) => {
-    updateSavedJobs(savedJobs.filter((j) => j.id !== jobId));
-  };
-
-  const handleUpdateStatus = (jobId: string, status: SavedJob['status']) => {
-    updateSavedJobs(
-      savedJobs.map((j) => (j.id === jobId ? { ...j, status } : j))
-    );
-  };
-
-  const handleClearChat = () => {
-    setMessages([]);
-    setCurrentChatId(null);
-  };
-
-  // Helper to persist chat session to history
-  const persistChatHistory = useCallback(
-    async (updatedMessages: ChatMessage[], existingChatId: string | null) => {
-      if (!user || updatedMessages.length === 0) return;
-      try {
-        const firstUserMessage = updatedMessages.find((m) => m.role === 'user')?.content || 'Job Search';
-        const title = firstUserMessage.length > 38 ? `${firstUserMessage.slice(0, 38)}...` : firstUserMessage;
-
-        const token = typeof window !== 'undefined' ? localStorage.getItem('careerbot_token') : null;
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token && token !== 'undefined' && token !== 'null' && token.trim()) {
-          headers['Authorization'] = `Bearer ${token.trim()}`;
-        }
-
-        const res = await fetch('/api/history/chats', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            id: existingChatId || undefined,
-            title,
-            messages: updatedMessages,
-          }),
-        });
-        const data = await res.json();
-        if (data.success && data.chat?.id) {
-          setCurrentChatId(data.chat.id);
-        }
-      } catch (err) {
-        console.error('Failed to auto-save chat history:', err);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('careerbot_token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token && token.trim()) {
+        headers['Authorization'] = `Bearer ${token.trim()}`;
       }
-    },
-    [user]
-  );
+      const firstUserMsg = msgs.find((m) => m.role === 'user');
+      const title = firstUserMsg ? firstUserMsg.content.slice(0, 50) : 'Job Search';
+
+      const res = await fetch('/api/history/chats', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ id: chatId, title, messages: msgs }),
+      });
+      const data = await res.json();
+      if (data.success && data.chat?.id && !chatId) {
+        setCurrentChatId(data.chat.id);
+      }
+    } catch {
+      /* non-critical */
+    }
+  };
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -254,7 +249,7 @@ export default function Home() {
       return;
     }
 
-    // Switch to chat view if not already there
+    // Switch to chat view
     setCurrentView('chat');
 
     const userMessage: ChatMessage = {
@@ -271,7 +266,7 @@ export default function Home() {
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('careerbot_token') : null;
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token && token !== 'undefined' && token !== 'null' && token.trim()) {
+      if (token && token.trim()) {
         headers['Authorization'] = `Bearer ${token.trim()}`;
       }
 
@@ -322,8 +317,6 @@ export default function Home() {
 
         const finalMessages = [...newMessages, assistantMessage];
         setMessages(finalMessages);
-
-        // Auto-save chat history to backend
         persistChatHistory(finalMessages, currentChatId);
       } else {
         throw new Error(json.error || 'Failed to fetch jobs');
@@ -342,7 +335,7 @@ export default function Home() {
     }
   };
 
-  // Resume any search query attempted before user completed login/registration
+  // Resume pending search after auth
   useEffect(() => {
     if (user && typeof window !== 'undefined') {
       const pending = localStorage.getItem('careerbot_pending_search');
@@ -372,6 +365,42 @@ export default function Home() {
     handleSendMessage(autoSearchQuery);
   };
 
+  const handleStartFromWelcome = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('careerbot_has_started', 'true');
+    }
+    setCurrentView('feed');
+  };
+
+  const handleTabChange = (tab: AppNavTab) => {
+    if (tab === 'home') {
+      setCurrentView('feed');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (tab === 'jobs') {
+      setCurrentView('feed');
+      const jobListElem = document.getElementById('job-list-section');
+      if (jobListElem) {
+        jobListElem.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 380, behavior: 'smooth' });
+      }
+    } else if (tab === 'request') {
+      setIsJobRequestOpen(true);
+    } else if (tab === 'chat') {
+      if (!user) {
+        requireAuth();
+        return;
+      }
+      setCurrentView('chat');
+    } else if (tab === 'profile') {
+      if (!user) {
+        openAuthModal('login');
+      } else {
+        setIsSettingsOpen(true);
+      }
+    }
+  };
+
   const handleSelectChat = (chat: { id: string; messages: ChatMessage[] }) => {
     setCurrentChatId(chat.id);
     setMessages(chat.messages);
@@ -388,43 +417,25 @@ export default function Home() {
     setCurrentView('chat');
   };
 
-  const handleOpenResume = () => {
-    setIsResumeOpen(true);
-  };
-
   return (
-    <div className="flex min-h-screen flex-col bg-[#f8f9fa] dark:bg-black text-zinc-900 dark:text-[#f7f8f8] selection:bg-zinc-900/10 selection:text-zinc-900 dark:selection:bg-white/20 dark:selection:text-white transition-colors duration-200">
-      {/* Glassy sticky header */}
-      <GlassHeader
-        currentView={currentView}
-        onViewChange={(view) => {
-          setCurrentView(view);
-        }}
-        savedCount={savedJobs.length}
-        onOpenSaved={() => setIsSavedOpen(true)}
-        onOpenTracker={() => {
-          if (requireAuth()) setIsTrackerOpen(true);
-        }}
-        onOpenResume={handleOpenResume}
-        onOpenFilters={() => setIsFiltersOpen(true)}
-        onClearChat={handleClearChat}
-        onOpenHistory={() => {
-          if (requireAuth()) setIsHistoryOpen(true);
-        }}
-        onOpenSettings={() => {
-          if (requireAuth()) setIsSettingsOpen(true);
-        }}
-        onExploreToggle={setIsExploreOpen}
-      />
+    <div className="flex min-h-screen flex-col bg-white text-slate-900">
+      {/* Top App Header (Shown on Feed and Chat) */}
+      {currentView !== 'welcome' && (
+        <AppHeader
+          currentLocation={currentLocation}
+          onLocationChange={setCurrentLocation}
+          onOpenProfile={() => {
+            if (!user) openAuthModal('login');
+            else setIsSettingsOpen(true);
+          }}
+          onOpenSaved={() => setIsSavedOpen(true)}
+          savedCount={savedJobs.length}
+        />
+      )}
 
-      {/* Follow-up reminder alert banner */}
-      {dueFollowUps.length > 0 && (
-        <div
-          className={clsx(
-            "py-3 transition-all duration-300",
-            isExploreOpen && "filter blur-sm md:filter-none pointer-events-none select-none"
-          )}
-        >
+      {/* Follow-up reminder banner */}
+      {dueFollowUps.length > 0 && currentView !== 'welcome' && (
+        <div className="py-2 px-4 max-w-md sm:max-w-xl mx-auto w-full">
           <FollowUpBanner
             items={dueFollowUps}
             onGenerateEmail={() => {
@@ -441,46 +452,85 @@ export default function Home() {
         </div>
       )}
 
-      {/* Main Content Area */}
-      {currentView === 'home' ? (
-        <main
-          className={clsx(
-            "flex flex-1 flex-col transition-all duration-300",
-            isExploreOpen && "filter blur-sm md:filter-none pointer-events-none select-none"
-          )}
-        >
-          <OrbHero onSearch={handleSendMessage} isLoading={isLoading} onOpenResume={handleOpenResume} />
-          <FactsSection />
-          <CapabilitiesSection />
-          <ClosingCTA
-            onStartSearch={() => setCurrentView('chat')}
-            onOpenResume={handleOpenResume}
-          />
-          <SiteFooter
-            onStartSearch={() => setCurrentView('chat')}
-            onOpenResume={handleOpenResume}
-            onOpenSaved={() => setIsSavedOpen(true)}
+      {/* View 1: Welcome / Onboarding Screen (Screen 1 in Mockup) */}
+      {currentView === 'welcome' && (
+        <main className="flex-1 flex flex-col justify-center">
+          <WelcomeCollageHero
+            onStart={handleStartFromWelcome}
+            onOpenResume={() => setIsResumeOpen(true)}
+            jobCount={COMMUNITY_JOBS.length || 200}
           />
         </main>
-      ) : (
-        <main
-          className={clsx(
-            "flex flex-1 flex-col transition-all duration-300",
-            isExploreOpen && "filter blur-sm md:filter-none pointer-events-none select-none"
-          )}
-        >
+      )}
+
+      {/* View 2: Discovery Feed & Job List (Screen 2 in Mockup) */}
+      {currentView === 'feed' && (
+        <main className="flex-1 flex flex-col">
+          <DiscoveryFeed
+            jobs={COMMUNITY_JOBS}
+            currentLocation={currentLocation}
+            onSearchSubmit={(q) => handleSendMessage(q)}
+            onOpenFilterDrawer={() => setIsFiltersOpen(true)}
+            onToggleSave={handleToggleSave}
+            savedJobIds={savedJobIds}
+            onOpenTailor={(job) => setActiveTailorJob(job)}
+            onViewAllSuggested={() => {
+              const jobListElem = document.getElementById('job-list-section');
+              if (jobListElem) {
+                jobListElem.scrollIntoView({ behavior: 'smooth' });
+              } else {
+                window.scrollTo({ top: 380, behavior: 'smooth' });
+              }
+            }}
+          />
+        </main>
+      )}
+
+      {/* View 3: AI Chat & Search Interface */}
+      {currentView === 'chat' && (
+        <main className="flex-1 flex flex-col max-w-2xl mx-auto w-full px-4 pb-24">
+          <div className="flex items-center justify-between py-2 mb-2">
+            <button
+              type="button"
+              onClick={() => setCurrentView('feed')}
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+            >
+              <span>← Back to Job Feed</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleNewChat}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-white"
+            >
+              + New Search
+            </button>
+          </div>
           <ChatInterface
             messages={messages}
             isLoading={isLoading}
             onSendMessage={handleSendMessage}
             savedJobs={savedJobs}
             onToggleSave={handleToggleSave}
-            onOpenTailor={(job) => {
-              setActiveTailorJob(job);
-            }}
+            onOpenTailor={(job) => setActiveTailorJob(job)}
           />
         </main>
       )}
+
+      {/* Floating Bottom Navigation Dock (Matching Mockup Screen 2) */}
+      {currentView !== 'welcome' && (
+        <BottomNavDock
+          activeTab={isJobRequestOpen ? 'request' : currentView === 'chat' ? 'chat' : 'home'}
+          onTabChange={handleTabChange}
+          onCenterPlusClick={() => setIsResumeOpen(true)}
+        />
+      )}
+
+      {/* Custom Job Request Modal (Attached to contact email) */}
+      <JobRequestModal
+        isOpen={isJobRequestOpen}
+        onClose={() => setIsJobRequestOpen(false)}
+        contactEmail="bamdalas6@gmail.com"
+      />
 
       {/* 1-Click Tailor Pitch Modal */}
       <TailorPitchModal
@@ -505,9 +555,7 @@ export default function Home() {
         onOpenTracker={() => {
           if (requireAuth()) setIsTrackerOpen(true);
         }}
-        onOpenTailor={(job) => {
-          setActiveTailorJob(job);
-        }}
+        onOpenTailor={(job) => setActiveTailorJob(job)}
       />
 
       {/* Full Application Tracker & Pipeline Kanban */}

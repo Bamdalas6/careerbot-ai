@@ -59,26 +59,28 @@ const MAX_AGE_DAYS = 150;
  * Kept deliberately small: every entry here trades precision for recall.
  */
 const SYNONYMS: Record<string, string[]> = {
-  developer: ['engineer', 'dev', 'programmer'],
-  engineer: ['developer', 'dev'],
-  dev: ['developer', 'engineer'],
-  frontend: ['front-end', 'front end', 'ui', 'client-side'],
-  backend: ['back-end', 'back end', 'server-side', 'api'],
+  developer: ['dev', 'programmer', 'software engineer', 'software developer'],
+  dev: ['developer', 'programmer'],
+  programmer: ['developer', 'coder'],
+  frontend: ['front-end', 'front end', 'client-side'],
+  backend: ['back-end', 'back end', 'server-side'],
   fullstack: ['full-stack', 'full stack'],
-  designer: ['design'],
+  designer: ['design', 'ui/ux', 'product design', 'graphic design'],
   design: ['designer'],
   analyst: ['analytics', 'analysis'],
   analytics: ['analyst'],
   ml: ['machine learning'],
   ai: ['artificial intelligence', 'machine learning'],
-  devops: ['sre', 'site reliability', 'platform'],
+  devops: ['sre', 'site reliability', 'platform engineer'],
   sre: ['devops', 'site reliability'],
   pm: ['product manager'],
-  qa: ['quality assurance', 'test', 'sdet'],
-  accountant: ['accounting', 'accounts'],
-  hr: ['human resources', 'people'],
-  marketing: ['marketer', 'growth'],
-  support: ['customer service', 'customer care'],
+  qa: ['quality assurance', 'test engineer', 'sdet'],
+  accountant: ['accounting', 'accounts officer', 'auditor', 'audit'],
+  accounting: ['accountant'],
+  hr: ['human resources', 'talent acquisition', 'recruiter'],
+  marketing: ['marketer', 'growth', 'digital marketing'],
+  support: ['customer service', 'customer success', 'customer care'],
+  assistant: ['administrative assistant', 'executive assistant', 'personal assistant', 'virtual assistant'],
 };
 
 /** Words already captured as structured seniority; excluded from term matching. */
@@ -1079,25 +1081,34 @@ export async function runSearch(rawQuery: string, limit = 40): Promise<SearchRes
     kept.push(...relatedPool.slice(0, Math.min(10, limit - exact.length)));
   }
 
-  // Resilient discovery fallback: If strict title matching yielded 0 roles,
-  // find the closest relevant jobs from our live pool so users are never left with an empty screen.
+  // Resilient discovery fallback: Only if candidates match the requested occupation family
+  // or have real title/tag signals. Never return cross-discipline jobs (e.g. mechanic for designer).
   if (kept.length === 0 && unique.length > 0) {
     const rawTokens = (parsed.terms.length > 0 ? parsed.terms : rawQuery.toLowerCase().split(/[^a-z0-9+#.]+/))
       .filter((w) => w.length >= 2 && !STOPWORDS.has(w));
     const candidatePool = unique.filter((j) => {
       if (parsed.isRemote === true && !j.is_remote) return false;
       if (parsed.isRemote === false && j.is_remote) return false;
+      // If query specified an occupation family, reject any job outside that family
+      if (parsed.family) {
+        const jf = familyOfTitle(j.title);
+        if (jf && jf !== parsed.family) return false;
+      }
       return true;
     });
 
     const ranked = candidatePool.map((job) => {
-      const text = `${job.title} ${job.company} ${job.tags?.join(' ') || ''} ${job.location}`.toLowerCase();
+      const title = (job.title || '').toLowerCase();
+      const tags = (job.tags || []).join(' ').toLowerCase();
       let matches = 0;
       for (const t of rawTokens) {
         const esc = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const start = /^\w/.test(t) ? '\\b' : '(?<=^|[^a-zA-Z0-9_])';
         const end = /\w$/.test(t) ? '\\b' : '(?=[^a-zA-Z0-9_]|$)';
-        if (new RegExp(`${start}${esc}${end}`, 'i').test(text)) matches += 1;
+        const rx = new RegExp(`${start}${esc}${end}`, 'i');
+        // Require matches to land on title or tags
+        if (rx.test(title)) matches += 2;
+        else if (rx.test(tags)) matches += 1;
       }
       return {
         job: {

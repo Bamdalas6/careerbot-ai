@@ -80,10 +80,10 @@ export const JobCard: React.FC<JobCardProps> = ({
 
   const score = job.match_score || 80;
   const matchPillClasses = score >= 90
-    ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-white/10 dark:text-[#f7f8f8] dark:border-white/20'
+    ? 'bg-emerald-100 text-emerald-800 border-emerald-300  #f7f8f8] '
     : score >= 75
-    ? 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-white/[0.06] dark:text-[#c9cbd0] dark:border-white/[0.14]'
-    : 'bg-zinc-200/80 text-zinc-700 border-zinc-300 dark:bg-white/[0.03] dark:text-[#8a8f98] dark:border-white/10';
+    ? 'bg-indigo-100 text-indigo-800 border-indigo-300 .06] #c9cbd0] .14]'
+    : 'bg-zinc-200/80 text-zinc-700 border-zinc-300 .03] #8a8f98] ';
 
   return (
     <div className="panel group relative flex flex-col justify-between rounded-2xl p-5 shadow-xs transition-all duration-200">
@@ -91,19 +91,19 @@ export const JobCard: React.FC<JobCardProps> = ({
       <div>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-lg font-bold text-zinc-900 shadow-xs dark:border-zinc-700 dark:bg-zinc-800 dark:text-white">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 text-lg font-bold text-zinc-900 shadow-xs   ">
               {(job.company || '?').charAt(0)}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-zinc-900 transition hover:text-black dark:text-zinc-200 dark:hover:text-white truncate">
+                <span className="font-semibold text-zinc-900 transition hover:text-black  :text-white truncate">
                   {job.company}
                 </span>
-                <span className="rounded-md border border-zinc-200/80 bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600 dark:border-transparent dark:bg-zinc-800 dark:text-zinc-400">
+                <span className="rounded-md border border-zinc-200/80 bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600   ">
                   {job.source}
                 </span>
               </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">{job.posted_at}</p>
+              <p className="text-xs text-zinc-500 ">{job.posted_at}</p>
             </div>
           </div>
 
@@ -111,7 +111,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             <button
               type="button"
               onClick={(e) => handleSearchJob(e, job.title)}
-              className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition"
+              className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800  :bg-zinc-800 :text-zinc-200 transition"
               title={`Search for "${job.title}" roles`}
             >
               <Search className="h-4 w-4" />
@@ -119,7 +119,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             <button
               type="button"
               onClick={handleShare}
-              className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition"
+              className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800  :bg-zinc-800 :text-zinc-200 transition"
               title="Share job link"
             >
               <Share2 className="h-4 w-4" />
@@ -129,8 +129,8 @@ export const JobCard: React.FC<JobCardProps> = ({
               onClick={handleSaveClick}
               className={`rounded-lg p-1.5 transition ${
                 isSaved
-                  ? 'bg-zinc-900 text-white dark:bg-white/10 dark:text-[#f7f8f8]'
-                  : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200'
+                  ? 'bg-zinc-900 text-white  #f7f8f8]'
+                  : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800  :bg-zinc-800 :text-zinc-200'
               }`}
               title={isSaved ? 'Remove from saved' : 'Save job'}
             >
@@ -142,7 +142,7 @@ export const JobCard: React.FC<JobCardProps> = ({
         {/* Job Title - click to search */}
         <h3
           onClick={(e) => handleSearchJob(e, job.title)}
-          className="mt-3.5 text-base font-bold text-zinc-900 group-hover:text-black dark:text-white dark:group-hover:text-[#f7f8f8] transition line-clamp-2 leading-snug cursor-pointer hover:underline"
+          className="mt-3.5 text-base font-bold text-zinc-900 group-hover:text-black  :text-[#f7f8f8] transition line-clamp-2 leading-snug cursor-pointer hover:underline"
           title={`Click to search roles for "${job.title}"`}
         >
           {job.title}
@@ -151,27 +151,27 @@ export const JobCard: React.FC<JobCardProps> = ({
         {/* Badges: Location, Remote, Salary */}
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
           {job.location && (
-            <span className="flex items-center gap-1 rounded-md border border-zinc-200/80 bg-zinc-100 px-2 py-1 font-medium text-zinc-700 dark:border-transparent dark:bg-zinc-800/80 dark:text-zinc-300">
-              <MapPin className="h-3 w-3 text-zinc-500 dark:text-zinc-400" />
+            <span className="flex items-center gap-1 rounded-md border border-zinc-200/80 bg-zinc-100 px-2 py-1 font-medium text-zinc-700   ">
+              <MapPin className="h-3 w-3 text-zinc-500 " />
               {job.location}
             </span>
           )}
 
           {job.is_remote && (
-            <span className="flex items-center gap-1 rounded-md border border-blue-200/80 bg-blue-50 px-2 py-1 font-semibold text-blue-700 dark:border-white/10 dark:bg-white/[0.07] dark:text-[#c9cbd0]">
+            <span className="flex items-center gap-1 rounded-md border border-blue-200/80 bg-blue-50 px-2 py-1 font-semibold text-blue-700  .07] #c9cbd0]">
               Remote
             </span>
           )}
 
           {job.experience_level && (
-            <span className="flex items-center gap-1 rounded-md border border-zinc-200/80 bg-zinc-100 px-2 py-1 font-medium text-zinc-700 dark:border-transparent dark:bg-zinc-800/80 dark:text-zinc-300">
-              <Briefcase className="h-3 w-3 text-zinc-500 dark:text-zinc-400" />
+            <span className="flex items-center gap-1 rounded-md border border-zinc-200/80 bg-zinc-100 px-2 py-1 font-medium text-zinc-700   ">
+              <Briefcase className="h-3 w-3 text-zinc-500 " />
               {job.experience_level}
             </span>
           )}
 
           {job.salary_formatted && (
-            <span className="flex items-center gap-1 rounded-md border border-emerald-200/80 bg-emerald-50 px-2 py-1 font-semibold text-emerald-700 dark:border-white/10 dark:bg-white/[0.07] dark:text-[#f7f8f8]">
+            <span className="flex items-center gap-1 rounded-md border border-emerald-200/80 bg-emerald-50 px-2 py-1 font-semibold text-emerald-700  .07] #f7f8f8]">
               <DollarSign className="h-3 w-3" />
               {job.salary_formatted}
             </span>
@@ -180,10 +180,10 @@ export const JobCard: React.FC<JobCardProps> = ({
 
         {/* AI Match Reason Box */}
         {job.match_score && (
-          <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+          <div className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3  ">
             <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-1.5 font-semibold text-zinc-900 dark:text-zinc-300">
-                <Sparkles className="h-3.5 w-3.5 text-indigo-600 dark:text-[#8a8f98]" />
+              <div className="flex items-center gap-1.5 font-semibold text-zinc-900 ">
+                <Sparkles className="h-3.5 w-3.5 text-indigo-600 #8a8f98]" />
                 <span>AI Match Fit</span>
               </div>
               <span className={`rounded-md border px-2 py-0.5 text-[11px] font-bold ${matchPillClasses}`}>
@@ -191,7 +191,7 @@ export const JobCard: React.FC<JobCardProps> = ({
               </span>
             </div>
             {job.match_reason && (
-              <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
+              <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-600 ">
                 {job.match_reason}
               </p>
             )}
@@ -200,7 +200,7 @@ export const JobCard: React.FC<JobCardProps> = ({
 
         {/* Snippet preview */}
         {job.snippet && (
-          <p className="mt-3 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400 line-clamp-2">
+          <p className="mt-3 text-xs leading-relaxed text-zinc-600  line-clamp-2">
             {job.snippet}
           </p>
         )}
@@ -213,7 +213,7 @@ export const JobCard: React.FC<JobCardProps> = ({
                 key={idx}
                 type="button"
                 onClick={(e) => handleSearchJob(e, tag)}
-                className="rounded-md border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700 hover:border-zinc-400 hover:bg-zinc-200 dark:border-zinc-700/40 dark:bg-zinc-800/60 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:bg-zinc-700/60 transition cursor-pointer"
+                className="rounded-md border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700 hover:border-zinc-400 hover:bg-zinc-200    :border-zinc-600 :bg-zinc-700/60 transition cursor-pointer"
                 title={`Search for "${tag}" jobs`}
               >
                 {tag}
@@ -224,7 +224,7 @@ export const JobCard: React.FC<JobCardProps> = ({
       </div>
 
       {/* Bottom CTA Actions */}
-      <div className="mt-5 flex items-center gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-800/80">
+      <div className="mt-5 flex items-center gap-2 pt-3 border-t border-zinc-200 ">
         <button
           type="button"
           onClick={(e) => {
@@ -236,9 +236,9 @@ export const JobCard: React.FC<JobCardProps> = ({
             } catch {}
             router.push(`/tailor?id=${encodeURIComponent(job.id)}`);
           }}
-          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-900 transition hover:bg-zinc-50 hover:border-zinc-400 dark:border-white/[0.14] dark:bg-white/[0.05] dark:text-[#f7f8f8] dark:hover:bg-white/[0.09] dark:hover:border-white/25 cursor-pointer relative z-10 active:scale-[0.98] select-none"
+          className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-900 transition hover:bg-zinc-50 hover:border-zinc-400 .14] .05] #f7f8f8] :bg-white/[0.09] :border-white/25 cursor-pointer relative z-10 active:scale-[0.98] select-none"
         >
-          <Sparkles className="h-3.5 w-3.5 text-indigo-600 dark:text-[#8a8f98] pointer-events-none" />
+          <Sparkles className="h-3.5 w-3.5 text-indigo-600 #8a8f98] pointer-events-none" />
           <span className="pointer-events-none">Tailor Pitch</span>
         </button>
 
@@ -247,7 +247,7 @@ export const JobCard: React.FC<JobCardProps> = ({
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-black dark:bg-white dark:text-black dark:hover:bg-zinc-100 shadow-xs cursor-pointer relative z-10 active:scale-[0.98] select-none"
+          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-black   :bg-zinc-100 shadow-xs cursor-pointer relative z-10 active:scale-[0.98] select-none"
         >
           <span className="pointer-events-none">Direct Apply</span>
           <ExternalLink className="h-3.5 w-3.5 pointer-events-none" />

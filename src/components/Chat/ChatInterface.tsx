@@ -43,7 +43,7 @@ function FormattedMessageText({ text, isUser }: { text: string; isUser?: boolean
                 return (
                   <strong
                     key={pIdx}
-                    className={isUser ? 'font-bold underline decoration-white/30' : 'font-bold text-zinc-950 dark:text-white'}
+                    className={isUser ? 'font-bold underline decoration-white/30' : 'font-bold text-zinc-950 '}
                   >
                     {part.slice(2, -2)}
                   </strong>
@@ -51,7 +51,7 @@ function FormattedMessageText({ text, isUser }: { text: string; isUser?: boolean
               }
               if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
                 return (
-                  <em key={pIdx} className={isUser ? 'italic opacity-90' : 'italic text-zinc-700 dark:text-zinc-300'}>
+                  <em key={pIdx} className={isUser ? 'italic opacity-90' : 'italic text-zinc-700 '}>
                     {part.slice(1, -1)}
                   </em>
                 );
@@ -125,13 +125,13 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       <div className="flex-1 overflow-y-auto space-y-6 pb-6 pr-1 custom-scrollbar">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-4 py-8">
-            <div className="glass mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-white/[0.045] text-zinc-900 dark:text-[#f7f8f8] border border-black/10 dark:border-white/10 shadow-sm">
+            <div className="glass mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 .045] text-zinc-900 #f7f8f8] border border-black/10  shadow-sm">
               <Bot className="h-8 w-8" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-bold text-zinc-900  tracking-tight">
               Where do you want to work next?
             </h2>
-            <p className="mt-2 text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 max-w-md leading-relaxed">
+            <p className="mt-2 text-xs sm:text-sm text-zinc-600  max-w-md leading-relaxed">
               Describe your ideal role, skills, salary, or target companies. I will source live jobs and give you direct career page links.
             </p>
 
@@ -153,7 +153,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               {/* Message Bubble */}
               <div className="flex items-start gap-3 max-w-[85%] sm:max-w-[75%] md:max-w-3xl">
                 {msg.role === 'assistant' && (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-900 border border-zinc-200 shadow-xs dark:bg-white/[0.08] dark:text-[#f7f8f8] dark:border-white/10">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-900 border border-zinc-200 shadow-xs .08] #f7f8f8] ">
                     <Bot className="h-4 w-4" />
                   </div>
                 )}
@@ -162,14 +162,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                     msg.role === 'user'
                       ? 'btn-primary shadow-sm'
-                      : 'panel text-zinc-900 dark:text-[#e6e7ea]'
+                      : 'panel text-zinc-900 #e6e7ea]'
                   }`}
                 >
                   <FormattedMessageText text={msg.content} isUser={msg.role === 'user'} />
                 </div>
 
                 {msg.role === 'user' && (
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-300">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-white   ">
                     <User className="h-4 w-4" />
                   </div>
                 )}
@@ -198,15 +198,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     </div>
 
                     {hasMore && (
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-2xl border border-zinc-200 bg-zinc-50 dark:border-white/[0.08] dark:bg-white/[0.02]">
-                        <span className="text-xs font-medium text-zinc-600 dark:text-[#8a8f98]">
-                          Showing <strong className="text-zinc-900 dark:text-white">{visibleJobs.length}</strong> of{' '}
-                          <strong className="text-zinc-900 dark:text-white">{msg.jobs.length}</strong> matching positions
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-2xl border border-zinc-200 bg-zinc-50 .08] .02]">
+                        <span className="text-xs font-medium text-zinc-600 #8a8f98]">
+                          Showing <strong className="text-zinc-900 ">{visibleJobs.length}</strong> of{' '}
+                          <strong className="text-zinc-900 ">{msg.jobs.length}</strong> matching positions
                         </span>
                         <button
                           type="button"
                           onClick={() => setExpandedMessages((prev) => ({ ...prev, [msg.id]: !isExpanded }))}
-                          className="flex items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 shadow-xs hover:border-zinc-900 hover:bg-zinc-100 dark:border-white/10 dark:bg-white/[0.06] dark:text-[#f7f8f8] dark:hover:bg-white/10 transition"
+                          className="flex items-center gap-1.5 rounded-xl border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 shadow-xs hover:border-zinc-900 hover:bg-zinc-100  .06] #f7f8f8] :bg-white/10 transition"
                         >
                           {isExpanded ? (
                             <span>Show Fewer (Collapse)</span>
@@ -228,9 +228,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       key={idx}
                       type="button"
                       onClick={() => handleSelectQuery(sq)}
-                      className="flex items-center gap-1.5 rounded-full glass-chip px-3 py-1 text-xs font-medium text-zinc-700 hover:text-zinc-900 dark:text-[#8a8f98] dark:hover:text-[#f7f8f8] transition"
+                      className="flex items-center gap-1.5 rounded-full glass-chip px-3 py-1 text-xs font-medium text-zinc-700 hover:text-zinc-900 #8a8f98] :text-[#f7f8f8] transition"
                     >
-                      <Sparkles className="h-3 w-3 text-indigo-500 dark:text-[#8a8f98]" />
+                      <Sparkles className="h-3 w-3 text-indigo-500 #8a8f98]" />
                       <span>{sq}</span>
                     </button>
                   ))}
@@ -243,11 +243,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         {/* Loading Spinner */}
         {isLoading && (
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-900 border border-zinc-200 dark:bg-white/[0.08] dark:text-[#f7f8f8] dark:border-white/10 shadow-xs animate-pulse">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-900 border border-zinc-200 .08] #f7f8f8]  shadow-xs animate-pulse">
               <Bot className="h-4 w-4" />
             </div>
-            <div className="flex items-center gap-2 panel rounded-2xl px-4 py-3 text-xs text-zinc-600 dark:text-[#8a8f98]">
-              <Loader2 className="h-4 w-4 animate-spin text-zinc-600 dark:text-[#8a8f98]" />
+            <div className="flex items-center gap-2 panel rounded-2xl px-4 py-3 text-xs text-zinc-600 #8a8f98]">
+              <Loader2 className="h-4 w-4 animate-spin text-zinc-600 #8a8f98]" />
               <span>Scanning live career portals and matching roles...</span>
             </div>
           </div>
@@ -257,10 +257,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       </div>
 
       {/* Chat Input Bar */}
-      <div className="mt-2 pt-2 border-t border-black/10 dark:border-zinc-800/80">
+      <div className="mt-2 pt-2 border-t border-black/10 ">
         {/* Active Speech Recognition Banner */}
         {isListening && (
-          <div className="mb-2 flex items-center justify-between gap-2 px-3.5 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold animate-in fade-in slide-in-from-bottom-1 duration-150 shadow-xs">
+          <div className="mb-2 flex items-center justify-between gap-2 px-3.5 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600  text-xs font-semibold animate-in fade-in slide-in-from-bottom-1 duration-150 shadow-xs">
             <div className="flex items-center gap-2 min-w-0">
               <span className="relative flex h-2.5 w-2.5 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
@@ -279,7 +279,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         )}
 
         {errorMessage && (
-          <div className="mb-2 px-3.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between gap-2">
+          <div className="mb-2 px-3.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-800  text-xs flex items-center justify-between gap-2">
             <span>{errorMessage}</span>
             <button
               type="button"
@@ -301,7 +301,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={isListening ? "Listening to your voice..." : "Search roles, skills, companies, salary (e.g. 'Senior React Remote $160k')..."}
-            className="field w-full rounded-2xl py-3.5 pl-11 pr-28 sm:pr-32 text-sm sm:text-base min-h-[44px] shadow-xs bg-white dark:bg-white/[0.04] text-zinc-900 dark:text-[#f7f8f8] border border-black/15 dark:border-white/10 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none"
+            className="field w-full rounded-2xl py-3.5 pl-11 pr-28 sm:pr-32 text-sm sm:text-base min-h-[44px] shadow-xs bg-white .04] text-zinc-900 #f7f8f8] border border-black/15  placeholder:text-zinc-400 :text-zinc-500 focus:outline-none"
             disabled={isLoading}
           />
 
@@ -314,7 +314,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 className={`relative flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-200 cursor-pointer select-none active:scale-95 ${
                   isListening
                     ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 scale-105 ring-2 ring-rose-400/50 animate-pulse'
-                    : 'border border-black/10 bg-black/[0.04] text-zinc-600 hover:text-zinc-900 hover:bg-black/[0.08] dark:border-white/10 dark:bg-white/[0.06] dark:text-[#8a8f98] dark:hover:text-white dark:hover:bg-white/[0.12]'
+                    : 'border border-black/10 bg-black/[0.04] text-zinc-600 hover:text-zinc-900 hover:bg-black/[0.08]  .06] #8a8f98] :text-white :bg-white/[0.12]'
                 }`}
                 title={isListening ? 'Listening... Click to stop' : 'Use voice speech to type'}
                 aria-label={isListening ? 'Stop listening' : 'Start voice speech'}

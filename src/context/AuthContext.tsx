@@ -281,6 +281,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Session token was cleared in another tab (logout)
         setUser(null);
         setCredits(0);
+        localStorage.removeItem('careerbot_has_started');
+        window.dispatchEvent(new Event('careerbot_logout'));
       }
     };
 
@@ -533,6 +535,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.removeItem('careerbot_user');
         localStorage.removeItem('careerbot_token');
         localStorage.removeItem('careerbot_credits');
+        localStorage.removeItem('careerbot_has_started');
+        window.dispatchEvent(new Event('careerbot_logout'));
       }
     }
   }, []);

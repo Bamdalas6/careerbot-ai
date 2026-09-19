@@ -37,21 +37,21 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative flex h-full w-full max-w-md flex-col border-l border-black/10 bg-white text-zinc-900 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950 dark:text-white">
+      <div className="relative flex h-full w-full max-w-md flex-col border-l border-black/10 bg-white text-zinc-900 shadow-2xl   ">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-black/10 bg-zinc-50 px-6 py-4 dark:border-zinc-800 dark:bg-zinc-900/60">
+        <div className="flex items-center justify-between border-b border-black/10 bg-zinc-50 px-6 py-4  ">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-black/10 bg-black/[0.04] text-zinc-900 dark:border-white/10 dark:bg-white/[0.06] dark:text-[#f7f8f8]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-black/10 bg-black/[0.04] text-zinc-900  .06] #f7f8f8]">
               <SlidersHorizontal className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-bold text-zinc-900 text-base dark:text-white">Search Preferences</h3>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">Configure your target job criteria</p>
+              <h3 className="font-bold text-zinc-900 text-base ">Search Preferences</h3>
+              <p className="text-xs text-zinc-500 ">Configure your target job criteria</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-zinc-500 hover:bg-black/[0.06] hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white transition"
+            className="rounded-lg p-1.5 text-zinc-500 hover:bg-black/[0.06] hover:text-zinc-900  :bg-zinc-800 :text-white transition"
           >
             <X className="h-5 w-5" />
           </button>
@@ -61,7 +61,7 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
         <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
           {/* Target Role */}
           <div>
-            <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wider block mb-2 dark:text-zinc-400">
+            <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wider block mb-2 ">
               Target Role / Keywords
             </label>
             <input
@@ -69,13 +69,13 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
               value={role}
               onChange={(e) => setRole(e.target.value)}
               placeholder="e.g. Frontend Engineer, Product Designer, DevOps"
-              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-xs sm:text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-white dark:placeholder-zinc-500 dark:focus:border-white/30"
+              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-xs sm:text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-900 focus:outline-none     :border-white/30"
             />
           </div>
 
           {/* Work Arrangement */}
           <div>
-            <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wider block mb-2 dark:text-zinc-400">
+            <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wider block mb-2 ">
               Work Arrangement
             </label>
             <div className="grid grid-cols-3 gap-2">
@@ -84,8 +84,8 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
                 onClick={() => setIsRemote(null)}
                 className={`rounded-xl border py-2 text-xs font-semibold transition ${
                   isRemote === null
-                    ? 'border-zinc-900 bg-zinc-900 text-white dark:border-white/25 dark:bg-white/10 dark:text-[#f7f8f8]'
-                    : 'border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-700'
+                    ? 'border-zinc-900 bg-zinc-900 text-white   #f7f8f8]'
+                    : 'border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100    :border-zinc-700'
                 }`}
               >
                 Any
@@ -95,8 +95,8 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
                 onClick={() => setIsRemote(true)}
                 className={`rounded-xl border py-2 text-xs font-semibold transition ${
                   isRemote === true
-                    ? 'border-zinc-900 bg-zinc-900 text-white dark:border-white/25 dark:bg-white/10 dark:text-[#f7f8f8]'
-                    : 'border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-700'
+                    ? 'border-zinc-900 bg-zinc-900 text-white   #f7f8f8]'
+                    : 'border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100    :border-zinc-700'
                 }`}
               >
                 Remote Only
@@ -106,8 +106,8 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
                 onClick={() => setIsRemote(false)}
                 className={`rounded-xl border py-2 text-xs font-semibold transition ${
                   isRemote === false
-                    ? 'border-zinc-900 bg-zinc-900 text-white dark:border-white/25 dark:bg-white/10 dark:text-[#f7f8f8]'
-                    : 'border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-700'
+                    ? 'border-zinc-900 bg-zinc-900 text-white   #f7f8f8]'
+                    : 'border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100    :border-zinc-700'
                 }`}
               >
                 On-site / Hybrid
@@ -117,7 +117,7 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
 
           {/* Experience Level */}
           <div>
-            <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wider block mb-2 dark:text-zinc-400">
+            <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wider block mb-2 ">
               Experience Level
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -128,8 +128,8 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
                   onClick={() => setExperience(lvl)}
                   className={`rounded-xl border py-2 text-xs font-semibold transition ${
                     experience === lvl
-                      ? 'border-zinc-900 bg-zinc-900 text-white dark:border-white/25 dark:bg-white/10 dark:text-[#f7f8f8]'
-                      : 'border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-700'
+                      ? 'border-zinc-900 bg-zinc-900 text-white   #f7f8f8]'
+                      : 'border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100    :border-zinc-700'
                   }`}
                 >
                   {lvl === 'All' ? 'All Levels' : lvl}
@@ -140,7 +140,7 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
 
           {/* Target Location */}
           <div>
-            <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wider block mb-2 dark:text-zinc-400">
+            <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wider block mb-2 ">
               Preferred Location
             </label>
             <input
@@ -148,13 +148,13 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="e.g. San Francisco, London, Europe, Worldwide"
-              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-xs sm:text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-white dark:placeholder-zinc-500 dark:focus:border-white/30"
+              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-xs sm:text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-900 focus:outline-none     :border-white/30"
             />
           </div>
 
           {/* Minimum Salary */}
           <div>
-            <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wider block mb-2 dark:text-zinc-400">
+            <label className="text-xs font-semibold text-zinc-600 uppercase tracking-wider block mb-2 ">
               Min Annual Salary (USD $k)
             </label>
             <input
@@ -162,13 +162,13 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
               value={minSalary}
               onChange={(e) => setMinSalary(e.target.value)}
               placeholder="e.g. 120 (for $120,000+)"
-              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-xs sm:text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-900 focus:outline-none dark:border-zinc-800 dark:bg-zinc-900 dark:text-white dark:placeholder-zinc-500 dark:focus:border-white/30"
+              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-xs sm:text-sm text-zinc-900 placeholder-zinc-400 focus:border-zinc-900 focus:outline-none     :border-white/30"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="border-t border-black/10 bg-zinc-50 p-6 dark:border-zinc-800 dark:bg-zinc-900/60">
+        <div className="border-t border-black/10 bg-zinc-50 p-6  ">
           <button
             onClick={handleApply}
             className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-semibold sm:text-sm"
