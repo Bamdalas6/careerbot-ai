@@ -529,7 +529,7 @@ export default function Home() {
       <JobRequestModal
         isOpen={isJobRequestOpen}
         onClose={() => setIsJobRequestOpen(false)}
-        contactEmail="bamdalas6@gmail.com"
+        contactEmail="hello@bamdalas.com"
       />
 
       {/* 1-Click Tailor Pitch Modal */}

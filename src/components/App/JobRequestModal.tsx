@@ -14,7 +14,7 @@ interface JobRequestModalProps {
 export const JobRequestModal: React.FC<JobRequestModalProps> = ({
   isOpen,
   onClose,
-  contactEmail = 'bamdalas6@gmail.com',
+  contactEmail = 'hello@bamdalas.com',
 }) => {
   const { user } = useAuth();
 
