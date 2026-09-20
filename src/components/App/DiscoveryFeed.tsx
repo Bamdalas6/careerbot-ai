@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search, SlidersHorizontal, X, Sparkles, FileText, CheckCircle2 } from 'lucide-react';
+import { Search, SlidersHorizontal, X, Sparkles, FileText, CheckCircle2, Zap } from 'lucide-react';
 import { JobListing, ResumeProfile } from '@/types/job';
+import { useAuth } from '@/context/AuthContext';
 import { SuggestedWorkCard } from './SuggestedWorkCard';
 import { JobFeedCard } from './JobFeedCard';
 
@@ -319,6 +320,7 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
   onViewAllSuggested,
   onViewJob,
 }) => {
+  const { user, credits, requireAuth, openCreditModal } = useAuth();
   const [searchInput, setSearchInput] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Jobs');
 
@@ -354,13 +356,13 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
       }
     }
 
-    // 3. Live search input filter with strict role attribution
-    if (searchInput.trim()) {
+    // 3. Live search input filter with strict role attribution (only if user has credits)
+    if (searchInput.trim() && (!user || credits > 0)) {
       list = list.filter((j) => matchJobBySearchQuery(j, searchInput));
     }
 
-    // 4. CV Profile Filter: When a CV profile is active, show only roles related to the user's CV
-    if (cvProfile && (cvProfile.skills?.length || cvProfile.extracted_title || cvProfile.preferred_roles?.length)) {
+    // 4. CV Profile Filter: When a CV profile is active, show only roles related to the user's CV (requires credits)
+    if ((!user || credits > 0) && cvProfile && (cvProfile.skills?.length || cvProfile.extracted_title || cvProfile.preferred_roles?.length)) {
       const matched = list
         .map((j) => ({ job: j, result: matchJobToCv(j, cvProfile) }))
         .filter((item) => item.result.matches)
@@ -373,16 +375,55 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
     }
 
     return list;
-  }, [jobs, selectedCategory, searchInput, currentLocation, cvProfile]);
+  }, [jobs, selectedCategory, searchInput, currentLocation, cvProfile, user, credits]);
 
   const handleClearSearch = () => {
     setSearchInput('');
   };
 
+  const handleSearchFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (!requireAuth()) {
+      e.target.blur();
+      return;
+    }
+    if (credits <= 0) {
+      e.target.blur();
+      openCreditModal();
+      return;
+    }
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!requireAuth()) return;
+    if (credits <= 0) {
+      openCreditModal();
+      return;
+    }
+    setSearchInput(e.target.value);
+  };
+
   const handleSearchKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      // On desktop or mobile enter: filter live on screen (do not abruptly dump to chat)
+      if (!requireAuth()) return;
+      if (credits <= 0) {
+        openCreditModal();
+        return;
+      }
+      if (searchInput.trim()) {
+        onSearchSubmit(searchInput.trim());
+      }
+    }
+  };
+
+  const handleAskAiClick = () => {
+    if (!requireAuth()) return;
+    if (credits <= 0) {
+      openCreditModal();
+      return;
+    }
+    if (searchInput.trim()) {
+      onSearchSubmit(searchInput.trim());
     }
   };
 
@@ -395,14 +436,31 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
           <input
             type="text"
             value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
+            onFocus={handleSearchFocus}
+            onChange={handleSearchChange}
             onKeyDown={handleSearchKeyPress}
-            placeholder="Search roles, skills, companies, or cities (e.g. 'Figma Designer', 'React Remote')..."
-            className="w-full pl-11 pr-24 py-3 sm:py-3.5 rounded-full bg-white border border-slate-200/90 text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+            placeholder={
+              user && credits <= 0
+                ? "0 Tokens — Recharge tokens to search jobs..."
+                : "Search roles, skills, companies, or cities (e.g. 'Figma Designer', 'React Remote')..."
+            }
+            className="w-full pl-11 pr-28 sm:pr-32 py-3 sm:py-3.5 rounded-full bg-white border border-slate-200/90 text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
           />
 
-          {/* Action buttons inside search bar: Clear & AI Search */}
-          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+          {/* Action buttons inside search bar: Clear & AI Search & Recharge Token Prompt */}
+          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+            {user && credits <= 0 && (
+              <button
+                type="button"
+                onClick={openCreditModal}
+                className="px-2.5 py-1 rounded-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 border border-amber-500/20 text-[11px] font-bold shadow-2xs active:scale-95 transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+                title="0 tokens remaining — Click to recharge"
+              >
+                <Zap className="w-3 h-3 fill-amber-500 text-amber-500" />
+                <span>Recharge</span>
+              </button>
+            )}
+
             {searchInput.trim() && (
               <button
                 type="button"
@@ -416,12 +474,8 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
 
             <button
               type="button"
-              onClick={() => {
-                if (searchInput.trim()) {
-                  onSearchSubmit(searchInput.trim());
-                }
-              }}
-              className="px-2.5 py-1 rounded-full bg-[#0080ff] hover:bg-blue-600 text-white text-[11px] font-bold shadow-xs active:scale-95 transition-all flex items-center gap-1"
+              onClick={handleAskAiClick}
+              className="px-2.5 py-1 rounded-full bg-[#0080ff] hover:bg-blue-600 text-white text-[11px] font-bold shadow-xs active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
               title="Search with CareerBot AI Agent"
             >
               <Sparkles className="w-3 h-3 text-amber-300" />
@@ -433,8 +487,15 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
         {/* Circular Blue Filter Button */}
         <button
           type="button"
-          onClick={onOpenFilterDrawer}
-          className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#0080ff] hover:bg-blue-600 text-white flex items-center justify-center shadow-xs active:scale-95 transition-all shrink-0"
+          onClick={() => {
+            if (!requireAuth()) return;
+            if (credits <= 0) {
+              openCreditModal();
+              return;
+            }
+            onOpenFilterDrawer();
+          }}
+          className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#0080ff] hover:bg-blue-600 text-white flex items-center justify-center shadow-xs active:scale-95 transition-all shrink-0 cursor-pointer"
           title="Filter Preferences & Salaries"
         >
           <SlidersHorizontal className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -502,9 +563,21 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
             <div>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-xs font-bold text-slate-900">Filtered by your CV</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
-                  {filteredJobs.length} matches
-                </span>
+                {user && credits <= 0 ? (
+                  <button
+                    type="button"
+                    onClick={openCreditModal}
+                    className="px-2 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] font-bold border border-amber-300 flex items-center gap-1 transition cursor-pointer"
+                    title="0 tokens remaining — Click to recharge"
+                  >
+                    <Zap className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                    <span>0 Tokens (Recharge)</span>
+                  </button>
+                ) : (
+                  <span className="px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                    {filteredJobs.length} matches
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">
                 {cvProfile.extracted_title ? `Role: ${cvProfile.extracted_title}` : `${cvProfile.skills?.length || 0} skills matched`}
@@ -515,8 +588,15 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
             {onOpenUploadCv && (
               <button
                 type="button"
-                onClick={onOpenUploadCv}
-                className="px-2.5 py-1 rounded-lg bg-white border border-blue-200 text-[11px] font-bold text-blue-600 hover:bg-blue-50 transition shadow-2xs"
+                onClick={() => {
+                  if (!requireAuth()) return;
+                  if (credits <= 0) {
+                    openCreditModal();
+                    return;
+                  }
+                  onOpenUploadCv();
+                }}
+                className="px-2.5 py-1 rounded-lg bg-white border border-blue-200 text-[11px] font-bold text-blue-600 hover:bg-blue-50 transition shadow-2xs cursor-pointer"
               >
                 Change CV
               </button>

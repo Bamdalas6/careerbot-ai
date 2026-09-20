@@ -35,15 +35,13 @@ export const JobCard: React.FC<JobCardProps> = ({
   onViewJob,
 }) => {
   const router = useRouter();
-  const { user, requireAuth } = useAuth();
+  const { user, credits, requireAuth, openCreditModal } = useAuth();
 
   const handleSearchJob = (e: React.MouseEvent, query: string) => {
     e.stopPropagation();
-    if (!user) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('careerbot_pending_search', query);
-      }
-      requireAuth();
+    if (!requireAuth()) return;
+    if (credits <= 0) {
+      openCreditModal();
       return;
     }
     onSearch?.(query);
@@ -235,6 +233,10 @@ export const JobCard: React.FC<JobCardProps> = ({
             e.preventDefault();
             e.stopPropagation();
             if (!requireAuth()) return;
+            if (credits <= 0) {
+              openCreditModal();
+              return;
+            }
             try {
               localStorage.setItem('career_bot_active_tailor_job', JSON.stringify(job));
             } catch {}
@@ -252,6 +254,10 @@ export const JobCard: React.FC<JobCardProps> = ({
             e.preventDefault();
             e.stopPropagation();
             if (!requireAuth()) return;
+            if (credits <= 0) {
+              openCreditModal();
+              return;
+            }
             if (onViewJob) {
               onViewJob(job);
             } else {

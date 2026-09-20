@@ -21,7 +21,7 @@ export const JobFeedCard: React.FC<JobFeedCardProps> = ({
   onOpenTailor,
   onViewJob,
 }) => {
-  const { requireAuth } = useAuth();
+  const { requireAuth, credits, openCreditModal } = useAuth();
   const companyInitial = (job.company || 'S').charAt(0).toUpperCase();
 
   const handleSave = (e: React.MouseEvent) => {
@@ -113,6 +113,10 @@ export const JobFeedCard: React.FC<JobFeedCardProps> = ({
               type="button"
               onClick={() => {
                 if (!requireAuth()) return;
+                if (credits <= 0) {
+                  openCreditModal();
+                  return;
+                }
                 onOpenTailor(job);
               }}
               className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all flex items-center gap-1 active:scale-95 cursor-pointer"
@@ -129,6 +133,10 @@ export const JobFeedCard: React.FC<JobFeedCardProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               if (!requireAuth()) return;
+              if (credits <= 0) {
+                openCreditModal();
+                return;
+              }
               if (onViewJob) {
                 onViewJob(job);
               } else {

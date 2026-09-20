@@ -15,6 +15,7 @@ import { useVoiceSpeech } from '@/hooks/useVoiceSpeech';
 import { ChatMessage, JobListing, SavedJob } from '@/types/job';
 import { JobCard } from './JobCard';
 import { QuickPrompts } from './QuickPrompts';
+import { useAuth } from '@/context/AuthContext';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
@@ -75,6 +76,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onOpenTailor,
   onViewJob,
 }) => {
+  const { user, credits, requireAuth, openCreditModal } = useAuth();
   const [input, setInput] = useState('');
   const [expandedMessages, setExpandedMessages] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -89,6 +91,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   });
 
   const handleVoiceToggle = () => {
+    if (!requireAuth()) return;
+    if (credits <= 0) {
+      openCreditModal();
+      return;
+    }
     if (!isListening) {
       baseInputRef.current = input;
       inputRef.current?.focus();
@@ -109,6 +116,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+    if (!requireAuth()) return;
+    if (credits <= 0) {
+      openCreditModal();
+      return;
+    }
     if (isListening) {
       stopListening();
     }
@@ -118,6 +130,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   };
 
   const handleSelectQuery = (query: string) => {
+    if (!requireAuth()) return;
+    if (credits <= 0) {
+      openCreditModal();
+      return;
+    }
     onSendMessage(query);
   };
 
@@ -302,9 +319,33 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             ref={inputRef}
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={isListening ? "Listening to your voice..." : "Search roles, skills, companies, salary (e.g. 'Senior React Remote $160k')..."}
-            className="field w-full rounded-2xl py-3.5 pl-11 pr-28 sm:pr-32 text-sm sm:text-base min-h-[44px] shadow-xs bg-white .04] text-zinc-900 #f7f8f8] border border-black/15  placeholder:text-zinc-400 :text-zinc-500 focus:outline-none"
+            onFocus={(e) => {
+              if (!requireAuth()) {
+                e.target.blur();
+                return;
+              }
+              if (credits <= 0) {
+                e.target.blur();
+                openCreditModal();
+                return;
+              }
+            }}
+            onChange={(e) => {
+              if (!requireAuth()) return;
+              if (credits <= 0) {
+                openCreditModal();
+                return;
+              }
+              setInput(e.target.value);
+            }}
+            placeholder={
+              user && credits <= 0
+                ? "0 Tokens — Recharge tokens to search live jobs..."
+                : isListening
+                ? "Listening to your voice..."
+                : "Search roles, skills, companies, salary (e.g. 'Senior React Remote $160k')..."
+            }
+            className="field w-full rounded-2xl py-3.5 pl-11 pr-28 sm:pr-32 text-sm sm:text-base min-h-[44px] shadow-xs bg-white text-zinc-900 border border-black/15 placeholder:text-zinc-400 focus:outline-none"
             disabled={isLoading}
           />
 

@@ -17,6 +17,7 @@ import {
   Building2,
   ShieldCheck,
   CheckCircle2,
+  Zap,
 } from 'lucide-react';
 import { JobListing } from '@/types/job';
 import confetti from 'canvas-confetti';
@@ -39,7 +40,7 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
   onToggleSave,
   onOpenTailor,
 }) => {
-  const { user, requireAuth } = useAuth();
+  const { user, credits, requireAuth, openCreditModal } = useAuth();
   const [copied, setCopied] = useState(false);
 
   // Close on escape key
@@ -117,6 +118,10 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
   const handleApplyClick = (e: React.MouseEvent) => {
     e.preventDefault();
     if (!requireAuth()) {
+      return;
+    }
+    if (credits <= 0) {
+      openCreditModal();
       return;
     }
     if (isEmailApply) {
@@ -348,6 +353,23 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
           </div>
         </div>
 
+        {/* 0 Tokens Warning Banner */}
+        {credits <= 0 && (
+          <div className="mx-4 sm:mx-6 mb-2 p-3 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-amber-900 font-medium">
+              <Zap className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" />
+              <span>Recharge tokens to apply for this role.</span>
+            </div>
+            <button
+              type="button"
+              onClick={openCreditModal}
+              className="px-3 py-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] shrink-0 shadow-xs transition cursor-pointer"
+            >
+              Recharge
+            </button>
+          </div>
+        )}
+
         {/* Modal Bottom Action Bar */}
         <div className="p-4 sm:p-5 border-t border-slate-100 bg-white flex items-center gap-3">
           {/* Tailor Pitch Button */}
@@ -356,6 +378,10 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
               type="button"
               onClick={() => {
                 if (!requireAuth()) return;
+                if (credits <= 0) {
+                  openCreditModal();
+                  return;
+                }
                 onOpenTailor(job);
               }}
               className="px-4 sm:px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 active:scale-95 shrink-0 cursor-pointer"
@@ -366,14 +392,23 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
             </button>
           )}
 
-          {/* Primary Apply Now Button - Enforces Authentication */}
+          {/* Primary Apply Now Button - Enforces Authentication & Credits */}
           <button
             type="button"
             onClick={handleApplyClick}
             className="flex-1 py-3 px-6 rounded-2xl bg-[#0080ff] hover:bg-blue-600 text-white font-extrabold text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
-            <span>{isEmailApply ? 'Apply Now (via Email)' : 'Apply Now'}</span>
-            {isEmailApply ? <Mail className="w-4 h-4" /> : <ExternalLink className="w-4 h-4 stroke-[2.5]" />}
+            {credits <= 0 ? (
+              <>
+                <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+                <span>Apply (Recharge Tokens)</span>
+              </>
+            ) : (
+              <>
+                <span>{isEmailApply ? 'Apply Now (via Email)' : 'Apply Now'}</span>
+                {isEmailApply ? <Mail className="w-4 h-4" /> : <ExternalLink className="w-4 h-4 stroke-[2.5]" />}
+              </>
+            )}
           </button>
         </div>
       </div>

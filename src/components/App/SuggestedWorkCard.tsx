@@ -22,7 +22,7 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
   onViewAll,
   onViewJob,
 }) => {
-  const { requireAuth } = useAuth();
+  const { requireAuth, credits, openCreditModal } = useAuth();
 
   // If SunFi is present in jobs, prioritize it at the front of the suggested deck to match mockup
   const prioritizedJobs = useMemo(() => {
@@ -196,6 +196,10 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 if (!requireAuth()) return;
+                if (credits <= 0) {
+                  openCreditModal();
+                  return;
+                }
                 onOpenTailor(job);
               }}
               className="px-3.5 py-1.5 sm:py-2 rounded-2xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center gap-1.5 border border-white/20 backdrop-blur-md shadow-xs active:scale-95 transition-all cursor-pointer"
@@ -212,6 +216,10 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
             onClick={(e) => {
               e.stopPropagation();
               if (!requireAuth()) return;
+              if (credits <= 0) {
+                openCreditModal();
+                return;
+              }
               if (onViewJob) {
                 onViewJob(job);
               } else {

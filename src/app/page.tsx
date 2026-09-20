@@ -162,6 +162,10 @@ export default function Home() {
 
   const handleOpenTailor = (job: JobListing) => {
     if (!requireAuth()) return;
+    if (credits <= 0) {
+      openCreditModal();
+      return;
+    }
     setActiveTailorJob(job);
   };
 
@@ -376,6 +380,14 @@ export default function Home() {
   }, [user, credits]);
 
   const handleParsedSkills = (profile: ResumeProfile, autoSearchQuery: string) => {
+    if (!requireAuth()) {
+      return;
+    }
+    if (credits <= 0) {
+      setIsResumeOpen(false);
+      openCreditModal();
+      return;
+    }
     setUserCvProfile(profile);
     if (typeof window !== 'undefined') {
       localStorage.setItem('careerbot_user_cv', JSON.stringify(profile));
@@ -634,7 +646,14 @@ export default function Home() {
       <FilterDrawer
         isOpen={isFiltersOpen}
         onClose={() => setIsFiltersOpen(false)}
-        onApplyFilters={(filterPrompt) => handleSendMessage(filterPrompt)}
+        onApplyFilters={(filterPrompt) => {
+          if (!requireAuth()) return;
+          if (credits <= 0) {
+            openCreditModal();
+            return;
+          }
+          handleSendMessage(filterPrompt);
+        }}
       />
 
       {/* History Drawer */}

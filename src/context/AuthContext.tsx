@@ -35,6 +35,7 @@ interface AuthContextType {
   updateProfile: (updatedData: { name?: string; username?: string }) => void;
   refreshUser: () => Promise<void>;
   requireAuth: (callback?: () => void) => boolean;
+  requireCredits: (callback?: () => void, minCredits?: number) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -553,6 +554,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [user, openAuthModal]
   );
 
+  const requireCredits = useCallback(
+    (callback?: () => void, minCredits = 1): boolean => {
+      if (!user) {
+        openAuthModal('login');
+        return false;
+      }
+      if (credits < minCredits) {
+        openCreditModal();
+        return false;
+      }
+      if (callback) callback();
+      return true;
+    },
+    [user, credits, openAuthModal, openCreditModal]
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -574,6 +591,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateProfile,
         refreshUser,
         requireAuth,
+        requireCredits,
       }}
     >
       {children}

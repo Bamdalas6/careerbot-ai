@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { X, SlidersHorizontal, Sparkles, Zap } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 interface FilterDrawerProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
   onClose,
   onApplyFilters,
 }) => {
+  const { user, credits, requireAuth, openCreditModal } = useAuth();
   const [role, setRole] = useState('');
   const [isRemote, setIsRemote] = useState<boolean | null>(null);
   const [experience, setExperience] = useState('All');
@@ -23,6 +25,16 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
   if (!isOpen) return null;
 
   const handleApply = () => {
+    if (!requireAuth()) {
+      onClose();
+      return;
+    }
+    if (credits <= 0) {
+      onClose();
+      openCreditModal();
+      return;
+    }
+
     const parts: string[] = [];
     if (role) parts.push(role);
     if (isRemote === true) parts.push('remote only');
@@ -171,10 +183,19 @@ export const FilterDrawer: React.FC<FilterDrawerProps> = ({
         <div className="border-t border-black/10 bg-zinc-50 p-6  ">
           <button
             onClick={handleApply}
-            className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-semibold sm:text-sm"
+            className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3 text-xs font-semibold sm:text-sm cursor-pointer"
           >
-            <Sparkles className="h-4 w-4" />
-            <span>Apply Preferences & Search</span>
+            {user && credits <= 0 ? (
+              <>
+                <Zap className="h-4 w-4 fill-amber-300 text-amber-300" />
+                <span>Apply Preferences (Recharge Tokens)</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                <span>Apply Preferences & Search</span>
+              </>
+            )}
           </button>
         </div>
       </div>
