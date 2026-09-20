@@ -332,27 +332,6 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
             <Sparkles className="w-3 h-3 text-blue-500 fill-blue-500" />
             <span>Special for you</span>
           </span>
-
-          {/* Color variety dots for cards */}
-          {cardList.length > 1 && (
-            <div className="flex items-center gap-1.5 ml-1">
-              {cardList.slice(0, Math.min(cardList.length, 6)).map((_, idx) => {
-                const isActive = idx === safeIndex % Math.min(cardList.length, 6);
-                const theme = SEGMENT_THEMES[idx % SEGMENT_THEMES.length];
-                return (
-                  <span
-                    key={idx}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${
-                      isActive
-                        ? `${theme.dotColor} w-5 sm:w-6 shadow-xs`
-                        : 'bg-slate-200 w-1.5 sm:w-2'
-                    }`}
-                    title={`Card ${idx + 1}`}
-                  />
-                );
-              })}
-            </div>
-          )}
         </div>
 
         {onViewAll && (
