@@ -14,6 +14,81 @@ interface SuggestedWorkCardProps {
   onViewJob?: (job: JobListing) => void;
 }
 
+interface SegmentTheme {
+  gradient: string;
+  shadow: string;
+  stackLayer1: string;
+  stackLayer2: string;
+  dotColor: string;
+}
+
+const SEGMENT_THEMES: SegmentTheme[] = [
+  {
+    // Electric Blue
+    gradient: 'from-[#0084ff] via-[#0076f5] to-[#0060e6]',
+    shadow: 'shadow-[0_16px_36px_-10px_rgba(0,120,255,0.45)]',
+    stackLayer1: 'bg-[#4da6ff]/90',
+    stackLayer2: 'bg-[#99ccff]/80',
+    dotColor: 'bg-[#0084ff]',
+  },
+  {
+    // Emerald & Teal
+    gradient: 'from-[#0d9488] via-[#0f766e] to-[#115e59]',
+    shadow: 'shadow-[0_16px_36px_-10px_rgba(13,148,136,0.45)]',
+    stackLayer1: 'bg-[#2dd4bf]/90',
+    stackLayer2: 'bg-[#5eead4]/80',
+    dotColor: 'bg-[#0d9488]',
+  },
+  {
+    // Royal Indigo & Violet
+    gradient: 'from-[#6366f1] via-[#4f46e5] to-[#4338ca]',
+    shadow: 'shadow-[0_16px_36px_-10px_rgba(99,102,241,0.45)]',
+    stackLayer1: 'bg-[#818cf8]/90',
+    stackLayer2: 'bg-[#a5b4fc]/80',
+    dotColor: 'bg-[#6366f1]',
+  },
+  {
+    // Sunset Coral & Orange
+    gradient: 'from-[#ea580c] via-[#c2410c] to-[#9a3412]',
+    shadow: 'shadow-[0_16px_36px_-10px_rgba(234,88,12,0.45)]',
+    stackLayer1: 'bg-[#fb923c]/90',
+    stackLayer2: 'bg-[#fdba74]/80',
+    dotColor: 'bg-[#ea580c]',
+  },
+  {
+    // Amethyst Purple
+    gradient: 'from-[#8b5cf6] via-[#7c3aed] to-[#6d28d9]',
+    shadow: 'shadow-[0_16px_36px_-10px_rgba(139,92,246,0.45)]',
+    stackLayer1: 'bg-[#a78bfa]/90',
+    stackLayer2: 'bg-[#c4b5fd]/80',
+    dotColor: 'bg-[#8b5cf6]',
+  },
+  {
+    // Jade Green
+    gradient: 'from-[#059669] via-[#047857] to-[#065f46]',
+    shadow: 'shadow-[0_16px_36px_-10px_rgba(5,150,105,0.45)]',
+    stackLayer1: 'bg-[#34d399]/90',
+    stackLayer2: 'bg-[#6ee7b7]/80',
+    dotColor: 'bg-[#059669]',
+  },
+  {
+    // Crimson Rose
+    gradient: 'from-[#e11d48] via-[#be123c] to-[#9f1239]',
+    shadow: 'shadow-[0_16px_36px_-10px_rgba(225,29,72,0.45)]',
+    stackLayer1: 'bg-[#fb7185]/90',
+    stackLayer2: 'bg-[#fda4af]/80',
+    dotColor: 'bg-[#e11d48]',
+  },
+  {
+    // Deep Ocean Azure
+    gradient: 'from-[#0284c7] via-[#0369a1] to-[#075985]',
+    shadow: 'shadow-[0_16px_36px_-10px_rgba(2,132,199,0.45)]',
+    stackLayer1: 'bg-[#38bdf8]/90',
+    stackLayer2: 'bg-[#7dd3fc]/80',
+    dotColor: 'bg-[#0284c7]',
+  },
+];
+
 export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
   jobs = [],
   isSaved = false,
@@ -42,6 +117,7 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [exitingCard, setExitingCard] = useState<{
     job: JobListing;
+    theme: SegmentTheme;
     direction: 'up' | 'down';
     phase: 'start' | 'animating';
   } | null>(null);
@@ -49,13 +125,17 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
 
   const safeIndex = currentIndex % cardList.length;
   const currentJob = cardList[safeIndex] || cardList[0];
+  const currentTheme = SEGMENT_THEMES[safeIndex % SEGMENT_THEMES.length];
+  const layer2Theme = SEGMENT_THEMES[(safeIndex + 1) % SEGMENT_THEMES.length];
+  const layer3Theme = SEGMENT_THEMES[(safeIndex + 2) % SEGMENT_THEMES.length];
 
   // Advance smoothly to next suggested card (slide up)
   const handleNext = () => {
     if (cardList.length <= 1 || exitingCard) return;
 
     const departingJob = cardList[safeIndex];
-    setExitingCard({ job: departingJob, direction: 'up', phase: 'start' });
+    const departingTheme = currentTheme;
+    setExitingCard({ job: departingJob, theme: departingTheme, direction: 'up', phase: 'start' });
 
     // Instantly advance the underlying card so it is in place beneath the exiting overlay
     setCurrentIndex((prev) => (prev + 1) % cardList.length);
@@ -76,7 +156,8 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
     if (cardList.length <= 1 || exitingCard) return;
 
     const departingJob = cardList[safeIndex];
-    setExitingCard({ job: departingJob, direction: 'down', phase: 'start' });
+    const departingTheme = currentTheme;
+    setExitingCard({ job: departingJob, theme: departingTheme, direction: 'down', phase: 'start' });
 
     setCurrentIndex((prev) => (prev - 1 + cardList.length) % cardList.length);
 
@@ -240,7 +321,7 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
 
   return (
     <div className="w-full my-4 select-none">
-      {/* Section Header: "Suggested Works" left, "✨ Special for you" badge, "See all >" right */}
+      {/* Section Header: "Suggested Works" left, "✨ Special for you" badge, Color Dots, "See all >" right */}
       <div className="flex items-center justify-between mb-2.5 px-1">
         <div className="flex items-center gap-2 sm:gap-2.5">
           <h2 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
@@ -251,6 +332,27 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
             <Sparkles className="w-3 h-3 text-blue-500 fill-blue-500" />
             <span>Special for you</span>
           </span>
+
+          {/* Color variety dots for cards */}
+          {cardList.length > 1 && (
+            <div className="flex items-center gap-1.5 ml-1">
+              {cardList.slice(0, Math.min(cardList.length, 6)).map((_, idx) => {
+                const isActive = idx === safeIndex % Math.min(cardList.length, 6);
+                const theme = SEGMENT_THEMES[idx % SEGMENT_THEMES.length];
+                return (
+                  <span
+                    key={idx}
+                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                      isActive
+                        ? `${theme.dotColor} w-5 sm:w-6 shadow-xs`
+                        : 'bg-slate-200 w-1.5 sm:w-2'
+                    }`}
+                    title={`Card ${idx + 1}`}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {onViewAll && (
@@ -265,7 +367,7 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
         )}
       </div>
 
-      {/* Main Stacked Deck Container with floating navigation buttons */}
+      {/* Main Stacked Deck Container with dynamic color cards */}
       <div className="relative w-full">
         {/* The Card Deck (tap or swipe up/down to navigate) */}
         <div
@@ -275,19 +377,23 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
           className={`relative w-full ${cardList.length > 1 ? 'cursor-pointer' : ''}`}
           title={cardList.length > 1 ? 'Tap or swipe to reveal next job' : undefined}
         >
-          {/* Layer 3: Farthest top curved peek tab */}
+          {/* Layer 3: Farthest top curved peek tab matching card 3's palette */}
           {cardList.length > 2 && (
-            <div className="mx-8 h-2.5 rounded-t-2xl bg-[#99ccff]/80 dark:bg-blue-900/40 border-t border-x border-white/20 transition-all duration-300" />
+            <div
+              className={`mx-8 h-2.5 rounded-t-2xl ${layer3Theme.stackLayer2} border-t border-x border-white/20 transition-all duration-300`}
+            />
           )}
 
-          {/* Layer 2: Middle top curved peek tab */}
+          {/* Layer 2: Middle top curved peek tab matching card 2's palette */}
           {cardList.length > 1 && (
-            <div className="mx-4 h-2.5 rounded-t-2xl bg-[#4da6ff]/90 dark:bg-blue-800/60 border-t border-x border-white/20 -mt-1 transition-all duration-300" />
+            <div
+              className={`mx-4 h-2.5 rounded-t-2xl ${layer2Theme.stackLayer1} border-t border-x border-white/20 -mt-1 transition-all duration-300`}
+            />
           )}
 
-          {/* Layer 1: Front Active Card (Steady solid electric blue) */}
+          {/* Layer 1: Front Active Card with dynamic rich theme */}
           <div
-            className={`relative rounded-3xl bg-[#0080ff] shadow-[0_16px_36px_-10px_rgba(0,128,255,0.45)] p-5 sm:p-6 text-white overflow-hidden ${
+            className={`relative rounded-3xl bg-gradient-to-br ${currentTheme.gradient} ${currentTheme.shadow} p-5 sm:p-6 text-white overflow-hidden transition-colors duration-300 ${
               cardList.length > 1 ? '-mt-1' : ''
             }`}
             style={{ zIndex: 20 }}
@@ -295,10 +401,10 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
             {renderCardContent(currentJob)}
           </div>
 
-          {/* Exiting Card Overlay: Smoothly slides up/down and fades out with zero layout jump */}
+          {/* Exiting Card Overlay: Smoothly slides up/down and fades out with its departing card color */}
           {exitingCard && (
             <div
-              className={`absolute inset-x-0 bottom-0 top-[18px] rounded-3xl bg-[#0080ff] shadow-[0_16px_36px_-10px_rgba(0,128,255,0.45)] p-5 sm:p-6 text-white overflow-hidden pointer-events-none`}
+              className={`absolute inset-x-0 bottom-0 top-[18px] rounded-3xl bg-gradient-to-br ${exitingCard.theme.gradient} ${exitingCard.theme.shadow} p-5 sm:p-6 text-white overflow-hidden pointer-events-none`}
               style={{
                 zIndex: 35,
                 transition: 'transform 300ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease-out',
