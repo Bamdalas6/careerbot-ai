@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { ExternalLink, Sparkles, MoreHorizontal, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { ExternalLink, Sparkles, MoreHorizontal, ChevronRight } from 'lucide-react';
 import { JobListing } from '@/types/job';
 import { useAuth } from '@/context/AuthContext';
 
@@ -183,9 +183,11 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
           <span className="text-sm sm:text-base font-black text-white tracking-tight truncate">
             {formatSalary(job)}
           </span>
-          <span className="text-xs font-medium text-white/70">
-            /hour
-          </span>
+          {!formatSalary(job).includes('/') && (
+            <span className="text-xs font-medium text-white/70">
+              /hour
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -202,7 +204,7 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
                 }
                 onOpenTailor(job);
               }}
-              className="px-3.5 py-1.5 sm:py-2 rounded-2xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center gap-1.5 border border-white/20 backdrop-blur-md shadow-xs active:scale-95 transition-all cursor-pointer"
+              className="px-3.5 py-2 sm:py-2.5 rounded-2xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center gap-1.5 border border-white/20 backdrop-blur-md shadow-xs active:scale-95 transition-all cursor-pointer"
               title="Tailor Application Pitch"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
@@ -210,7 +212,7 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
             </button>
           )}
 
-          {/* View Job Button: Crisp white button with 2-line layout matching screenshot */}
+          {/* View Job Button: Crisp white button on a single line */}
           <button
             type="button"
             onClick={(e) => {
@@ -226,12 +228,9 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
                 window.open(job.apply_url, '_blank');
               }
             }}
-            className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-2xl bg-white text-slate-900 hover:bg-slate-50 font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-white text-slate-900 hover:bg-slate-50 font-extrabold text-xs shadow-md active:scale-95 transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer shrink-0"
           >
-            <div className="flex flex-col items-start leading-[1.05] text-left">
-              <span>View</span>
-              <span>Job</span>
-            </div>
+            <span>View Job</span>
             <ExternalLink className="w-3.5 h-3.5 stroke-[2.5]" />
           </button>
         </div>
@@ -316,34 +315,6 @@ export const SuggestedWorkCard: React.FC<SuggestedWorkCardProps> = ({
             </div>
           )}
         </div>
-
-        {/* Two floating chevron buttons on right edge matching screenshot */}
-        {cardList.length > 1 && (
-          <div className="absolute -right-3 sm:-right-3.5 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-40">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleNext();
-              }}
-              className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-full bg-white shadow-md border border-slate-100 flex items-center justify-center text-slate-700 hover:text-blue-600 hover:scale-105 active:scale-95 transition-all cursor-pointer"
-              title="Next suggested work"
-            >
-              <ChevronDown className="w-4 h-4 stroke-[2.5]" />
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handlePrev();
-              }}
-              className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-full bg-white shadow-md border border-slate-100 flex items-center justify-center text-slate-700 hover:text-blue-600 hover:scale-105 active:scale-95 transition-all cursor-pointer"
-              title="Previous suggested work"
-            >
-              <ChevronUp className="w-4 h-4 stroke-[2.5]" />
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
