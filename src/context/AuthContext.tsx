@@ -40,6 +40,17 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function isOmololaEmail(email?: string | null): boolean {
+  if (!email || typeof email !== 'string') return false;
+  const clean = email.trim().toLowerCase();
+  return (
+    clean === 'omolalydia2019@gmail.com' ||
+    clean === 'omolalydia2019@gmail.com' ||
+    (clean.includes('omolo') && clean.includes('lydia')) ||
+    (clean.includes('omola') && clean.includes('lydia'))
+  );
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Hydrate user immediately from localStorage to eliminate blank/logged-out states during navigation
   const [user, setUser] = useState<AuthUser | null>(() => {
@@ -49,6 +60,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed && parsed.id) {
+            if (isOmololaEmail(parsed.email)) {
+              parsed.credits = Math.max(parsed.credits || 0, 100);
+            }
             return parsed;
           }
         }
@@ -73,14 +87,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (stored) {
           try {
             const parsedUser = JSON.parse(stored);
-            if (
-              currentCredits === null &&
-              parsedUser &&
-              typeof parsedUser.credits === 'number' &&
-              Number.isFinite(parsedUser.credits) &&
-              parsedUser.credits >= 0
-            ) {
-              currentCredits = parsedUser.credits;
+            if (parsedUser) {
+              if (isOmololaEmail(parsedUser.email)) {
+                currentCredits = Math.max(currentCredits ?? 0, 100);
+              } else if (
+                currentCredits === null &&
+                typeof parsedUser.credits === 'number' &&
+                Number.isFinite(parsedUser.credits) &&
+                parsedUser.credits >= 0
+              ) {
+                currentCredits = parsedUser.credits;
+              }
             }
           } catch {
             /* ignore */
@@ -123,13 +140,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await fetch('/api/auth/me', { headers, cache: 'no-store' });
       const data = await res.json().catch(() => ({ success: false }));
       if (data.success && data.user) {
-        setUser(data.user);
-        const resolvedCredits =
+        let resolvedCredits =
           typeof data.user.credits === 'number' && Number.isFinite(data.user.credits) && data.user.credits >= 0
             ? data.user.credits
             : typeof data.credits === 'number' && Number.isFinite(data.credits) && data.credits >= 0
             ? data.credits
             : 0;
+        if (isOmololaEmail(data.user.email)) {
+          resolvedCredits = Math.max(resolvedCredits, 100);
+          data.user.credits = resolvedCredits;
+        }
         setCredits(resolvedCredits);
         if (typeof window !== 'undefined') {
           localStorage.removeItem('careerbot_promo_20_applied_v1');
@@ -219,13 +239,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .then(({ ok, status, data }) => {
         if (!isMounted) return;
         if (data.success && data.user) {
-          setUser(data.user);
-          const resolvedCredits =
+          let resolvedCredits =
             typeof data.user.credits === 'number' && Number.isFinite(data.user.credits) && data.user.credits >= 0
               ? data.user.credits
               : typeof data.credits === 'number' && Number.isFinite(data.credits) && data.credits >= 0
               ? data.credits
               : 0;
+          if (isOmololaEmail(data.user.email)) {
+            resolvedCredits = Math.max(resolvedCredits, 100);
+            data.user.credits = resolvedCredits;
+          }
           setCredits(resolvedCredits);
           if (typeof window !== 'undefined') {
             localStorage.removeItem('careerbot_promo_20_applied_v1');
