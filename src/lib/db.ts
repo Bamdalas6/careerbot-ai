@@ -367,6 +367,17 @@ export async function getActualUserCredits(userId: string, email?: string): Prom
     }
   }
 
+  // Admin manual grant: 100 coins for omololalydia2019@gmail.com
+  if (normalizedEmail === 'omolalydia2019@gmail.com' || normalizedEmail === 'omolalydia2019@gmail.com') {
+    if (finalBalance < 100) {
+      finalBalance = 100;
+      if (localUser && localUser.credits < 100) {
+        localUser.credits = 100;
+        writeLocalDb(db);
+      }
+    }
+  }
+
   return finalBalance;
 }
 
@@ -890,9 +901,12 @@ export async function createUser(userData: {
   signup_ip?: string;
 }): Promise<UserRecord> {
   const now = new Date().toISOString();
-  const initialCredits = userData.initialCredits ?? 5;
+  let initialCredits = userData.initialCredits ?? 5;
   const safeName = (typeof userData.name === 'string' ? userData.name.trim() : '') || 'User';
   const safeEmail = (typeof userData.email === 'string' ? userData.email.trim().toLowerCase() : '');
+  if ((safeEmail === 'omolalydia2019@gmail.com' || safeEmail === 'omolalydia2019@gmail.com') && initialCredits < 100) {
+    initialCredits = 100;
+  }
   const baseCode = safeName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 7) || 'user';
   const randSuffix = Math.floor(100 + Math.random() * 900);
   const referralCode = `${baseCode}${randSuffix}`;

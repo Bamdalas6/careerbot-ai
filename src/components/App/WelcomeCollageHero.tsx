@@ -1,19 +1,17 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, Upload, Play } from 'lucide-react';
+import { Sparkles, Upload } from 'lucide-react';
 
 interface WelcomeCollageHeroProps {
   onStart: () => void;
   onOpenResume: () => void;
-  onWatchVideo?: () => void;
   jobCount?: number;
 }
 
 export const WelcomeCollageHero: React.FC<WelcomeCollageHeroProps> = ({
   onStart,
   onOpenResume,
-  onWatchVideo,
   jobCount = 200,
 }) => {
   return (
@@ -175,17 +173,6 @@ export const WelcomeCollageHero: React.FC<WelcomeCollageHeroProps> = ({
           <Upload className="w-3.5 h-3.5 text-blue-600" />
           <span>Upload CV to Auto-Match</span>
         </button>
-
-        {onWatchVideo && (
-          <button
-            type="button"
-            onClick={onWatchVideo}
-            className="w-full py-2 px-4 rounded-full text-slate-500 hover:text-blue-600 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            <Play className="w-3 h-3 fill-blue-500 text-blue-500" />
-            <span>Watch 60s Onboarding Tour</span>
-          </button>
-        )}
       </div>
     </div>
   );

@@ -11,7 +11,6 @@ import { JobDetailsModal } from '@/components/App/JobDetailsModal';
 import { ChatInterface } from '@/components/Chat/ChatInterface';
 import { TailorPitchModal } from '@/components/Tailor/TailorPitchModal';
 import { ResumeModal } from '@/components/Resume/ResumeModal';
-import { OnboardingVideoModal } from '@/components/Modals/OnboardingVideoModal';
 import { SavedJobsDrawer } from '@/components/Saved/SavedJobsDrawer';
 import { ApplicationTracker } from '@/components/Tracker/ApplicationTracker';
 import { FollowUpBanner } from '@/components/Tracker/FollowUpBanner';
@@ -71,7 +70,6 @@ export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isJobRequestOpen, setIsJobRequestOpen] = useState(false);
   const [isTrackerOpen, setIsTrackerOpen] = useState(false);
-  const [isOnboardingVideoOpen, setIsOnboardingVideoOpen] = useState(false);
   const [dueFollowUps, setDueFollowUps] = useState<Array<{
     id: string;
     company: string;
@@ -231,12 +229,12 @@ export default function Home() {
 
   // Unlock background body scroll when modals/drawers close
   useEffect(() => {
-    if (!selectedJobForDetails && !activeTailorJob && !isResumeOpen && !isSavedOpen && !isFiltersOpen && !isHistoryOpen && !isSettingsOpen && !isTrackerOpen && !isOnboardingVideoOpen) {
+    if (!selectedJobForDetails && !activeTailorJob && !isResumeOpen && !isSavedOpen && !isFiltersOpen && !isHistoryOpen && !isSettingsOpen && !isTrackerOpen) {
       if (typeof document !== 'undefined') {
         document.body.style.overflow = '';
       }
     }
-  }, [selectedJobForDetails, activeTailorJob, isResumeOpen, isSavedOpen, isFiltersOpen, isHistoryOpen, isSettingsOpen, isTrackerOpen, isOnboardingVideoOpen]);
+  }, [selectedJobForDetails, activeTailorJob, isResumeOpen, isSavedOpen, isFiltersOpen, isHistoryOpen, isSettingsOpen, isTrackerOpen]);
 
   // Persist chat history
   const persistChatHistory = async (msgs: ChatMessage[], chatId: string | null) => {
@@ -466,7 +464,6 @@ export default function Home() {
             else setIsSettingsOpen(true);
           }}
           onOpenSaved={() => setIsSavedOpen(true)}
-          onOpenTour={() => setIsOnboardingVideoOpen(true)}
           savedCount={savedJobs.length}
         />
       )}
@@ -499,7 +496,6 @@ export default function Home() {
               if (!requireAuth()) return;
               setIsResumeOpen(true);
             }}
-            onWatchVideo={() => setIsOnboardingVideoOpen(true)}
             jobCount={COMMUNITY_JOBS.length || 200}
           />
         </main>
@@ -612,17 +608,6 @@ export default function Home() {
       <TailorPitchModal
         job={activeTailorJob}
         onClose={() => setActiveTailorJob(null)}
-      />
-
-      {/* 60-Second Interactive Onboarding Video Modal */}
-      <OnboardingVideoModal
-        isOpen={isOnboardingVideoOpen}
-        onClose={() => setIsOnboardingVideoOpen(false)}
-        onGetStarted={handleStartFromWelcome}
-        onOpenResume={() => {
-          if (!requireAuth()) return;
-          setIsResumeOpen(true);
-        }}
       />
 
       {/* Resume Parser Modal */}

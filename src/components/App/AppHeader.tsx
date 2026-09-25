@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MapPin, ChevronDown, Bookmark, BookmarkCheck, User, LogOut, Settings, Coins, Play } from 'lucide-react';
+import { MapPin, ChevronDown, Bookmark, BookmarkCheck, User, LogOut, Settings, Coins } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 interface AppHeaderProps {
@@ -9,7 +9,6 @@ interface AppHeaderProps {
   onLocationChange?: (loc: string) => void;
   onOpenProfile?: () => void;
   onOpenSaved?: () => void;
-  onOpenTour?: () => void;
   savedCount?: number;
 }
 
@@ -31,7 +30,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onLocationChange,
   onOpenProfile,
   onOpenSaved,
-  onOpenTour,
   savedCount = 0,
 }) => {
   const { user, credits, logout, openAuthModal, openCreditModal } = useAuth();
@@ -120,20 +118,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                       <Settings className="w-4 h-4 text-slate-400" />
                       <span>Account Settings</span>
                     </button>
-
-                    {onOpenTour && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsUserMenuOpen(false);
-                          onOpenTour();
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 transition-colors cursor-pointer"
-                      >
-                        <Play className="w-4 h-4 text-blue-500 fill-blue-500" />
-                        <span>Watch 60s Tour</span>
-                      </button>
-                    )}
                   </div>
 
                   {/* PROMINENT LOG OUT BUTTON */}
