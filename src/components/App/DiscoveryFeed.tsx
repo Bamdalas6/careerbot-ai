@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Search, SlidersHorizontal, X, Sparkles, FileText, CheckCircle2, Zap } from 'lucide-react';
+import { motion } from 'motion/react';
 import { JobListing, ResumeProfile } from '@/types/job';
 import { useAuth } from '@/context/AuthContext';
 import { SuggestedWorkCard } from './SuggestedWorkCard';
@@ -35,6 +36,19 @@ const CATEGORY_PILLS = [
   'Executive Assistant',
   'Entry-Level',
 ];
+
+const CATEGORY_ICONS: Record<string, string> = {
+  'All Jobs': '⚡',
+  'App Design': '📱',
+  'Web Design': '🎨',
+  'Graphic Design': '✨',
+  'Tech & Dev': '💻',
+  'Remote': '🏝️',
+  'Finance': '💰',
+  'Marketing': '📈',
+  'Executive Assistant': '👔',
+  'Entry-Level': '🌱',
+};
 
 // Helper for whole word/token matching
 function hasWholeWord(haystack: string, needle: string): boolean {
@@ -484,8 +498,8 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
           </div>
         </div>
 
-        {/* Circular Blue Filter Button */}
-        <button
+        {/* Circular Blue Filter Button with Bouncy Spring */}
+        <motion.button
           type="button"
           onClick={() => {
             if (!requireAuth()) return;
@@ -495,30 +509,37 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
             }
             onOpenFilterDrawer();
           }}
-          className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#0080ff] hover:bg-blue-600 text-white flex items-center justify-center shadow-xs active:scale-95 transition-all shrink-0 cursor-pointer"
+          whileHover={{ scale: 1.1, rotate: 10 }}
+          whileTap={{ scale: 0.88 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+          className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-gradient-to-tr from-[#0080ff] to-[#0060e6] hover:from-blue-600 hover:to-indigo-600 text-white flex items-center justify-center shadow-[0_6px_20px_-2px_rgba(0,128,255,0.4)] shrink-0 cursor-pointer"
           title="Filter Preferences & Salaries"
         >
           <SlidersHorizontal className="w-4 h-4 sm:w-5 sm:h-5" />
-        </button>
+        </motion.button>
       </div>
 
-      {/* Horizontal Category Filter Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2 my-1">
+      {/* Horizontal Bubbly Category Filter Pills */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-2.5 my-1">
         {CATEGORY_PILLS.map((cat) => {
           const isSelected = selectedCategory === cat;
           return (
-            <button
+            <motion.button
               key={cat}
               type="button"
               onClick={() => setSelectedCategory(cat)}
-              className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+              className={`px-3.5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer select-none ${
                 isSelected
-                  ? 'bg-[#0080ff] text-white shadow-xs'
-                  : 'bg-white text-slate-600 border border-slate-200/90 hover:border-blue-400 hover:text-blue-600'
+                  ? 'bg-gradient-to-r from-[#0080ff] to-[#0060e6] text-white shadow-[0_4px_14px_rgba(0,128,255,0.35)]'
+                  : 'bg-white text-slate-700 border border-slate-200/90 hover:border-blue-300 hover:text-blue-600 shadow-2xs'
               }`}
             >
-              {cat}
-            </button>
+              <span className="text-xs sm:text-sm">{CATEGORY_ICONS[cat] || '💼'}</span>
+              <span>{cat}</span>
+            </motion.button>
           );
         })}
       </div>

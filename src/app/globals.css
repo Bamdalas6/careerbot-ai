@@ -612,3 +612,100 @@ body {
   animation: spinSlow 24s linear infinite;
 }
 
+/* ==========================================================================
+   Bubbly & Playful Mobile Animations & Utilities
+   ========================================================================== */
+
+@keyframes bubbleFloat1 {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-9px) rotate(2deg);
+  }
+}
+
+@keyframes bubbleFloat2 {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(8px) rotate(-2deg);
+  }
+}
+
+@keyframes bubbleFloat3 {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.04);
+  }
+}
+
+@keyframes bubblePulseRing {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+}
+
+@keyframes jellySquish {
+  0%, 100% { transform: scale(1, 1); }
+  25% { transform: scale(1.08, 0.92); }
+  50% { transform: scale(0.94, 1.06); }
+  75% { transform: scale(1.03, 0.97); }
+}
+
+@keyframes rainbowShimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-bubble-float-1 {
+  animation: bubbleFloat1 4.5s ease-in-out infinite;
+}
+
+.animate-bubble-float-2 {
+  animation: bubbleFloat2 5.5s ease-in-out infinite;
+}
+
+.animate-bubble-float-3 {
+  animation: bubbleFloat3 3.8s ease-in-out infinite;
+}
+
+.animate-bubble-pulse-ring {
+  animation: bubblePulseRing 3s ease-in-out infinite;
+}
+
+.animate-jelly {
+  animation: jellySquish 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.bubbly-tap {
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.bubbly-tap:active {
+  transform: scale(0.91) translateY(1px);
+}
+
+.bubbly-card {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+}
+.bubbly-card:hover {
+  transform: translateY(-3px) scale(1.01);
+}
+.bubbly-card:active {
+  transform: translateY(0px) scale(0.98);
+}
+
+

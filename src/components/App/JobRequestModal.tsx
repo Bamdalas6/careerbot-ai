@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { X, Send, Mail, CheckCircle2, DollarSign, Briefcase } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import confetti from 'canvas-confetti';
+import { motion } from 'motion/react';
 
 interface JobRequestModalProps {
   isOpen: boolean;
@@ -85,7 +86,13 @@ export const JobRequestModal: React.FC<JobRequestModalProps> = ({
       }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200 select-none"
     >
-      <div className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white border border-slate-200 shadow-2xl animate-in zoom-in-95 duration-150">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.88, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 15 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+        className="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white border border-slate-200 shadow-2xl"
+      >
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-blue-50/70 to-sky-50/40 px-6 py-4">
           <div className="flex items-center gap-3">
@@ -269,25 +276,29 @@ export const JobRequestModal: React.FC<JobRequestModalProps> = ({
 
             {/* Submit Button */}
             <div className="pt-2 flex items-center justify-end gap-2">
-              <button
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={onClose}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition"
+                className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer"
               >
                 Cancel
-              </button>
-              <button
+              </motion.button>
+              <motion.button
                 type="submit"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.95 }}
                 disabled={isSubmitting || !roleTitle.trim()}
-                className="px-6 py-2.5 rounded-xl bg-[#0080ff] hover:bg-blue-600 text-white font-extrabold text-xs shadow-xs active:scale-95 transition flex items-center gap-1.5 disabled:opacity-50"
+                className="px-6 py-2.5 rounded-xl bg-[#0080ff] hover:bg-blue-600 text-white font-extrabold text-xs shadow-xs transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>{isSubmitting ? 'Sending...' : 'Send Request'}</span>
-              </button>
+              </motion.button>
             </div>
           </form>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 };

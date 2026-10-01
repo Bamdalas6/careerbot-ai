@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { MapPin, ChevronDown, Bookmark, BookmarkCheck, User, LogOut, Settings, Coins } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useAuth } from '@/context/AuthContext';
 
 interface AppHeaderProps {
@@ -69,15 +70,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         <div ref={userRef} className="relative flex items-center gap-2">
           {user ? (
             <div>
-              <button
+              <motion.button
                 type="button"
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                className="relative w-10 h-10 rounded-full bg-gradient-to-tr from-blue-700 via-indigo-600 to-blue-500 text-white font-black text-sm flex items-center justify-center shadow-xs hover:ring-2 hover:ring-blue-400 transition-all"
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                className="relative w-10 h-10 rounded-full bg-gradient-to-tr from-blue-700 via-indigo-600 to-blue-500 text-white font-black text-sm flex items-center justify-center shadow-xs hover:ring-2 hover:ring-blue-400 transition-all cursor-pointer"
                 title="Account Menu & Log Out"
               >
                 <span>{userInitial}</span>
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
-              </button>
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full animate-pulse" />
+              </motion.button>
 
               {/* User Account Menu Dropdown */}
               {isUserMenuOpen && (
@@ -152,18 +156,21 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             <span>My Location</span>
             <ChevronDown className="w-2.5 h-2.5 text-slate-400" />
           </span>
-          <button
+          <motion.button
             type="button"
             onClick={() => setIsLocDropdownOpen(!isLocDropdownOpen)}
-            className="flex items-center gap-1 text-xs sm:text-sm font-black text-slate-900 hover:text-blue-600 transition-colors"
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.94 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+            className="flex items-center gap-1 text-xs sm:text-sm font-black text-slate-900 hover:text-blue-600 transition-colors cursor-pointer"
           >
             <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0 fill-blue-600" />
             <span className="truncate max-w-[150px] sm:max-w-[200px]">{currentLocation}</span>
-          </button>
+          </motion.button>
 
           {/* Location Dropdown Menu */}
           {isLocDropdownOpen && (
-            <div className="absolute top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
+            <div className="absolute top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in-50 zoom-in-95">
               <div className="text-[10px] font-bold text-slate-400 px-3 py-1 uppercase tracking-wider">
                 Select Territory
               </div>
@@ -206,8 +213,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             </button>
           )}
 
-          {/* Coin Balance Chip */}
-          <button
+          {/* Bubbly Coin Balance Chip */}
+          <motion.button
             type="button"
             onClick={() => {
               if (!user) {
@@ -216,15 +223,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               }
               openCreditModal();
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white border border-slate-200/90 shadow-2xs hover:border-amber-300 active:scale-95 transition-all text-xs font-bold text-slate-800 cursor-pointer"
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 shadow-2xs hover:border-amber-400 text-xs font-black text-amber-900 cursor-pointer"
             title="Coins Balance - Click to top up"
           >
-            <span className="text-amber-500 text-xs">🪙</span>
+            <span className="text-amber-500 text-xs animate-bounce">🪙</span>
             <span>{credits ?? 5}</span>
-          </button>
+          </motion.button>
 
-          {/* Circular Saved Jobs Icon */}
-          <button
+          {/* Circular Saved Jobs Icon with Spring Bounce */}
+          <motion.button
             type="button"
             onClick={() => {
               if (!user) {
@@ -233,7 +243,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               }
               onOpenSaved?.();
             }}
-            className="relative w-10 h-10 rounded-full bg-white border border-slate-200/90 flex items-center justify-center text-slate-700 hover:text-blue-600 transition-colors shadow-2xs cursor-pointer active:scale-95"
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+            className="relative w-10 h-10 rounded-full bg-white border border-slate-200/90 flex items-center justify-center text-slate-700 hover:text-blue-600 transition-colors shadow-2xs cursor-pointer"
             title={savedCount > 0 ? `Saved Jobs (${savedCount})` : 'Saved Jobs'}
           >
             {savedCount > 0 ? (
@@ -242,11 +255,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               <Bookmark className="w-4.5 h-4.5 text-slate-600" />
             )}
             {savedCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow-xs">
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow-xs animate-pulse">
                 {savedCount}
               </span>
             )}
-          </button>
+          </motion.button>
         </div>
       </div>
     </header>

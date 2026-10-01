@@ -22,6 +22,7 @@ import {
 import { JobListing } from '@/types/job';
 import confetti from 'canvas-confetti';
 import { useAuth } from '@/context/AuthContext';
+import { motion } from 'motion/react';
 
 interface JobDetailsModalProps {
   job: JobListing | null;
@@ -150,11 +151,15 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
       <div className="fixed inset-0" onClick={onClose} />
 
       {/* Modal Dialog Card */}
-      <div
+      <motion.div
         role="dialog"
         aria-modal="true"
         aria-labelledby="job-details-title"
-        className="relative w-full max-w-2xl bg-white rounded-3xl border border-slate-200/80 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden z-10 animate-in zoom-in-95 duration-150"
+        initial={{ opacity: 0, scale: 0.88, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 15 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+        className="relative w-full max-w-2xl bg-white rounded-3xl border border-slate-200/80 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden z-10"
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-100 bg-white">
@@ -374,8 +379,10 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
         <div className="p-4 sm:p-5 border-t border-slate-100 bg-white flex items-center gap-3">
           {/* Tailor Pitch Button */}
           {onOpenTailor && (
-            <button
+            <motion.button
               type="button"
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.94 }}
               onClick={() => {
                 if (!requireAuth()) return;
                 if (credits <= 0) {
@@ -384,19 +391,21 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
                 }
                 onOpenTailor(job);
               }}
-              className="px-4 sm:px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 active:scale-95 shrink-0 cursor-pointer"
+              className="px-4 sm:px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer shadow-xs"
               title="Generate tailored cover letter and pitch"
             >
               <Sparkles className="w-4 h-4 text-blue-600" />
               <span>Tailor Pitch</span>
-            </button>
+            </motion.button>
           )}
 
           {/* Primary Apply Now Button - Enforces Authentication & Credits */}
-          <button
+          <motion.button
             type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
             onClick={handleApplyClick}
-            className="flex-1 py-3 px-6 rounded-2xl bg-[#0080ff] hover:bg-blue-600 text-white font-extrabold text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="flex-1 py-3 px-6 rounded-2xl bg-[#0080ff] hover:bg-blue-600 text-white font-extrabold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             {credits <= 0 ? (
               <>
@@ -409,9 +418,9 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
                 {isEmailApply ? <Mail className="w-4 h-4" /> : <ExternalLink className="w-4 h-4 stroke-[2.5]" />}
               </>
             )}
-          </button>
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };
