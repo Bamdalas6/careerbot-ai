@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { Search, SlidersHorizontal, X, Sparkles, FileText, Zap, ClipboardList, ChevronDown } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Search, SlidersHorizontal, X, Sparkles, FileText, Zap, ClipboardList, ChevronDown, Dices } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { JobListing, ResumeProfile } from '@/types/job';
 import { useAuth } from '@/context/AuthContext';
 import { fitLevelFromScore, isFreshJob, isRemoteJob, timeOfDayGreeting } from '@/lib/job-display';
 import { BotMark } from '@/components/Brand/Logo';
+import { recordVisit, useEngagement } from '@/lib/engagement';
 import { SuggestedWorkCard } from './SuggestedWorkCard';
 import { JobFeedCard } from './JobFeedCard';
 
@@ -440,6 +441,20 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
   const remaining = filteredJobs.length - visibleJobs.length;
 
   const firstName = (user?.name || '').trim().split(/\s+/)[0];
+  const { streak } = useEngagement();
+  const [diceSpins, setDiceSpins] = useState(0);
+
+  useEffect(() => {
+    recordVisit();
+  }, []);
+
+  const handleSurpriseMe = () => {
+    if (filteredJobs.length === 0) return;
+    setDiceSpins((n) => n + 1);
+    const pick = filteredJobs[Math.floor(Math.random() * filteredJobs.length)];
+    // Let the dice finish rolling before revealing the pick.
+    setTimeout(() => onViewJob?.(pick), 550);
+  };
 
   const guardSearch = () => {
     if (!requireAuth()) return false;
@@ -508,8 +523,26 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
           )}
         </h1>
         <div className="mt-2.5 flex items-center gap-2 overflow-x-auto no-scrollbar">
+          {streak > 0 && (
+            <motion.span
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15, delay: 0.3 }}
+              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-amber-100 to-orange-100 border border-orange-200 text-[11px] font-extrabold text-orange-700"
+              title="Visit on consecutive days to grow your streak"
+            >
+              <motion.span
+                animate={{ scale: [1, 1.25, 1], rotate: [0, -8, 8, 0] }}
+                transition={{ duration: 1.6, repeat: Infinity, repeatDelay: 1.2 }}
+                className="inline-block"
+              >
+                🔥
+              </motion.span>
+              <span>{streak}-day streak</span>
+            </motion.span>
+          )}
           {[
-            { icon: '🔥', label: `${feedStats.total} open roles` },
+            { icon: '💼', label: `${feedStats.total} open roles` },
             { icon: '🏝️', label: `${feedStats.remote} remote` },
             { icon: '🏢', label: `${feedStats.companies} companies` },
             ...(feedStats.fresh > 0 ? [{ icon: '🆕', label: `${feedStats.fresh} posted today` }] : []),
@@ -623,7 +656,13 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
                   transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                 />
               )}
-              <span className="relative">{CATEGORY_ICONS[cat] || '💼'}</span>
+              <motion.span
+                className="relative inline-block"
+                animate={isSelected ? { rotate: [0, -18, 14, -6, 0], scale: [1, 1.35, 1] } : { rotate: 0, scale: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                {CATEGORY_ICONS[cat] || '💼'}
+              </motion.span>
               <span className="relative">{cat}</span>
               {count != null && count > 0 && (
                 <span
@@ -732,6 +771,7 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
       {/* Suggested Works deck (Home tab only) */}
       {!isJobsMode && filteredJobs.length > 0 && (
         <SuggestedWorkCard
+          key={filterKey}
           jobs={filteredJobs}
           savedJobIds={savedJobIds}
           onToggleSave={onToggleSave}
@@ -784,6 +824,26 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
             {cvActive && cvScores.size > 0 ? ' · best CV fit first' : ''}
           </p>
         </div>
+        {filteredJobs.length > 1 && (
+          <motion.button
+            type="button"
+            onClick={handleSurpriseMe}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.9 }}
+            className="px-3 py-1.5 rounded-full bg-gradient-to-r from-fuchsia-50 to-violet-50 border border-violet-200 text-xs font-bold text-violet-700 flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <motion.span
+              key={diceSpins}
+              initial={{ rotate: 0 }}
+              animate={{ rotate: diceSpins ? 720 : 0 }}
+              transition={{ duration: 0.55, ease: 'easeOut' }}
+              className="inline-flex"
+            >
+              <Dices className="w-4 h-4" />
+            </motion.span>
+            Surprise me
+          </motion.button>
+        )}
       </div>
 
       {/* Job cards: 1 column on mobile, 2 on tablet/desktop */}

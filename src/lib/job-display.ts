@@ -102,3 +102,18 @@ export function timeOfDayGreeting(date = new Date()): string {
   if (hour < 17) return 'Good afternoon';
   return 'Good evening';
 }
+
+/** Shortens salary text for tight spaces: "₦350,000 - ₦450,000 / month" → "₦350k – ₦450k/mo". */
+export function compactSalary(text: string): string {
+  return text
+    .replace(/\d{1,3}(?:,\d{3})+/g, (match) => {
+      const n = Number(match.replace(/,/g, ''));
+      if (n >= 1_000_000) return `${Number((n / 1_000_000).toFixed(1))}M`;
+      if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+      return match;
+    })
+    .replace(/\s*\/\s*month/gi, '/mo')
+    .replace(/\s*\/\s*hour/gi, '/hr')
+    .replace(/\s*\/\s*year/gi, '/yr')
+    .replace(/\s+-\s+/g, ' – ');
+}

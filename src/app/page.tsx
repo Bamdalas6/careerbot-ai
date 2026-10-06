@@ -18,6 +18,7 @@ import { FilterDrawer } from '@/components/Filters/FilterDrawer';
 import { HistoryDrawer } from '@/components/History/HistoryDrawer';
 import { SettingsModal } from '@/components/Settings/SettingsModal';
 import { QuickScrollPill } from '@/components/Navigation/QuickScrollPill';
+import { ToastHost } from '@/components/App/ToastHost';
 import { ChatMessage, JobListing, SavedJob, ResumeProfile } from '@/types/job';
 import { COMMUNITY_JOBS } from '@/data/community-jobs';
 import { useAuth } from '@/context/AuthContext';
@@ -709,6 +710,7 @@ export default function Home() {
 
       {/* Floating Quick Navigation to Top / Bottom */}
       <QuickScrollPill />
+      <ToastHost />
     </div>
     </MotionConfig>
   );
