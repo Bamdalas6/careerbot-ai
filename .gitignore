@@ -43,6 +43,7 @@ next-env.d.ts
 # local databases & temporary scratch
 /.data/
 /tmp/
-/.claude/
+/.claude/*
+!/.claude/skills/
 /.agents/
 /brag-output/
