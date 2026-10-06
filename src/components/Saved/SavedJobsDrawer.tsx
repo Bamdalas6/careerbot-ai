@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { X, Bookmark, ExternalLink, Trash2, MapPin, DollarSign, ArrowRight, Briefcase, Sparkles } from 'lucide-react';
 import { SavedJob, JobListing } from '@/types/job';
 import { useAuth } from '@/context/AuthContext';
+import { openApplyDestination } from '@/lib/job-display';
 
 interface SavedJobsDrawerProps {
   isOpen: boolean;
@@ -143,7 +144,7 @@ export const SavedJobsDrawer: React.FC<SavedJobsDrawerProps> = ({
                         if (onViewJob) {
                           onViewJob(job);
                         } else {
-                          window.open(job.apply_url, '_blank');
+                          openApplyDestination(job);
                         }
                       }}
                       className="flex items-center gap-1 text-xs font-semibold text-zinc-700 hover:text-zinc-900 transition cursor-pointer"

@@ -117,3 +117,63 @@ export function compactSalary(text: string): string {
     .replace(/\s*\/\s*year/gi, '/yr')
     .replace(/\s+-\s+/g, ' – ');
 }
+
+const FREE_EMAIL_DOMAINS = new Set([
+  'gmail.com',
+  'googlemail.com',
+  'yahoo.com',
+  'yahoo.co.uk',
+  'ymail.com',
+  'outlook.com',
+  'hotmail.com',
+  'live.com',
+  'icloud.com',
+  'aol.com',
+  'proton.me',
+  'protonmail.com',
+]);
+
+const APPLICATION_FORM_PATTERN = /forms\.gle|docs\.google\.com\/forms|forms\.(cloud\.microsoft|office\.com)|wa\.me|whatsapp\.com/i;
+
+export interface ApplyDestination {
+  url: string;
+  /** career-page: the employer's site / job board; form: an online application form; careers-search: no page on file. */
+  kind: 'career-page' | 'form' | 'careers-search';
+  /** Employer email when the listing only accepts applications by email. */
+  email?: string;
+}
+
+function isHttpUrl(url?: string): url is string {
+  return !!url && /^https?:\/\//i.test(url);
+}
+
+/**
+ * Where "Apply" should send someone: the career page or online application,
+ * never a mail client. Email-only listings have no career page on file, so they
+ * get a search for the company's careers page (scoped to its email domain when
+ * that is a company domain) and the address is surfaced separately.
+ */
+export function getApplyDestination(job: JobListing): ApplyDestination {
+  const applyUrl = job.apply_url || '';
+  if (isHttpUrl(job.career_page_url)) return { url: job.career_page_url, kind: 'career-page' };
+  if (isHttpUrl(job.apply_url)) {
+    return { url: job.apply_url, kind: APPLICATION_FORM_PATTERN.test(job.apply_url) ? 'form' : 'career-page' };
+  }
+  if (isHttpUrl(job.company_url)) return { url: job.company_url, kind: 'career-page' };
+
+  const email = /^mailto:/i.test(applyUrl)
+    ? decodeURIComponent(applyUrl.replace(/^mailto:/i, '').split('?')[0]).trim()
+    : undefined;
+  const domain = email?.split('@')[1]?.toLowerCase();
+  const companyDomain = domain && !FREE_EMAIL_DOMAINS.has(domain) ? domain : '';
+  const query = [job.company, 'careers', companyDomain || job.location].filter(Boolean).join(' ');
+  return {
+    url: `https://www.google.com/search?q=${encodeURIComponent(query)}`,
+    kind: 'careers-search',
+    email: email || undefined,
+  };
+}
+
+export function openApplyDestination(job: JobListing) {
+  window.open(getApplyDestination(job).url, '_blank', 'noopener,noreferrer');
+}

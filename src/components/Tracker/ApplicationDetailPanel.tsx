@@ -6,6 +6,7 @@ import {
   Calendar, Plus, Copy, ExternalLink, PenLine,
 } from 'lucide-react';
 import { SavedJob, ApplicationEvent } from '@/types/job';
+import { getApplyDestination } from '@/lib/job-display';
 
 interface ApplicationDetailPanelProps {
   job: SavedJob;
@@ -393,7 +394,7 @@ export const ApplicationDetailPanel: React.FC<ApplicationDetailPanelProps> = ({
         {/* Direct apply link */}
         {job.apply_url && (
           <a
-            href={job.apply_url}
+            href={getApplyDestination(job).url}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-1.5 rounded-2xl border border-black/15 dark:border-white/[0.12] bg-black/[0.04] dark:bg-white/[0.04] px-4 py-2.5 text-xs font-semibold text-zinc-900 dark:text-[#f7f8f8] transition hover:bg-black/[0.08] dark:hover:bg-white/[0.09]"

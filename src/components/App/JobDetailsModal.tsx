@@ -18,11 +18,14 @@ import {
   ShieldCheck,
   CheckCircle2,
   Zap,
+  Copy,
+  Search,
 } from 'lucide-react';
 import { JobListing } from '@/types/job';
 import confetti from 'canvas-confetti';
 import { useAuth } from '@/context/AuthContext';
 import { motion } from 'motion/react';
+import { getApplyDestination } from '@/lib/job-display';
 
 interface JobDetailsModalProps {
   job: JobListing | null;
@@ -43,6 +46,7 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
 }) => {
   const { user, credits, requireAuth, openCreditModal } = useAuth();
   const [copied, setCopied] = useState(false);
+  const [emailCopied, setEmailCopied] = useState(false);
 
   // Close on escape key
   useEffect(() => {
@@ -63,22 +67,25 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
 
   if (!isOpen || !job) return null;
 
-  const isEmailApply = job.apply_url.startsWith('mailto:');
-  
-  // Extract target email if mailto link
-  let recipientEmail = '';
-  if (isEmailApply) {
+  // Apply always opens the career page or online application — never a mail client.
+  const destination = getApplyDestination(job);
+  const isCareersSearch = destination.kind === 'careers-search';
+
+  const handleCopyEmail = async () => {
+    if (!destination.email) return;
     try {
-      recipientEmail = job.apply_url.replace(/^mailto:/i, '').split('?')[0];
+      await navigator.clipboard.writeText(destination.email);
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 2000);
     } catch {
-      recipientEmail = '';
+      // Clipboard unavailable: the address is still visible to copy by hand
     }
-  }
+  };
 
   const handleCopyLink = async () => {
     if (!requireAuth()) return;
     try {
-      await navigator.clipboard.writeText(job.apply_url);
+      await navigator.clipboard.writeText(destination.url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -93,7 +100,7 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
         await navigator.share({
           title: `${job.title} at ${job.company}`,
           text: `Check out this ${job.title} role at ${job.company}:`,
-          url: job.apply_url,
+          url: destination.url,
         });
         return;
       } catch {
@@ -125,11 +132,7 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
       openCreditModal();
       return;
     }
-    if (isEmailApply) {
-      window.location.href = job.apply_url;
-    } else {
-      window.open(job.apply_url, '_blank', 'noopener,noreferrer');
-    }
+    window.open(destination.url, '_blank', 'noopener,noreferrer');
   };
 
   const formatSalary = (j: JobListing) => {
@@ -336,24 +339,45 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
           {/* Direct Application Transparency Callout */}
           <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200/80 flex items-start gap-3">
             <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
-              {isEmailApply ? <Mail className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
+              {isCareersSearch ? <Search className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
             </div>
             <div className="text-xs text-slate-700 leading-relaxed min-w-0 flex-1">
               <p className="font-bold text-slate-900">
-                {isEmailApply ? 'Direct Application via Email' : 'Direct Application on Official Portal'}
+                {destination.kind === 'career-page'
+                  ? 'Apply on the company careers page'
+                  : destination.kind === 'form'
+                  ? 'Apply through the official application form'
+                  : `Find ${job.company}'s careers page`}
               </p>
               <p className="mt-0.5 text-slate-600">
-                {isEmailApply ? (
+                {isCareersSearch ? (
                   <>
-                    Clicking <strong className="text-slate-900">Apply Now</strong> will open an email draft addressed directly to{' '}
-                    <strong className="text-blue-700 font-mono">{recipientEmail || job.company}</strong> with the job subject pre-filled.
+                    This employer hasn&apos;t listed a careers page, so <strong className="text-slate-900">Apply Now</strong> opens a
+                    search for {job.company}&apos;s careers page in a new tab.
                   </>
                 ) : (
                   <>
-                    Clicking <strong className="text-slate-900">Apply Now</strong> will securely route you directly to the verified job listing on the company&apos;s application portal.
+                    Clicking <strong className="text-slate-900">Apply Now</strong> opens the {destination.kind === 'form' ? 'application form' : "company's careers page"} in a new tab.
                   </>
                 )}
               </p>
+              {destination.email && (
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <span className="text-slate-500">They also accept CVs at</span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white border border-blue-200 font-mono text-[11px] text-blue-700 break-all">
+                    <Mail className="w-3 h-3 shrink-0" />
+                    {destination.email}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyEmail}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold transition-colors"
+                  >
+                    {emailCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    {emailCopied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -414,8 +438,8 @@ export const JobDetailsModal: React.FC<JobDetailsModalProps> = ({
               </>
             ) : (
               <>
-                <span>{isEmailApply ? 'Apply Now (via Email)' : 'Apply Now'}</span>
-                {isEmailApply ? <Mail className="w-4 h-4" /> : <ExternalLink className="w-4 h-4 stroke-[2.5]" />}
+                <span>{isCareersSearch ? 'Find Careers Page' : 'Apply Now'}</span>
+                <ExternalLink className="w-4 h-4 stroke-[2.5]" />
               </>
             )}
           </motion.button>

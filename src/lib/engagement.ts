@@ -2,26 +2,18 @@
 
 import { useMemo, useSyncExternalStore } from 'react';
 
-/**
- * Light gamification kept per browser: a daily visit streak and a daily
- * "review N picks" goal for the suggested-jobs deck.
- */
+/** Light gamification kept per browser: a streak of consecutive days visiting the feed. */
 
 const KEY = 'careerbot_engagement_v1';
 const EVENT = 'careerbot_engagement';
-export const DAILY_REVIEW_GOAL = 5;
 
 interface StoredEngagement {
   lastVisit?: string;
   streak?: number;
-  reviewDate?: string;
-  reviewed?: number;
 }
 
 export interface Engagement {
   streak: number;
-  reviewedToday: number;
-  goalReached: boolean;
 }
 
 function dayKey(offsetDays = 0): string {
@@ -51,7 +43,7 @@ function write(next: StoredEngagement) {
   try {
     localStorage.setItem(KEY, JSON.stringify(next));
   } catch {
-    /* storage unavailable: the features simply stay at zero */
+    /* storage unavailable: the streak simply stays at zero */
   }
   window.dispatchEvent(new Event(EVENT));
 }
@@ -63,16 +55,6 @@ export function recordVisit() {
   if (data.lastVisit === today) return;
   const streak = data.lastVisit === dayKey(-1) ? (data.streak || 0) + 1 : 1;
   write({ ...data, lastVisit: today, streak });
-}
-
-/** Counts one reviewed deck card; returns today's new total. */
-export function recordReview(delta: 1 | -1 = 1): number {
-  const data = parse(readRaw());
-  const today = dayKey();
-  const current = data.reviewDate === today ? data.reviewed || 0 : 0;
-  const reviewed = Math.max(0, current + delta);
-  write({ ...data, reviewDate: today, reviewed });
-  return reviewed;
 }
 
 function subscribe(onChange: () => void) {
@@ -91,11 +73,6 @@ export function useEngagement(): Engagement {
     const data = parse(raw);
     const today = dayKey();
     const streakAlive = data.lastVisit === today || data.lastVisit === dayKey(-1);
-    const reviewedToday = data.reviewDate === today ? data.reviewed || 0 : 0;
-    return {
-      streak: streakAlive ? data.streak || 0 : 0,
-      reviewedToday,
-      goalReached: reviewedToday >= DAILY_REVIEW_GOAL,
-    };
+    return { streak: streakAlive ? data.streak || 0 : 0 };
   }, [raw]);
 }

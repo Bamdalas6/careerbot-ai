@@ -8,7 +8,7 @@ import confetti from 'canvas-confetti';
 import { useAuth } from '@/context/AuthContext';
 import { CompanyAvatar } from './CompanyAvatar';
 import { showToast } from './ToastHost';
-import { FIT_LABELS, FitLevel, formatJobSalary, isFreshJob, shortLocation } from '@/lib/job-display';
+import { FIT_LABELS, FitLevel, formatJobSalary, isFreshJob, openApplyDestination, shortLocation } from '@/lib/job-display';
 
 interface JobFeedCardProps {
   job: JobListing;
@@ -64,7 +64,7 @@ export const JobFeedCard: React.FC<JobFeedCardProps> = ({
     if (onViewJob) {
       onViewJob(job);
     } else {
-      window.open(job.apply_url, '_blank');
+      openApplyDestination(job);
     }
   };
 
