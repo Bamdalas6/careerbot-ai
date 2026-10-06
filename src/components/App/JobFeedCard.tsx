@@ -7,7 +7,8 @@ import { JobListing } from '@/types/job';
 import confetti from 'canvas-confetti';
 import { useAuth } from '@/context/AuthContext';
 import { CompanyAvatar } from './CompanyAvatar';
-import { FIT_LABELS, FitLevel, formatJobSalary, isFreshJob, shortLocation } from '@/lib/job-display';
+import { showToast } from './ToastHost';
+import { FIT_LABELS, FitLevel, formatJobSalary, isFreshJob, openApplyDestination, shortLocation } from '@/lib/job-display';
 
 interface JobFeedCardProps {
   job: JobListing;
@@ -41,6 +42,9 @@ export const JobFeedCard: React.FC<JobFeedCardProps> = ({
         origin: { y: 0.8 },
         colors: ['#0080ff', '#38bdf8', '#34d399', '#fbbf24', '#f472b6'],
       });
+      showToast({ emoji: '📌', message: 'Saved — find it under bookmarks', tone: 'success' });
+    } else {
+      showToast({ emoji: '🗑️', message: 'Removed from saved jobs' });
     }
     onToggleSave?.(job);
   };
@@ -60,7 +64,7 @@ export const JobFeedCard: React.FC<JobFeedCardProps> = ({
     if (onViewJob) {
       onViewJob(job);
     } else {
-      window.open(job.apply_url, '_blank');
+      openApplyDestination(job);
     }
   };
 

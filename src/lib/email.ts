@@ -1,6 +1,17 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY || '');
+// Created on first send, not at import: the Resend constructor throws without a key,
+// and Next.js imports route modules during `next build` (e.g. Vercel Preview builds
+// that have no RESEND_API_KEY), which would otherwise fail the whole build.
+let resendClient: Resend | null = null;
+
+function getResend(): Resend | null {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+  resendClient ??= new Resend(apiKey);
+  return resendClient;
+}
+
 const FROM = process.env.RESEND_FROM_EMAIL || 'CareerBot AI <onboarding@resend.dev>';
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || 'https://careerbot-ai-seven.vercel.app';
 
@@ -13,6 +24,11 @@ export async function sendPasswordResetEmail(
   const base = (siteUrl || process.env.NEXT_PUBLIC_SITE_URL || 'https://careerbot-ai-seven.vercel.app').replace(/\/$/, '');
   const resetUrl = `${base}/auth/reset-password?token=${resetToken}&email=${encodeURIComponent(toEmail.trim())}`;
   const year = new Date().getFullYear();
+  const resend = getResend();
+  if (!resend) {
+    console.error('sendPasswordResetEmail: RESEND_API_KEY is not configured');
+    return { success: false, error: 'Email service is not configured' };
+  }
   try {
     const { error } = await resend.emails.send({
       from: FROM,
@@ -39,6 +55,11 @@ export async function sendReferralSuccessEmail(
 ): Promise<void> {
   const dashUrl = `${SITE}/settings?tab=referrals`;
   const year = new Date().getFullYear();
+  const resend = getResend();
+  if (!resend) {
+    console.warn('Referral notification email skipped: RESEND_API_KEY is not configured');
+    return;
+  }
   try {
     await resend.emails.send({
       from: FROM,

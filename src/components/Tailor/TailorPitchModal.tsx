@@ -19,6 +19,7 @@ import { JobListing } from '@/types/job';
 import { useAuth } from '@/context/AuthContext';
 import { CoverLetterTone, generateCoverLetter } from '@/lib/cover-letter-generator';
 import { generateColdDM, STORY_VIBES, StoryVibeId, generateTailoredPitch } from '@/lib/follow-up-generator';
+import { getApplyDestination } from '@/lib/job-display';
 
 async function copyToClipboard(text: string): Promise<boolean> {
   if (typeof window === 'undefined') return false;
@@ -716,12 +717,12 @@ export const TailorPitchModal: React.FC<TailorPitchModalProps> = ({ job, onClose
         {/* Modal Footer */}
         <div className="border-t border-slate-100 bg-slate-50/70 px-5 sm:px-6 py-3 flex items-center justify-between">
           <a
-            href={job.apply_url}
+            href={getApplyDestination(job).url}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:underline"
           >
-            <span>Official Portal Link</span>
+            <span>{getApplyDestination(job).kind === 'careers-search' ? 'Find Careers Page' : 'Official Portal Link'}</span>
             <ExternalLink className="h-3 w-3" />
           </a>
           <button

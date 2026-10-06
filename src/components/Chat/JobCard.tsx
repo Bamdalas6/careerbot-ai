@@ -7,7 +7,7 @@ import { JobListing } from '@/types/job';
 import confetti from 'canvas-confetti';
 import { useAuth } from '@/context/AuthContext';
 import { CompanyAvatar } from '@/components/App/CompanyAvatar';
-import { formatJobSalary, isFreshJob, shortLocation } from '@/lib/job-display';
+import { formatJobSalary, getApplyDestination, isFreshJob, openApplyDestination, shortLocation } from '@/lib/job-display';
 
 interface JobCardProps {
   job: JobListing;
@@ -60,13 +60,13 @@ export const JobCard: React.FC<JobCardProps> = ({
         await navigator.share({
           title: `${job.title} at ${job.company}`,
           text: `Check out this ${job.title} position at ${job.company}:`,
-          url: job.apply_url,
+          url: getApplyDestination(job).url,
         });
       } catch {
         // Share cancelled or not supported
       }
     } else {
-      navigator.clipboard.writeText(job.apply_url);
+      navigator.clipboard.writeText(getApplyDestination(job).url);
       alert('Application link copied to clipboard!');
     }
   };
@@ -229,7 +229,7 @@ export const JobCard: React.FC<JobCardProps> = ({
             if (onViewJob) {
               onViewJob(job);
             } else {
-              window.open(job.apply_url, '_blank');
+              openApplyDestination(job);
             }
           }}
           className="flex flex-1 items-center justify-center gap-1 rounded-full bg-gradient-to-r from-[#0080ff] to-[#0060e6] px-3 py-2 text-xs font-extrabold text-white shadow-[0_4px_14px_rgba(0,128,255,0.4)] transition cursor-pointer active:scale-95"
