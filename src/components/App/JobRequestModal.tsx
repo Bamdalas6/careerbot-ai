@@ -127,7 +127,7 @@ export const JobRequestModal: React.FC<JobRequestModalProps> = ({
               Job Request Dispatched!
             </h4>
             <p className="text-xs sm:text-sm text-slate-600 max-w-sm mx-auto leading-relaxed">
-              Your request for <span className="font-bold text-slate-900">"{roleTitle}"</span> has been prepared and routed to our team at <span className="font-bold text-blue-600">{contactEmail}</span>.
+              Your request for <span className="font-bold text-slate-900">&ldquo;{roleTitle}&rdquo;</span> has been prepared and routed to our team at <span className="font-bold text-blue-600">{contactEmail}</span>.
             </p>
             <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
               <button
