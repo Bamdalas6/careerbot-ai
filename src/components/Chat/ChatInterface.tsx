@@ -8,6 +8,7 @@ import { ChatMessage, JobListing, SavedJob } from '@/types/job';
 import { JobCard } from './JobCard';
 import { QuickPrompts } from './QuickPrompts';
 import { useAuth } from '@/context/AuthContext';
+import { BotMark } from '@/components/Brand/Logo';
 
 interface ChatInterfaceProps {
   messages: ChatMessage[];
@@ -67,10 +68,11 @@ function FormattedMessageText({ text, isUser }: { text: string; isUser?: boolean
 
 function BotAvatar({ thinking = false }: { thinking?: boolean }) {
   return (
-    <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0080ff] via-indigo-500 to-violet-500 text-white shadow-[0_4px_12px_-2px_rgba(79,70,229,0.5)]">
-      {thinking && <span className="absolute inset-0 rounded-full bg-indigo-400/50 animate-ping" />}
-      <Sparkles className="relative h-4 w-4" />
-    </div>
+    <BotMark
+      className="h-9 w-9 shrink-0 drop-shadow-[0_4px_8px_rgba(79,70,229,0.35)]"
+      animated={thinking}
+      mood={thinking ? 'thinking' : 'idle'}
+    />
   );
 }
 
@@ -201,10 +203,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               className="relative mb-5"
             >
               <div className="absolute -inset-4 rounded-full bg-gradient-to-tr from-blue-400/30 to-violet-400/30 blur-xl animate-bubble-pulse-ring" />
-              <div className="relative flex h-16 w-16 items-center justify-center rounded-[1.4rem] bg-gradient-to-br from-[#0080ff] via-indigo-500 to-violet-500 text-white shadow-[0_12px_30px_-8px_rgba(79,70,229,0.6)] animate-bubble-float-3">
-                <Sparkles className="h-8 w-8" />
+              <div className="relative animate-bubble-float-3">
+                <BotMark className="h-20 w-20 drop-shadow-[0_12px_20px_rgba(79,70,229,0.4)]" animated title="CareerBot" />
               </div>
             </motion.div>
+            <p className="text-xs font-bold text-indigo-600 mb-1">Hi, I&apos;m CareerBot 👋</p>
             <h2 className="text-[22px] sm:text-2xl font-black text-slate-900 tracking-tight">
               Where do you want to work next?
             </h2>

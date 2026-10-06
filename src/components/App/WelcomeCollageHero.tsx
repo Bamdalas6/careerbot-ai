@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { JobListing } from '@/types/job';
 import { CompanyAvatar } from './CompanyAvatar';
+import { Logo } from '@/components/Brand/Logo';
 import { formatJobSalary, isRemoteJob, shortLocation } from '@/lib/job-display';
 
 interface WelcomeCollageHeroProps {
@@ -97,12 +98,7 @@ export const WelcomeCollageHero: React.FC<WelcomeCollageHeroProps> = ({ jobs, on
 
       {/* Top bar */}
       <div className="w-full flex items-center justify-between py-1 z-10">
-        <div className="flex items-center gap-1.5">
-          <span className="text-base font-black tracking-tight bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-500 bg-clip-text text-transparent">
-            CareerBot
-          </span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-600">AI ✨</span>
-        </div>
+        <Logo size="md" animated />
         <motion.button
           type="button"
           onClick={onStart}

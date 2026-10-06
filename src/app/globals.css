@@ -764,3 +764,54 @@ body {
     animation: none;
   }
 }
+
+/* --- CareerBot mascot ------------------------------------------------------ */
+
+.bot-animated .bot-eyes,
+.bot-animated .bot-spark {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes bot-blink {
+  0%, 44%, 50%, 100% { transform: scaleY(1); }
+  47% { transform: scaleY(0.1); }
+}
+
+@keyframes bot-twinkle {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  50% { transform: scale(0.75) rotate(45deg); opacity: 0.8; }
+}
+
+@keyframes bot-glance {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2.5px); }
+  60% { transform: translateX(2.5px); }
+}
+
+@keyframes bot-spin {
+  to { transform: rotate(360deg); }
+}
+
+.bot-animated .bot-eyes {
+  animation: bot-blink 4.5s ease-in-out infinite;
+}
+
+.bot-animated .bot-spark {
+  animation: bot-twinkle 2.4s ease-in-out infinite;
+}
+
+.bot-animated.bot-thinking .bot-eyes {
+  animation: bot-glance 1.6s ease-in-out infinite;
+}
+
+.bot-animated.bot-thinking .bot-spark {
+  animation: bot-spin 1.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bot-animated .bot-eyes,
+  .bot-animated .bot-spark {
+    animation: none;
+  }
+}

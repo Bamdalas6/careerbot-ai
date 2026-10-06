@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search, SlidersHorizontal, X, Sparkles, FileText, Zap, Bot, ClipboardList, ChevronDown } from 'lucide-react';
+import { Search, SlidersHorizontal, X, Sparkles, FileText, Zap, ClipboardList, ChevronDown } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { JobListing, ResumeProfile } from '@/types/job';
 import { useAuth } from '@/context/AuthContext';
 import { fitLevelFromScore, isFreshJob, isRemoteJob, timeOfDayGreeting } from '@/lib/job-display';
+import { BotMark } from '@/components/Brand/Logo';
 import { SuggestedWorkCard } from './SuggestedWorkCard';
 import { JobFeedCard } from './JobFeedCard';
 
@@ -761,10 +762,10 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
             />
           )}
           <QuickActionTile
-            icon={<Bot className="w-5 h-5" />}
-            title="Ask AI agent"
+            icon={<BotMark className="w-10 h-10" animated />}
+            title="Ask CareerBot"
             subtitle="Search live job boards"
-            tone="violet"
+            tone="plain"
             onClick={() => {
               if (guardSearch()) onOpenChat?.();
             }}
@@ -859,8 +860,8 @@ export const DiscoveryFeed: React.FC<DiscoveryFeedProps> = ({
 
 const TILE_TONES = {
   blue: 'from-blue-500 to-indigo-600 shadow-[0_8px_20px_-6px_rgba(59,130,246,0.55)]',
-  violet: 'from-violet-500 to-fuchsia-600 shadow-[0_8px_20px_-6px_rgba(139,92,246,0.55)]',
   emerald: 'from-emerald-500 to-teal-600 shadow-[0_8px_20px_-6px_rgba(16,185,129,0.55)]',
+  plain: '',
 };
 
 function QuickActionTile({
