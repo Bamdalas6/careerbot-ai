@@ -1,60 +1,61 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, Terminal, Laptop, Globe, TrendingUp } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface QuickPromptsProps {
   onSelectPrompt: (prompt: string) => void;
 }
 
-export const QuickPrompts: React.FC<QuickPromptsProps> = ({ onSelectPrompt }) => {
-  const prompts = [
-    {
-      label: 'Remote React & Next.js Roles',
-      icon: Laptop,
-      text: 'Find remote Senior React and Next.js developer jobs with high salary',
-    },
-    {
-      label: 'AI & Python Engineer at Startups',
-      icon: Terminal,
-      text: 'Show me AI, PyTorch and Python Machine Learning roles at top startups',
-    },
-    {
-      label: 'Full Stack in Europe / UK',
-      icon: Globe,
-      text: 'Find full stack engineer positions open to Europe and UK candidates',
-    },
-    {
-      label: 'Stripe, Linear & Vercel Openings',
-      icon: TrendingUp,
-      text: 'Show open software engineering positions at Stripe, Linear, and Vercel',
-    },
-  ];
+const PROMPTS = [
+  {
+    emoji: '🏝️',
+    label: 'Remote virtual assistant roles',
+    text: 'Find remote virtual assistant and executive assistant jobs open to Nigerians',
+    tone: 'from-sky-50 to-blue-50 border-sky-100',
+  },
+  {
+    emoji: '🎨',
+    label: 'Product & UI/UX designers',
+    text: 'Show me remote UI/UX and product designer roles using Figma',
+    tone: 'from-violet-50 to-fuchsia-50 border-violet-100',
+  },
+  {
+    emoji: '💻',
+    label: 'React & Next.js developers',
+    text: 'Find remote React and Next.js developer jobs with good salary',
+    tone: 'from-emerald-50 to-teal-50 border-emerald-100',
+  },
+  {
+    emoji: '🌱',
+    label: 'Entry-level & graduate jobs in Lagos',
+    text: 'Show entry-level, graduate trainee and internship jobs in Lagos',
+    tone: 'from-amber-50 to-orange-50 border-amber-100',
+  },
+];
 
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-2xl mx-auto w-full">
-      {prompts.map((p, idx) => {
-        const Icon = p.icon;
-        return (
-          <button
-            key={idx}
-            onClick={() => onSelectPrompt(p.text)}
-            className="flex items-center gap-3 p-3 text-left rounded-xl border border-zinc-800 bg-zinc-900/60 hover:bg-zinc-800/80 hover:border-zinc-700 transition group"
-          >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-[#8a8f98] group-hover:bg-white/15 group-hover:text-white transition">
-              <Icon className="h-4 w-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-zinc-200 group-hover:text-white truncate">
-                {p.label}
-              </p>
-              <p className="text-[11px] text-zinc-400 truncate">
-                {p.text}
-              </p>
-            </div>
-          </button>
-        );
-      })}
-    </div>
-  );
-};
+export const QuickPrompts: React.FC<QuickPromptsProps> = ({ onSelectPrompt }) => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-2xl mx-auto w-full">
+    {PROMPTS.map((p, idx) => (
+      <motion.button
+        key={p.label}
+        type="button"
+        onClick={() => onSelectPrompt(p.text)}
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 + idx * 0.07 }}
+        whileHover={{ y: -3 }}
+        whileTap={{ scale: 0.97 }}
+        className={`group flex items-center gap-3 p-3.5 text-left rounded-2xl border bg-gradient-to-br ${p.tone} hover:shadow-[0_10px_24px_-12px_rgba(15,23,42,0.25)] transition-shadow cursor-pointer`}
+      >
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-xl shadow-sm group-hover:scale-110 transition-transform">
+          {p.emoji}
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-[13px] font-bold text-slate-900 truncate">{p.label}</span>
+          <span className="block text-[11px] text-slate-500 truncate">{p.text}</span>
+        </span>
+      </motion.button>
+    ))}
+  </div>
+);

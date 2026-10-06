@@ -64,8 +64,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 w-full bg-gradient-to-b from-sky-200/50 via-sky-100/25 to-white backdrop-blur-md px-4 sm:px-6 pt-3 pb-2 transition-all select-none">
-      <div className="max-w-md sm:max-w-2xl mx-auto flex items-center justify-between gap-3">
+    <header className="sticky top-0 z-30 w-full bg-gradient-to-b from-sky-100/95 via-white/90 to-white/85 backdrop-blur-xl px-4 sm:px-6 pt-3 pb-2 transition-all select-none">
+      <div className="max-w-md md:max-w-4xl lg:max-w-5xl mx-auto flex items-center justify-between gap-3">
         {/* Left: User Avatar & Dropdown Menu with Log Out */}
         <div ref={userRef} className="relative flex items-center gap-2">
           {user ? (

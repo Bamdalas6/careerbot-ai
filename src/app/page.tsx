@@ -21,8 +21,8 @@ import { QuickScrollPill } from '@/components/Navigation/QuickScrollPill';
 import { ChatMessage, JobListing, SavedJob, ResumeProfile } from '@/types/job';
 import { COMMUNITY_JOBS } from '@/data/community-jobs';
 import { useAuth } from '@/context/AuthContext';
-import confetti from 'canvas-confetti';
-import clsx from 'clsx';
+import { AnimatePresence, MotionConfig, motion } from 'motion/react';
+import { ArrowLeft, History, Plus } from 'lucide-react';
 
 export default function Home() {
   const { user, credits, requireAuth, updateCredits, openCreditModal, openAuthModal } = useAuth();
@@ -442,6 +442,15 @@ export default function Home() {
     setCurrentView('chat');
   };
 
+  const handleOpenChat = () => {
+    if (!user) {
+      requireAuth();
+      return;
+    }
+    setCurrentView('chat');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
   const handleNewChat = () => {
     if (!user) {
       requireAuth();
@@ -452,7 +461,15 @@ export default function Home() {
     setCurrentView('chat');
   };
 
+  const viewTransition = {
+    initial: { opacity: 0, y: 12 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -8 },
+    transition: { duration: 0.25, ease: 'easeOut' as const },
+  };
+
   return (
+    <MotionConfig reducedMotion="user">
     <div className="flex min-h-screen flex-col bg-white text-slate-900">
       {/* Top App Header (Shown on Feed and Chat) */}
       {currentView !== 'welcome' && (
@@ -487,23 +504,24 @@ export default function Home() {
         </div>
       )}
 
+      <AnimatePresence mode="wait" initial={false}>
       {/* View 1: Welcome / Onboarding Screen (Screen 1 in Mockup) */}
       {currentView === 'welcome' && (
-        <main className="flex-1 flex flex-col justify-center">
+        <motion.main key="welcome" {...viewTransition} className="flex-1 flex flex-col justify-center">
           <WelcomeCollageHero
+            jobs={COMMUNITY_JOBS}
             onStart={handleStartFromWelcome}
             onOpenResume={() => {
               if (!requireAuth()) return;
               setIsResumeOpen(true);
             }}
-            jobCount={COMMUNITY_JOBS.length || 200}
           />
-        </main>
+        </motion.main>
       )}
 
       {/* View 2: Discovery Feed & Job List (Screen 2 in Mockup) */}
       {currentView === 'feed' && (
-        <main className="flex-1 flex flex-col">
+        <motion.main key="feed" {...viewTransition} className="flex-1 flex flex-col">
           <DiscoveryFeed
             jobs={COMMUNITY_JOBS}
             currentLocation={currentLocation}
@@ -518,6 +536,10 @@ export default function Home() {
             onOpenUploadCv={() => {
               if (!requireAuth()) return;
               setIsResumeOpen(true);
+            }}
+            onOpenChat={handleOpenChat}
+            onOpenTracker={() => {
+              if (requireAuth()) setIsTrackerOpen(true);
             }}
             onSearchSubmit={(q) => handleSendMessage(q)}
             onOpenFilterDrawer={() => {
@@ -538,27 +560,41 @@ export default function Home() {
               }
             }}
           />
-        </main>
+        </motion.main>
       )}
 
       {/* View 3: AI Chat & Search Interface */}
       {currentView === 'chat' && (
-        <main className="flex-1 flex flex-col max-w-2xl mx-auto w-full px-4 pb-24">
-          <div className="flex items-center justify-between py-2 mb-2">
+        <motion.main key="chat" {...viewTransition} className="flex-1 flex flex-col max-w-3xl mx-auto w-full px-4 pb-28">
+          <div className="flex items-center justify-between gap-2 py-2 mb-1">
             <button
               type="button"
               onClick={() => setCurrentView('feed')}
-              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+              className="pl-2 pr-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1 transition-colors"
             >
-              <span>← Back to Job Feed</span>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Job Feed</span>
             </button>
-            <button
-              type="button"
-              onClick={handleNewChat}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-white"
-            >
-              + New Search
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (requireAuth()) setIsHistoryOpen(true);
+                }}
+                className="px-3 py-1.5 rounded-full bg-white border border-slate-200 hover:border-blue-300 hover:text-blue-600 text-xs font-bold text-slate-600 flex items-center gap-1 transition-colors"
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>History</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleNewChat}
+                className="px-3 py-1.5 rounded-full bg-blue-50 border border-blue-100 hover:bg-blue-100 text-xs font-bold text-blue-700 flex items-center gap-1 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>New</span>
+              </button>
+            </div>
           </div>
           <ChatInterface
             messages={messages}
@@ -569,8 +605,9 @@ export default function Home() {
             onOpenTailor={handleOpenTailor}
             onViewJob={handleViewJob}
           />
-        </main>
+        </motion.main>
       )}
+      </AnimatePresence>
 
       {/* Floating Bottom Navigation Dock (Matching Mockup Screen 2) */}
       {currentView !== 'welcome' && (
@@ -673,5 +710,6 @@ export default function Home() {
       {/* Floating Quick Navigation to Top / Bottom */}
       <QuickScrollPill />
     </div>
+    </MotionConfig>
   );
 }
